@@ -10,7 +10,8 @@
     "format:write": "prettier --write .",
     "test": "vitest run",
     "test:watch": "vitest",
-    "typecheck": "tsc --noEmit --project tsconfig.json && tsc --noEmit --project tsconfig.test.json"
+    "typecheck": "tsc --noEmit --project tsconfig.json && tsc --noEmit --project tsconfig.test.json",
+    "push-private": "npm run build && screeps-api upload --server private --branch main dist/main.js"
   },
   "engines": {
     "node": ">=24.0.0",
@@ -22,6 +23,7 @@
     "@types/screeps": "3.4.0",
     "prettier": "3.9.6",
     "rollup": "4.63.1",
+    "screeps-api": "2.1.0",
     "tslib": "2.8.1",
     "typescript": "6.0.3",
     "vitest": "4.1.11"
