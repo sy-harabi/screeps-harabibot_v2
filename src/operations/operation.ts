@@ -3,6 +3,4 @@ import type { EmpireOperationRecord } from "./empire/empireOperation";
 
 export type OperationRecord = EmpireOperationRecord | ColonyOperationRecord;
 
-export interface OperationsMemory {
-  records: Record<string, OperationRecord>;
-}
+export type OperationsMemory = Record<string, OperationRecord>;
