@@ -1,4 +1,4 @@
 dist/
 node_modules/
 package-lock.json
-writing-block.md
+docs/rewrite-context.md

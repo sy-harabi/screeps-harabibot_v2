@@ -1,5 +1,17 @@
-/** Screeps calls this exported function once per game tick. */
+import {
+  createEmpireOperation,
+  planEmpireOperation,
+} from "./operations/empire/empireOperation";
+import { ensureOperation } from "./operations/operationStore";
+
 export function loop(): void {
-  // Accessing Game here also verifies that the Screeps declarations are active.
+  ensureOperation(createEmpireOperation());
+
+  const ownedRooms = Object.values(Game.rooms).filter(
+    (room) => room.controller?.my === true,
+  );
+
+  planEmpireOperation(ownedRooms);
+
   void Game.time;
 }
