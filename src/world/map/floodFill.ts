@@ -1,6 +1,7 @@
 import { type RoomCoordinate } from "./roomCoordinate";
 import {
   fromRoomIndex,
+  isInsideRoom,
   NEIGHBOR_OFFSETS,
   ROOM_AREA,
   ROOM_SIZE,
@@ -44,7 +45,7 @@ export function floodFill(
   for (const startCoordinate of startCoordinates) {
     const { x, y } = startCoordinate;
 
-    if (x < 0 || x >= ROOM_SIZE || y < 0 || y >= ROOM_SIZE) {
+    if (!isInsideRoom(x, y)) {
       continue;
     }
 
@@ -77,12 +78,7 @@ export function floodFill(
       const neighborX = currentCoordinate.x + offset.x;
       const neighborY = currentCoordinate.y + offset.y;
 
-      if (
-        neighborX < 0 ||
-        neighborX >= ROOM_SIZE ||
-        neighborY < 0 ||
-        neighborY >= ROOM_SIZE
-      ) {
+      if (!isInsideRoom(neighborX, neighborY)) {
         continue;
       }
 

@@ -1,4 +1,4 @@
-import { ROOM_AREA, ROOM_SIZE, toRoomIndex } from "./roomGrid";
+import { isInsideRoom, ROOM_AREA, ROOM_SIZE, toRoomIndex } from "./roomGrid";
 
 const FORWARD_OFFSETS = [
   { x: -1, y: 0 },
@@ -47,12 +47,7 @@ export function distanceTransform(terrain: RoomTerrain): Uint8Array {
         const neighborX = x + offset.x;
         const neighborY = y + offset.y;
 
-        if (
-          neighborX < 0 ||
-          neighborX >= ROOM_SIZE ||
-          neighborY < 0 ||
-          neighborY >= ROOM_SIZE
-        ) {
+        if (!isInsideRoom(neighborX, neighborY)) {
           continue;
         }
 
@@ -76,12 +71,7 @@ export function distanceTransform(terrain: RoomTerrain): Uint8Array {
         const neighborX = x + offset.x;
         const neighborY = y + offset.y;
 
-        if (
-          neighborX < 0 ||
-          neighborX >= ROOM_SIZE ||
-          neighborY < 0 ||
-          neighborY >= ROOM_SIZE
-        ) {
+        if (!isInsideRoom(neighborX, neighborY)) {
           continue;
         }
 

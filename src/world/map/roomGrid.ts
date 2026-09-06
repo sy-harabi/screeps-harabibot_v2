@@ -14,6 +14,10 @@ export const NEIGHBOR_OFFSETS: readonly RoomCoordinate[] = [
   { x: -1, y: -1 },
 ];
 
+export function isInsideRoom(x: number, y: number): boolean {
+  return x >= 0 && x < ROOM_SIZE && y >= 0 && y < ROOM_SIZE;
+}
+
 export function toRoomIndex(x: number, y: number): number {
   return y * ROOM_SIZE + x;
 }
@@ -23,4 +27,21 @@ export function fromRoomIndex(index: number): RoomCoordinate {
     x: index % ROOM_SIZE,
     y: Math.floor(index / ROOM_SIZE),
   };
+}
+
+export function forEachCoordinateInRange(
+  center: RoomCoordinate,
+  range: number,
+  callback: (x: number, y: number) => void,
+): void {
+  const minX = Math.max(0, center.x - range);
+  const maxX = Math.min(ROOM_SIZE - 1, center.x + range);
+  const minY = Math.max(0, center.y - range);
+  const maxY = Math.min(ROOM_SIZE - 1, center.y + range);
+
+  for (let y = minY; y <= maxY; y++) {
+    for (let x = minX; x <= maxX; x++) {
+      callback(x, y);
+    }
+  }
 }

@@ -1,4 +1,5 @@
 import {
+  isInsideRoom,
   NEIGHBOR_OFFSETS,
   ROOM_SIZE,
   toRoomIndex,
@@ -653,12 +654,7 @@ RoomVisual.prototype.connectRoads = function (
       const neighborX = x + offset.x;
       const neighborY = y + offset.y;
 
-      if (
-        neighborX < 0 ||
-        neighborX >= ROOM_SIZE ||
-        neighborY < 0 ||
-        neighborY >= ROOM_SIZE
-      ) {
+      if (!isInsideRoom(neighborX, neighborY)) {
         continue;
       }
 

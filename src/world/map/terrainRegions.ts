@@ -3,6 +3,7 @@ import { floodFill } from "./floodFill";
 import type { RoomCoordinate } from "./roomCoordinate";
 import {
   fromRoomIndex,
+  isInsideRoom,
   NEIGHBOR_OFFSETS,
   ROOM_AREA,
   ROOM_SIZE,
@@ -356,8 +357,4 @@ function getWatershedPriority(
 function getEdgeDepth(index: number, edgeDistances: Int16Array): number {
   const edgeDistance = edgeDistances[index];
   return edgeDistance === -1 ? ROOM_AREA : edgeDistance;
-}
-
-function isInsideRoom(x: number, y: number): boolean {
-  return x >= 0 && x < ROOM_SIZE && y >= 0 && y < ROOM_SIZE;
 }
