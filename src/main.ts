@@ -1,16 +1,19 @@
+import { createTickContext } from "./kernel/tickContext";
 import {
-  createEmpireOperation,
-  planEmpireOperation,
-} from "./operations/empire/empireOperation";
+  executeOperationTree,
+  planOperationTree,
+} from "./kernel/operationRunner";
+import { createEmpireOperation } from "./operations/empire/empireOperation";
 import { ensureOperation } from "./operations/operationStore";
 import "./visuals/roomVisual";
 
 export function loop(): void {
-  ensureOperation(createEmpireOperation());
+  const context = createTickContext();
+  const rootOperation = ensureOperation(createEmpireOperation());
 
-  const ownedRooms = Object.values(Game.rooms).filter(
-    (room) => room.controller?.my === true,
-  );
+  planOperationTree(rootOperation, context);
 
-  planEmpireOperation(ownedRooms);
+  // Shared-resource allocators run here as they are introduced.
+
+  executeOperationTree(rootOperation, context);
 }
