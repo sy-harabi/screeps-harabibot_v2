@@ -1,21 +1,15 @@
 import { PriorityQueue } from "../../utils/priorityQueue";
-import type { RoomCoordinate } from "./roomCoordinate";
-import { fromRoomIndex, ROOM_AREA, ROOM_SIZE, toRoomIndex } from "./roomGrid";
+import {
+  fromRoomIndex,
+  NEIGHBOR_OFFSETS,
+  ROOM_AREA,
+  ROOM_SIZE,
+  toRoomIndex,
+} from "./roomGrid";
 
 const UNASSIGNED = -1;
 
 export const OUTSIDE_REGION_ID = 0;
-
-const NEIGHBOR_OFFSETS: readonly RoomCoordinate[] = [
-  { x: 0, y: -1 },
-  { x: 1, y: -1 },
-  { x: 1, y: 0 },
-  { x: 1, y: 1 },
-  { x: 0, y: 1 },
-  { x: -1, y: 1 },
-  { x: -1, y: 0 },
-  { x: -1, y: -1 },
-];
 
 export interface TerrainRegion {
   readonly id: number;

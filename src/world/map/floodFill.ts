@@ -1,16 +1,11 @@
 import { type RoomCoordinate } from "./roomCoordinate";
-import { fromRoomIndex, ROOM_AREA, ROOM_SIZE, toRoomIndex } from "./roomGrid";
-
-export const NEIGHBOR_OFFSETS: readonly RoomCoordinate[] = [
-  { x: 0, y: -1 },
-  { x: 1, y: -1 },
-  { x: 1, y: 0 },
-  { x: 1, y: 1 },
-  { x: 0, y: 1 },
-  { x: -1, y: 1 },
-  { x: -1, y: 0 },
-  { x: -1, y: -1 },
-];
+import {
+  fromRoomIndex,
+  NEIGHBOR_OFFSETS,
+  ROOM_AREA,
+  ROOM_SIZE,
+  toRoomIndex,
+} from "./roomGrid";
 
 export interface FloodFillResult {
   /**

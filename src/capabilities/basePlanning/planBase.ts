@@ -2,7 +2,6 @@ import { distanceTransform } from "../../world/map/distanceTransform";
 import { fromRoomIndex, ROOM_AREA } from "../../world/map/roomGrid";
 import { findTerrainRegions } from "../../world/map/terrainRegions";
 import type { BasePlan, PlannedStructure } from "./basePlan";
-import { distanceTransformForBasePlanning } from "./distanceTransformForBasePlanning";
 
 /**
  * Base planner entry point for the Screeps runtime.
@@ -28,7 +27,7 @@ export function planBase(
 
       const distance = distances[i];
 
-      visual.text(distance + "", x, y);
+      visual.text(regionId + "", x, y);
 
       const color = getRegionColor(regionId, regions.length);
       visual.rect(x - 0.5, y - 0.5, 1, 1, {

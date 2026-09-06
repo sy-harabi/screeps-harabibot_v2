@@ -3,6 +3,17 @@ import { RoomCoordinate } from "./roomCoordinate";
 export const ROOM_SIZE = 50;
 export const ROOM_AREA = ROOM_SIZE * ROOM_SIZE;
 
+export const NEIGHBOR_OFFSETS: readonly RoomCoordinate[] = [
+  { x: 0, y: -1 },
+  { x: 1, y: -1 },
+  { x: 1, y: 0 },
+  { x: 1, y: 1 },
+  { x: 0, y: 1 },
+  { x: -1, y: 1 },
+  { x: -1, y: 0 },
+  { x: -1, y: -1 },
+];
+
 export function toRoomIndex(x: number, y: number): number {
   return y * ROOM_SIZE + x;
 }

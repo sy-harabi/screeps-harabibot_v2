@@ -1,4 +1,8 @@
-import { ROOM_SIZE, toRoomIndex } from "../world/map/roomGrid";
+import {
+  NEIGHBOR_OFFSETS,
+  ROOM_SIZE,
+  toRoomIndex,
+} from "../world/map/roomGrid";
 
 export type Point = [number, number];
 
@@ -627,18 +631,6 @@ RoomVisual.prototype.structure = function (
   return this;
 };
 
-const NEIGHBOR_OFFSETS = [
-  [],
-  [0, -1],
-  [1, -1],
-  [1, 0],
-  [1, 1],
-  [0, 1],
-  [-1, 1],
-  [-1, 0],
-  [-1, -1],
-];
-
 RoomVisual.prototype.connectRoads = function (
   this: RoomVisual,
   opts: RoomVisualOptions = {},
@@ -656,10 +648,10 @@ RoomVisual.prototype.connectRoads = function (
   const roadIndices = new Set(this.roads.map(([x, y]) => toRoomIndex(x, y)));
 
   for (const [x, y] of this.roads) {
-    for (let direction = 1; direction <= 4; direction++) {
-      const [dx, dy] = NEIGHBOR_OFFSETS[direction];
-      const neighborX = x + dx;
-      const neighborY = y + dy;
+    for (let direction = 0; direction <= 3; direction++) {
+      const offset = NEIGHBOR_OFFSETS[direction];
+      const neighborX = x + offset.x;
+      const neighborY = y + offset.y;
 
       if (
         neighborX < 0 ||
