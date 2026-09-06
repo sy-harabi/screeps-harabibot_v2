@@ -520,10 +520,14 @@ RoomVisual.prototype.structure = function (
     }
     case STRUCTURE_CONTAINER:
       this.rect(x - 0.225, y - 0.3, 0.45, 0.6, {
-        fill: "yellow",
+        fill: colors.gray,
         opacity: opts.opacity,
         stroke: colors.dark,
-        strokeWidth: 0.1,
+        strokeWidth: 0.09,
+      });
+      this.rect(x - 0.17, y + 0.07, 0.34, 0.2, {
+        fill: colors.energy,
+        opacity: opts.opacity,
       });
       break;
     default:
