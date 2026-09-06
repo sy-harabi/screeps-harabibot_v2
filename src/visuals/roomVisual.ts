@@ -1,3 +1,5 @@
+import { toRoomIndex } from "../world/map/roomGrid";
+
 export type Point = [number, number];
 
 export interface RoomVisualOptions {
@@ -414,7 +416,7 @@ RoomVisual.prototype.structure = function (
   return this;
 };
 
-const dirs = [
+const NEIGHBOR_OFFSETS = [
   [],
   [0, -1],
   [1, -1],
@@ -435,26 +437,28 @@ RoomVisual.prototype.connectRoads = function (
   if (!this.roads) {
     return this;
   }
-  // this.text(this.roads.map(r=>r.join(',')).join(' '),25,23)
-  this.roads.forEach((r: number[]) => {
-    // this.text(`${r[0]},${r[1]}`,r[0],r[1],{ size: 0.2 })
-    for (let i = 1; i <= 4; i++) {
-      const d = dirs[i];
-      const c = [r[0] + d[0], r[1] + d[1]];
-      const rd = _.some(
-        this.roads as number[][],
-        (r) => r[0] == c[0] && r[1] == c[1],
+
+  const roadIndices = new Set(this.roads.map(([x, y]) => toRoomIndex(x, y)));
+
+  for (const [x, y] of this.roads) {
+    for (let direction = 1; direction <= 4; direction++) {
+      const [dx, dy] = NEIGHBOR_OFFSETS[direction];
+      const neighborX = x + dx;
+      const neighborY = y + dy;
+
+      const hasNeighborRoad = roadIndices.has(
+        toRoomIndex(neighborX, neighborY),
       );
-      // this.text(`${c[0]},${c[1]}`,c[0],c[1],{ size: 0.2, color: rd?'green':'red' })
-      if (rd) {
-        this.line(r[0], r[1], c[0], c[1], {
+
+      if (hasNeighborRoad) {
+        this.line(x, y, neighborX, neighborY, {
           color: color,
           width: 0.35,
           opacity: opts.opacity,
         });
       }
     }
-  });
+  }
 
   return this;
 };
