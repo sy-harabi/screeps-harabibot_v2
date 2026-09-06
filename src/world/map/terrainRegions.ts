@@ -80,48 +80,85 @@ function createOutsideRegion(
   distances: Uint8Array,
   regionByTile: Int16Array,
 ): MutableTerrainRegion {
-  const borderIndices: number[] = [];
+  const seedIndices: number[] = [];
 
   for (let x = 0; x < ROOM_SIZE; x++) {
-    addOutsideSeed(toRoomIndex(x, 0), distances, regionByTile, borderIndices);
-    addOutsideSeed(
-      toRoomIndex(x, ROOM_SIZE - 1),
+    addOutsideSeedArea(x, 0, distances, regionByTile, seedIndices);
+    addOutsideSeedArea(
+      x,
+      ROOM_SIZE - 1,
       distances,
       regionByTile,
-      borderIndices,
+      seedIndices,
     );
   }
 
   for (let y = 1; y < ROOM_SIZE - 1; y++) {
-    addOutsideSeed(toRoomIndex(0, y), distances, regionByTile, borderIndices);
-    addOutsideSeed(
-      toRoomIndex(ROOM_SIZE - 1, y),
+    addOutsideSeedArea(0, y, distances, regionByTile, seedIndices);
+    addOutsideSeedArea(
+      ROOM_SIZE - 1,
+      y,
       distances,
       regionByTile,
-      borderIndices,
+      seedIndices,
     );
   }
 
   return {
     id: OUTSIDE_REGION_ID,
-    tileIndices: borderIndices.slice(),
-    peakIndices: borderIndices,
+    tileIndices: seedIndices.slice(),
+    peakIndices: seedIndices,
     peakDistance: 0,
   };
+}
+
+function addOutsideSeedArea(
+  edgeX: number,
+  edgeY: number,
+  distances: Uint8Array,
+  regionByTile: Int16Array,
+  seedIndices: number[],
+): void {
+  const edgeIndex = toRoomIndex(edgeX, edgeY);
+
+  if (distances[edgeIndex] === 0) {
+    return;
+  }
+
+  addOutsideSeed(edgeIndex, distances, regionByTile, seedIndices);
+
+  for (const offset of NEIGHBOR_OFFSETS) {
+    const neighborX = edgeX + offset.x;
+    const neighborY = edgeY + offset.y;
+
+    if (!isInsideRoom(neighborX, neighborY)) {
+      continue;
+    }
+
+    addOutsideSeed(
+      toRoomIndex(neighborX, neighborY),
+      distances,
+      regionByTile,
+      seedIndices,
+    );
+  }
 }
 
 function addOutsideSeed(
   index: number,
   distances: Uint8Array,
   regionByTile: Int16Array,
-  borderIndices: number[],
+  seedIndices: number[],
 ): void {
-  if (distances[index] === 0) {
+  if (
+    distances[index] === 0 ||
+    regionByTile[index] === OUTSIDE_REGION_ID
+  ) {
     return;
   }
 
   regionByTile[index] = OUTSIDE_REGION_ID;
-  borderIndices.push(index);
+  seedIndices.push(index);
 }
 
 function createPeakRegions(
