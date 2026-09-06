@@ -2,6 +2,7 @@ import { distanceTransform } from "../../world/map/distanceTransform";
 import { fromRoomIndex, ROOM_AREA } from "../../world/map/roomGrid";
 import { findTerrainRegions } from "../../world/map/terrainRegions";
 import type { BasePlan, PlannedStructure } from "./basePlan";
+import { selectBaseRegions } from "./selectBaseRegions";
 
 /**
  * Base planner entry point for the Screeps runtime.
@@ -30,6 +31,21 @@ export function planBase(
         fill: color,
         opacity: 0.3,
         stroke: "transparent",
+      });
+    }
+  }
+
+  const selectedRegionIds = selectBaseRegions(
+    controller,
+    regionByTile,
+    regions,
+  );
+
+  for (const region of regions) {
+    if (selectedRegionIds.has(region.id)) {
+      region.tileIndices.forEach((index) => {
+        const { x, y } = fromRoomIndex(index);
+        visual.text("S", x, y);
       });
     }
   }

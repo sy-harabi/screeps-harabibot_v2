@@ -3,12 +3,15 @@ import {
   fromRoomIndex,
   toRoomIndex,
 } from "../../world/map/roomGrid";
-import { TerrainRegion } from "../../world/map/terrainRegions";
+import {
+  OUTSIDE_REGION_ID,
+  TerrainRegion,
+} from "../../world/map/terrainRegions";
 
 export function selectBaseRegions(
   controller: StructureController,
   regionByTile: Int16Array,
-  regions: TerrainRegion[],
+  regions: readonly TerrainRegion[],
 ): Set<number> {
   const selectedRegionIds = new Set<number>();
 
@@ -21,12 +24,28 @@ export function selectBaseRegions(
     }
   });
 
+  const connections = getTotalRegionConnections(regionByTile, regions);
+
+  const mergeCandidates = getMergeCandidates(selectedRegionIds, connections);
+
+  for (const candidateId of mergeCandidates) {
+    const delta = getMergeFrontierDelta(
+      candidateId,
+      selectedRegionIds,
+      connections,
+    );
+
+    if (delta <= 0) {
+      selectedRegionIds.add(candidateId);
+    }
+  }
+
   return selectedRegionIds;
 }
 
 function getTotalRegionConnections(
   regionByTile: Int16Array,
-  regions: TerrainRegion[],
+  regions: readonly TerrainRegion[],
 ): Map<number, Map<number, number>> {
   const connections = new Map<number, Map<number, number>>();
 
@@ -42,7 +61,7 @@ function getTotalRegionConnections(
 function getAdjacentRegionConnections(
   regionId: number,
   regionByTile: Int16Array,
-  regions: TerrainRegion[],
+  regions: readonly TerrainRegion[],
 ): Map<number, number> {
   const indices = [];
 
@@ -109,7 +128,10 @@ function getMergeCandidates(
     }
 
     for (const adjacentRegionId of adjacentRegionConnection.keys()) {
-      if (!selectedRegionIds.has(adjacentRegionId)) {
+      if (
+        adjacentRegionId !== OUTSIDE_REGION_ID &&
+        !selectedRegionIds.has(adjacentRegionId)
+      ) {
         mergeCandidates.add(adjacentRegionId);
       }
     }
