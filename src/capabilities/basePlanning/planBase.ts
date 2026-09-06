@@ -1,5 +1,6 @@
 import { distanceTransform } from "../../world/map/distanceTransform";
 import { fromRoomIndex, ROOM_AREA } from "../../world/map/roomGrid";
+import { findTerrainRegions } from "../../world/map/terrainRegions";
 import type { BasePlan, PlannedStructure } from "./basePlan";
 
 /**
@@ -12,13 +13,18 @@ export function planBase(
   sources: Source[],
   mineral: Mineral[],
 ): BasePlan {
-  const dt = distanceTransform(terrain);
+  const distances = distanceTransform(terrain);
+
+  const { regionByTile, regions } = findTerrainRegions(distances);
 
   const visual = new RoomVisual(roomName);
-  for (let index = 0; index < ROOM_AREA; index++) {
-    const coordinates = fromRoomIndex(index);
-    const distance = dt[index];
-    visual.text(`${distance}`, coordinates.x, coordinates.y);
+
+  for (let i = 0; i < ROOM_AREA; i++) {
+    const regionId = regionByTile[i];
+    if (i >= 0) {
+      const coordinates = fromRoomIndex(i);
+      visual.text(regionId + "", coordinates.x, coordinates.y);
+    }
   }
 
   const structures: PlannedStructure[] = [];

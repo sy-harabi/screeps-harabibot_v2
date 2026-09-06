@@ -1,7 +1,7 @@
-import type { RoomCoordinate } from "./roomCoordinate";
+import { type RoomCoordinate } from "./roomCoordinate";
 import { fromRoomIndex, ROOM_AREA, ROOM_SIZE, toRoomIndex } from "./roomGrid";
 
-const NEIGHBOR_OFFSETS: readonly RoomCoordinate[] = [
+export const NEIGHBOR_OFFSETS: readonly RoomCoordinate[] = [
   { x: 0, y: -1 },
   { x: 1, y: -1 },
   { x: 1, y: 0 },
