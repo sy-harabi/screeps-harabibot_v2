@@ -13,6 +13,4 @@ export function loop(): void {
   );
 
   planEmpireOperation(ownedRooms);
-
-  void Game.time;
 }

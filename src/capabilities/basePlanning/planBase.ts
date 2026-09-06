@@ -10,4 +10,6 @@ export function planBase(
   controller: RoomCoordinate,
   sources: Readonly<Record<string, RoomCoordinate>>,
   mineral: RoomCoordinate,
-): BasePlan {}
+): BasePlan {
+  throw new Error();
+}
