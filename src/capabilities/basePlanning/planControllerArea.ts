@@ -32,11 +32,16 @@ export function findTerminalCandidates(
 
   forEachCoordinateAtRange(controller.pos, 4, (x, y) => {
     const index = toRoomIndex(x, y);
+    const regionIndex = regionByTile[index];
+
+    if (!selectedRegionIds.has(regionIndex)) {
+      return;
+    }
 
     let numAdjacents = 0;
 
     forEachCoordinateAtRange({ x, y }, 1, (nx, ny) => {
-      if (getRange(controller.pos, { x: nx, y: ny }) !== 3) {
+      if (getRange(controller.pos, { x: nx, y: ny }) > 3) {
         return;
       }
 
@@ -50,7 +55,12 @@ export function findTerminalCandidates(
       numAdjacents++;
     });
 
+    if (numAdjacents === 0) {
+      return;
+    }
+
     if (numAdjacents > maxNumAdjacents) {
+      maxNumAdjacents = numAdjacents;
       candidates = [{ x, y }];
     } else if (numAdjacents === maxNumAdjacents) {
       candidates.push({ x, y });

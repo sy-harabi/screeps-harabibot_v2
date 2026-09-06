@@ -2,6 +2,7 @@ import { distanceTransform } from "../../world/map/distanceTransform";
 import { fromRoomIndex, ROOM_AREA } from "../../world/map/roomGrid";
 import { findTerrainRegions } from "../../world/map/terrainRegions";
 import type { BasePlan, PlannedStructure } from "./basePlan";
+import { findTerminalCandidates } from "./planControllerArea";
 import { selectBaseRegions } from "./selectBaseRegions";
 
 /**
@@ -20,21 +21,6 @@ export function planBase(
 
   const visual = new RoomVisual(roomName);
 
-  for (let i = 0; i < ROOM_AREA; i++) {
-    const regionId = regionByTile[i];
-
-    if (i >= regionId) {
-      const { x, y } = fromRoomIndex(i);
-
-      const color = getRegionColor(regionId, regions.length);
-      visual.rect(x - 0.5, y - 0.5, 1, 1, {
-        fill: color,
-        opacity: 0.3,
-        stroke: "transparent",
-      });
-    }
-  }
-
   const selectedRegionIds = selectBaseRegions(
     controller,
     regionByTile,
@@ -45,10 +31,23 @@ export function planBase(
     if (selectedRegionIds.has(region.id)) {
       region.tileIndices.forEach((index) => {
         const { x, y } = fromRoomIndex(index);
-        visual.text("S", x, y);
+        const color = getRegionColor(region.id, regions.length);
+        visual.rect(x - 0.5, y - 0.5, 1, 1, {
+          fill: color,
+          opacity: 0.3,
+          stroke: "transparent",
+        });
       });
     }
   }
+
+  const terminalCandidates = findTerminalCandidates(
+    controller,
+    selectedRegionIds,
+    regionByTile,
+  );
+
+  terminalCandidates.forEach(({ x, y }) => visual.text("T", x, y));
 
   const structures: PlannedStructure[] = [];
   const anchor = { x: 25, y: 25 };
