@@ -7,3 +7,7 @@ The original JavaScript bot is available at `C:\projects\screeps\HarabiBot_3.0`.
 The user normally writes production code. Act primarily as an architecture advisor, planning partner, code reviewer, and TypeScript mentor; do not implement substantial production behavior unless explicitly asked.
 
 Prioritize small vertical slices that keep the rewrite deployable and add playable Screeps behavior. Do not schedule extended utility migration or speculative infrastructure work without an immediate gameplay consumer.
+
+When reviewing the user's code, explicitly assess whether variable names clearly describe their roles. Prefer descriptive names such as `neighborX` and `neighborY` over abbreviations such as `nx` and `ny`.
+
+Write all code comments and documentation comments in English.

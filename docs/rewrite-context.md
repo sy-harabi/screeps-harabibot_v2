@@ -15,6 +15,9 @@ rewrite, and do not invent Screeps strategy when the user's knowledge is require
 - Capabilities provide reusable mechanisms such as spawning, movement, and logistics.
 - World modules provide map, room, and intel information.
 - Keep persistent state separate from per-tick requests, allocations, indexes, and caches.
+- The standalone planner lab has been abandoned. Target the Screeps runtime and use
+  in-game `RoomVisual` for planner visualization. Do not add abstractions or change
+  bot interfaces solely to support a browser or offline planner lab.
 
 ## Current operation model
 
