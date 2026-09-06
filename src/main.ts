@@ -3,6 +3,7 @@ import {
   planEmpireOperation,
 } from "./operations/empire/empireOperation";
 import { ensureOperation } from "./operations/operationStore";
+import "./visuals/roomVisual";
 
 export function loop(): void {
   ensureOperation(createEmpireOperation());

@@ -1,4 +1,4 @@
-import { toRoomIndex } from "../world/map/roomGrid";
+import { ROOM_SIZE, toRoomIndex } from "../world/map/roomGrid";
 
 export type Point = [number, number];
 
@@ -13,7 +13,7 @@ export interface RoomVisualOptions {
 
 declare global {
   interface RoomVisual {
-    roads: Point[];
+    roads?: Point[];
 
     box(
       x: number,
@@ -33,7 +33,7 @@ declare global {
     structure(
       x: number,
       y: number,
-      type: string,
+      type: StructureConstant,
       opts?: RoomVisualOptions,
     ): RoomVisual;
 
@@ -110,8 +110,6 @@ const colors = {
   power: "#F53547",
   dark: "#181818",
   outline: "#8FBB93",
-  speechText: "#000000",
-  speechBackground: "#aebcc4",
   infoBoxGood: "#09ff00",
   infoBoxBad: "#ff2600",
 };
@@ -123,7 +121,7 @@ RoomVisual.prototype.structure = function (
   this: RoomVisual,
   x: number,
   y: number,
-  type: string,
+  type: StructureConstant,
   opts: RoomVisualOptions = {},
 ): RoomVisual {
   opts = {
@@ -433,7 +431,7 @@ RoomVisual.prototype.connectRoads = function (
   opts: RoomVisualOptions = {},
 ): RoomVisual {
   opts = { opacity: 0.5, ...opts };
-  const color = opts.color || colors.road || "white";
+  const color = opts.color || colors.road;
   if (!this.roads) {
     return this;
   }
@@ -445,6 +443,15 @@ RoomVisual.prototype.connectRoads = function (
       const [dx, dy] = NEIGHBOR_OFFSETS[direction];
       const neighborX = x + dx;
       const neighborY = y + dy;
+
+      if (
+        neighborX < 0 ||
+        neighborX >= ROOM_SIZE ||
+        neighborY < 0 ||
+        neighborY >= ROOM_SIZE
+      ) {
+        continue;
+      }
 
       const hasNeighborRoad = roadIndices.has(
         toRoomIndex(neighborX, neighborY),
