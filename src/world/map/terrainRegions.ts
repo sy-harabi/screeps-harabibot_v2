@@ -166,13 +166,7 @@ function floodRegions(
     regionByTile[index] = regionId;
     regions[regionId].tileIndices.push(index);
 
-    enqueueUnassignedNeighbors(
-      index,
-      regionId,
-      distances,
-      regionByTile,
-      queue,
-    );
+    enqueueUnassignedNeighbors(index, regionId, distances, regionByTile, queue);
   }
 }
 
@@ -202,10 +196,7 @@ function enqueueUnassignedNeighbors(
       continue;
     }
 
-    queue.push(
-      { index: neighborIndex, regionId },
-      distances[neighborIndex],
-    );
+    queue.push({ index: neighborIndex, regionId }, distances[neighborIndex]);
   }
 }
 

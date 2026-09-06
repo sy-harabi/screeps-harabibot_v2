@@ -2,6 +2,7 @@ import { distanceTransform } from "../../world/map/distanceTransform";
 import { fromRoomIndex, ROOM_AREA } from "../../world/map/roomGrid";
 import { findTerrainRegions } from "../../world/map/terrainRegions";
 import type { BasePlan, PlannedStructure } from "./basePlan";
+import { distanceTransformForBasePlanning } from "./distanceTransformForBasePlanning";
 
 /**
  * Base planner entry point for the Screeps runtime.
@@ -21,9 +22,20 @@ export function planBase(
 
   for (let i = 0; i < ROOM_AREA; i++) {
     const regionId = regionByTile[i];
-    if (i >= 0) {
-      const coordinates = fromRoomIndex(i);
-      visual.text(regionId + "", coordinates.x, coordinates.y);
+
+    if (i >= regionId) {
+      const { x, y } = fromRoomIndex(i);
+
+      const distance = distances[i];
+
+      visual.text(distance + "", x, y);
+
+      const color = getRegionColor(regionId, regions.length);
+      visual.rect(x - 0.5, y - 0.5, 1, 1, {
+        fill: color,
+        opacity: 0.3,
+        stroke: "transparent",
+      });
     }
   }
 
@@ -31,4 +43,9 @@ export function planBase(
   const anchor = { x: 25, y: 25 };
 
   return { version: 1, roomName, anchor, structures };
+}
+
+function getRegionColor(regionId: number, regionCount: number): string {
+  const hue = (regionId * 360) / regionCount;
+  return `hsl(${hue}, 70%, 50%)`;
 }
