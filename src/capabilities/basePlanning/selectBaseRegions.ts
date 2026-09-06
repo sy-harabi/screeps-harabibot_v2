@@ -28,7 +28,7 @@ function getTotalRegionConnections(
   regionByTile: Int16Array,
   regions: TerrainRegion[],
 ): Map<number, Map<number, number>> {
-  const connections = new Map();
+  const connections = new Map<number, Map<number, number>>();
 
   for (const region of regions) {
     connections.set(
@@ -60,7 +60,7 @@ function getAdjacentRegionConnections(
       const neighborIndex = toRoomIndex(x, y);
       const neighborRegionId = regionByTile[neighborIndex];
 
-      if (regionId === neighborRegionId) {
+      if (neighborRegionId < 0 || regionId === neighborRegionId) {
         return;
       }
 
@@ -70,4 +70,50 @@ function getAdjacentRegionConnections(
   }
 
   return connections;
+}
+
+function getMergeFrontierDelta(
+  candidateRegionId: number,
+  selectedRegionIds: Set<number>,
+  connections: Map<number, Map<number, number>>,
+): number {
+  let delta = 0;
+
+  const candidateConnections = connections.get(candidateRegionId);
+  if (!candidateConnections) {
+    return 0;
+  }
+
+  for (const [otherRegionId, connectionCount] of candidateConnections) {
+    if (selectedRegionIds.has(otherRegionId)) {
+      delta -= connectionCount;
+    } else {
+      delta += connectionCount;
+    }
+  }
+
+  return delta;
+}
+
+function getMergeCandidates(
+  selectedRegionIds: Set<number>,
+  connections: Map<number, Map<number, number>>,
+): Set<number> {
+  const mergeCandidates = new Set<number>();
+
+  for (const regionId of selectedRegionIds) {
+    const adjacentRegionConnection = connections.get(regionId);
+
+    if (adjacentRegionConnection === undefined) {
+      continue;
+    }
+
+    for (const adjacentRegionId of adjacentRegionConnection.keys()) {
+      if (!selectedRegionIds.has(adjacentRegionId)) {
+        mergeCandidates.add(adjacentRegionId);
+      }
+    }
+  }
+
+  return mergeCandidates;
 }
