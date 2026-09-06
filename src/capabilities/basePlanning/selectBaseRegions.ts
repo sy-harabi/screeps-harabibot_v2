@@ -26,18 +26,30 @@ export function selectBaseRegions(
 
   const connections = getTotalRegionConnections(regionByTile, regions);
 
-  const mergeCandidates = getMergeCandidates(selectedRegionIds, connections);
+  while (true) {
+    const candidates = getMergeCandidates(selectedRegionIds, connections);
 
-  for (const candidateId of mergeCandidates) {
-    const delta = getMergeFrontierDelta(
-      candidateId,
-      selectedRegionIds,
-      connections,
-    );
+    let bestCandidateId: number | undefined;
+    let bestDelta = Infinity;
 
-    if (delta <= 0) {
-      selectedRegionIds.add(candidateId);
+    for (const candidateId of candidates) {
+      const delta = getMergeFrontierDelta(
+        candidateId,
+        selectedRegionIds,
+        connections,
+      );
+
+      if (delta <= 0 && delta < bestDelta) {
+        bestCandidateId = candidateId;
+        bestDelta = delta;
+      }
     }
+
+    if (bestCandidateId === undefined) {
+      break;
+    }
+
+    selectedRegionIds.add(bestCandidateId);
   }
 
   return selectedRegionIds;
