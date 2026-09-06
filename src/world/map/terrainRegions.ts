@@ -4,6 +4,8 @@ import { fromRoomIndex, ROOM_AREA, ROOM_SIZE, toRoomIndex } from "./roomGrid";
 
 const UNASSIGNED = -1;
 
+export const OUTSIDE_REGION_ID = 0;
+
 const NEIGHBOR_OFFSETS: readonly RoomCoordinate[] = [
   { x: 0, y: -1 },
   { x: 1, y: -1 },
@@ -49,34 +51,86 @@ export function findTerrainRegions(
   const regionByTile = new Int16Array(ROOM_AREA);
   regionByTile.fill(UNASSIGNED);
 
-  const regions = createPeakRegions(distances, regionByTile);
+  const regions: MutableTerrainRegion[] = [
+    createOutsideRegion(distances, regionByTile),
+  ];
+
+  createPeakRegions(distances, regionByTile, regions);
   floodRegions(distances, regionByTile, regions);
 
   return { regionByTile, regions };
 }
 
+function createOutsideRegion(
+  distances: Uint8Array,
+  regionByTile: Int16Array,
+): MutableTerrainRegion {
+  const borderIndices: number[] = [];
+
+  for (let x = 0; x < ROOM_SIZE; x++) {
+    addOutsideSeed(toRoomIndex(x, 0), distances, regionByTile, borderIndices);
+    addOutsideSeed(
+      toRoomIndex(x, ROOM_SIZE - 1),
+      distances,
+      regionByTile,
+      borderIndices,
+    );
+  }
+
+  for (let y = 1; y < ROOM_SIZE - 1; y++) {
+    addOutsideSeed(toRoomIndex(0, y), distances, regionByTile, borderIndices);
+    addOutsideSeed(
+      toRoomIndex(ROOM_SIZE - 1, y),
+      distances,
+      regionByTile,
+      borderIndices,
+    );
+  }
+
+  return {
+    id: OUTSIDE_REGION_ID,
+    tileIndices: borderIndices.slice(),
+    peakIndices: borderIndices,
+    peakDistance: 0,
+  };
+}
+
+function addOutsideSeed(
+  index: number,
+  distances: Uint8Array,
+  regionByTile: Int16Array,
+  borderIndices: number[],
+): void {
+  if (distances[index] === 0) {
+    return;
+  }
+
+  regionByTile[index] = OUTSIDE_REGION_ID;
+  borderIndices.push(index);
+}
+
 function createPeakRegions(
   distances: Uint8Array,
   regionByTile: Int16Array,
-): MutableTerrainRegion[] {
+  regions: MutableTerrainRegion[],
+): void {
   const visited = new Uint8Array(ROOM_AREA);
-  const regions: MutableTerrainRegion[] = [];
 
   for (let index = 0; index < ROOM_AREA; index++) {
-    if (visited[index]) {
+    if (
+      visited[index] ||
+      distances[index] === 0 ||
+      regionByTile[index] !== UNASSIGNED
+    ) {
       continue;
     }
 
     const distance = distances[index];
-
-    if (distance === 0) {
-      visited[index] = 1;
-      continue;
-    }
-
     const plateauIndices: number[] = [index];
     visited[index] = 1;
+
     let isLocalMaximum = true;
+    let touchesExistingRegionAtSameDistance = false;
     let queueHead = 0;
 
     while (queueHead < plateauIndices.length) {
@@ -100,7 +154,16 @@ function createPeakRegions(
           isLocalMaximum = false;
         }
 
-        if (neighborDistance !== distance || visited[neighborIndex]) {
+        if (neighborDistance !== distance) {
+          continue;
+        }
+
+        if (regionByTile[neighborIndex] !== UNASSIGNED) {
+          touchesExistingRegionAtSameDistance = true;
+          continue;
+        }
+
+        if (visited[neighborIndex]) {
           continue;
         }
 
@@ -109,7 +172,7 @@ function createPeakRegions(
       }
     }
 
-    if (!isLocalMaximum) {
+    if (!isLocalMaximum || touchesExistingRegionAtSameDistance) {
       continue;
     }
 
@@ -127,8 +190,6 @@ function createPeakRegions(
       peakDistance: distance,
     });
   }
-
-  return regions;
 }
 
 function floodRegions(
