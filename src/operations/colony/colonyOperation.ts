@@ -34,7 +34,7 @@ export const colonyOperationHandler: OperationHandler = {
 
     const room = Game.rooms[roomName];
 
-    if (!room.controller || !room.controller.my) {
+    if (!room || !room.controller || !room.controller.my) {
       return;
     }
 

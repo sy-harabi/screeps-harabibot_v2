@@ -25,10 +25,6 @@ export function planBase(
     if (i >= regionId) {
       const { x, y } = fromRoomIndex(i);
 
-      const distance = distances[i];
-
-      visual.text(regionId + "", x, y);
-
       const color = getRegionColor(regionId, regions.length);
       visual.rect(x - 0.5, y - 0.5, 1, 1, {
         fill: color,

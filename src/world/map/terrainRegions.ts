@@ -40,10 +40,13 @@ interface WatershedCandidate {
 export function findTerrainRegions(
   terrain: RoomTerrain,
   distances: Uint8Array,
+  opts = { minPeakDistance: 4 },
 ): TerrainRegionsResult {
   if (distances.length !== ROOM_AREA) {
     throw new Error(`Expected ${ROOM_AREA} distance values`);
   }
+
+  const { minPeakDistance } = opts;
 
   const edgeDistances = findEdgeDistances(terrain);
 
@@ -54,7 +57,13 @@ export function findTerrainRegions(
     createOutsideRegion(distances, regionByTile),
   ];
 
-  createPeakRegions(distances, edgeDistances, regionByTile, regions);
+  createPeakRegions(
+    distances,
+    edgeDistances,
+    regionByTile,
+    regions,
+    minPeakDistance,
+  );
   floodRegions(distances, edgeDistances, regionByTile, regions);
 
   return { regionByTile, regions };
@@ -84,24 +93,12 @@ function createOutsideRegion(
 
   for (let x = 0; x < ROOM_SIZE; x++) {
     addOutsideSeedArea(x, 0, distances, regionByTile, seedIndices);
-    addOutsideSeedArea(
-      x,
-      ROOM_SIZE - 1,
-      distances,
-      regionByTile,
-      seedIndices,
-    );
+    addOutsideSeedArea(x, ROOM_SIZE - 1, distances, regionByTile, seedIndices);
   }
 
   for (let y = 1; y < ROOM_SIZE - 1; y++) {
     addOutsideSeedArea(0, y, distances, regionByTile, seedIndices);
-    addOutsideSeedArea(
-      ROOM_SIZE - 1,
-      y,
-      distances,
-      regionByTile,
-      seedIndices,
-    );
+    addOutsideSeedArea(ROOM_SIZE - 1, y, distances, regionByTile, seedIndices);
   }
 
   return {
@@ -150,10 +147,7 @@ function addOutsideSeed(
   regionByTile: Int16Array,
   seedIndices: number[],
 ): void {
-  if (
-    distances[index] === 0 ||
-    regionByTile[index] === OUTSIDE_REGION_ID
-  ) {
+  if (distances[index] === 0 || regionByTile[index] === OUTSIDE_REGION_ID) {
     return;
   }
 
@@ -166,6 +160,7 @@ function createPeakRegions(
   edgeDistances: Int16Array,
   regionByTile: Int16Array,
   regions: MutableTerrainRegion[],
+  minPeakDistance: number,
 ): void {
   const visited = new Uint8Array(ROOM_AREA);
 
@@ -181,7 +176,7 @@ function createPeakRegions(
     const plateauIndices: number[] = [index];
     visited[index] = 1;
 
-    let isLocalMaximum = true;
+    let isPeak = distances[index] >= minPeakDistance;
     let queueHead = 0;
 
     while (queueHead < plateauIndices.length) {
@@ -212,7 +207,7 @@ function createPeakRegions(
         );
 
         if (comparison > 0) {
-          isLocalMaximum = false;
+          isPeak = false;
         }
 
         if (
@@ -228,7 +223,7 @@ function createPeakRegions(
       }
     }
 
-    if (!isLocalMaximum) {
+    if (!isPeak) {
       continue;
     }
 
