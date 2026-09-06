@@ -24,7 +24,7 @@ export function planOperationTree(
     return;
   }
 
-  getOperationHandler(operation).plan(operation, context);
+  getOperationHandler(operation).plan?.(operation, context);
 
   for (const child of getChildOperations(operation.id)) {
     planOperationTree(child, context);
@@ -39,7 +39,7 @@ export function executeOperationTree(
     return;
   }
 
-  getOperationHandler(operation).execute(operation, context);
+  getOperationHandler(operation).execute?.(operation, context);
 
   for (const child of getChildOperations(operation.id)) {
     executeOperationTree(child, context);

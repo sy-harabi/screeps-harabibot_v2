@@ -1,6 +1,6 @@
 import type { TickContext } from "../../kernel/tickContext";
 import { createColonyOperation } from "../colony/colonyOperation";
-import type { OperationBase } from "../operation";
+import { OperationBase } from "../operation";
 import type { OperationHandler } from "../operationHandler";
 import { ensureOperation } from "../operationStore";
 
@@ -20,7 +20,7 @@ export function createEmpireOperation(): EmpireOperationRecord {
 }
 
 export const empireOperationHandler: OperationHandler = {
-  plan(operation, context: TickContext): void {
+  plan(operation, context): void {
     if (operation.type !== "empire") {
       return;
     }
@@ -29,6 +29,4 @@ export const empireOperationHandler: OperationHandler = {
       ensureOperation(createColonyOperation(room.name));
     }
   },
-
-  execute(): void {},
 };
