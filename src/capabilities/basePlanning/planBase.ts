@@ -15,7 +15,7 @@ export function planBase(
 ): BasePlan {
   const distances = distanceTransform(terrain);
 
-  const { regionByTile, regions } = findTerrainRegions(distances);
+  const { regionByTile, regions } = findTerrainRegions(terrain, distances);
 
   const visual = new RoomVisual(roomName);
 
