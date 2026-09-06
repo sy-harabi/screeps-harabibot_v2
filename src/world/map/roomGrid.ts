@@ -45,3 +45,52 @@ export function forEachCoordinateInRange(
     }
   }
 }
+
+export function forEachCoordinateAtRange(
+  center: RoomCoordinate,
+  range: number,
+  callback: (x: number, y: number) => void,
+): void {
+  if (range === 0) {
+    if (isInsideRoom(center.x, center.y)) {
+      callback(center.x, center.y);
+    }
+    return;
+  }
+
+  const left = center.x - range;
+  const right = center.x + range;
+  const top = center.y - range;
+  const bottom = center.y + range;
+
+  const minX = Math.max(0, left);
+  const maxX = Math.min(ROOM_SIZE - 1, right);
+  const minY = Math.max(0, top);
+  const maxY = Math.min(ROOM_SIZE - 1, bottom);
+
+  // Top and bottom edges
+  for (let x = minX; x <= maxX; x++) {
+    if (top >= 0 && top < ROOM_SIZE) {
+      callback(x, top);
+    }
+
+    if (bottom >= 0 && bottom < ROOM_SIZE) {
+      callback(x, bottom);
+    }
+  }
+
+  // Left and right edges, excluding corners already handled above
+  for (let y = minY; y <= maxY; y++) {
+    if (y === top || y === bottom) {
+      continue;
+    }
+
+    if (left >= 0 && left < ROOM_SIZE) {
+      callback(left, y);
+    }
+
+    if (right >= 0 && right < ROOM_SIZE) {
+      callback(right, y);
+    }
+  }
+}

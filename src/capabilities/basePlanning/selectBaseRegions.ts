@@ -24,13 +24,22 @@ export function selectBaseRegions(
     }
   });
 
+  let numInnerTiles = 0;
+
+  regions.forEach((region) => {
+    if (selectedRegionIds.has(region.id)) {
+      numInnerTiles += region.tileIndices.length;
+    }
+  });
+
   const connections = getTotalRegionConnections(regionByTile, regions);
 
-  while (true) {
+  while (numInnerTiles < 100) {
     const candidates = getMergeCandidates(selectedRegionIds, connections);
 
     let bestCandidateId: number | undefined;
     let bestDelta = Infinity;
+    let bestNumTiles = 0;
 
     for (const candidateId of candidates) {
       const delta = getMergeFrontierDelta(
@@ -39,7 +48,14 @@ export function selectBaseRegions(
         connections,
       );
 
-      if (delta <= 0 && delta < bestDelta) {
+      const candidateNumTiles =
+        regions.find((region) => region.id === candidateId)?.tileIndices
+          .length || 0;
+
+      if (
+        (delta <= 0 && delta < bestDelta) ||
+        (bestDelta > 0 && candidateNumTiles / delta > bestNumTiles / bestDelta)
+      ) {
         bestCandidateId = candidateId;
         bestDelta = delta;
       }
@@ -50,6 +66,10 @@ export function selectBaseRegions(
     }
 
     selectedRegionIds.add(bestCandidateId);
+
+    if (bestNumTiles) {
+      numInnerTiles += bestNumTiles;
+    }
   }
 
   return selectedRegionIds;
