@@ -8,7 +8,6 @@ export interface RoomVisualOptions {
   textfont?: string;
   textsize?: number;
   textstyle?: string;
-  textcolor?: string;
 }
 
 declare global {
@@ -37,7 +36,7 @@ declare global {
       opts?: RoomVisualOptions,
     ): RoomVisual;
 
-    connectRoads(opts?: RoomVisualOptions): RoomVisual | void;
+    connectRoads(opts?: RoomVisualOptions): RoomVisual;
 
     resource(
       type: ResourceConstant,
@@ -57,11 +56,11 @@ RoomVisual.prototype.multitext = function (
   opts: RoomVisualOptions = {},
 ): RoomVisual {
   opts = {
-    color: colors.infoBoxGood,
-    textsize: speechSize,
-    textfont: "verdana",
-    opacity: 0.7,
-    ...opts,
+    color: opts.color ?? colors.infoBoxGood,
+    textsize: opts.textsize ?? speechSize,
+    textfont: opts.textfont ?? "verdana",
+    opacity: opts.opacity ?? 0.7,
+    textstyle: opts.textstyle,
   };
 
   let fontstring = "";
@@ -70,7 +69,6 @@ RoomVisual.prototype.multitext = function (
   }
   fontstring += opts.textsize + " " + opts.textfont;
 
-  // Draw text
   let dy = 0;
   for (const line of textLines) {
     this.text(line, x, y + dy, {
@@ -100,22 +98,48 @@ RoomVisual.prototype.box = function (
     .line(x, y + h, x, y, style);
 };
 
-// Taken from https://github.com/screepers/RoomVisual with slight modification: ========================================
+// Taken from https://github.com/screepers/RoomVisual with slight modification.
 
 const colors = {
   gray: "#555555",
   light: "#AAAAAA",
-  road: "#666", // >:D
+  road: "#666",
   energy: "#FFE87B",
   power: "#F53547",
   dark: "#181818",
   outline: "#8FBB93",
   infoBoxGood: "#09ff00",
-  infoBoxBad: "#ff2600",
 };
 
 const speechSize = 0.5;
-const speechFont = "Times New Roman";
+
+function calculateFactoryLevelGaps(): Point[] {
+  let x = -0.08;
+  let y = -0.52;
+  const result: Point[] = [];
+
+  const gapAngle = 16 * (Math.PI / 180);
+  const gapCos = Math.cos(gapAngle);
+  const gapSin = Math.sin(gapAngle);
+
+  const rotationAngle = 72 * (Math.PI / 180);
+  const rotationCos = Math.cos(rotationAngle);
+  const rotationSin = Math.sin(rotationAngle);
+
+  for (let i = 0; i < 5; i++) {
+    result.push([0, 0]);
+    result.push([x, y]);
+    result.push([x * gapCos - y * gapSin, x * gapSin + y * gapCos]);
+
+    const nextX = x * rotationCos - y * rotationSin;
+    y = x * rotationSin + y * rotationCos;
+    x = nextX;
+  }
+
+  return result;
+}
+
+const FACTORY_LEVEL_GAPS = calculateFactoryLevelGaps();
 
 RoomVisual.prototype.structure = function (
   this: RoomVisual,
@@ -125,11 +149,117 @@ RoomVisual.prototype.structure = function (
   opts: RoomVisualOptions = {},
 ): RoomVisual {
   opts = {
-    opacity: 0.5,
     ...opts,
+    opacity: opts.opacity ?? 0.5,
   };
 
   switch (type) {
+    case STRUCTURE_FACTORY: {
+      const outline = relPoly(x, y, [
+        [-0.68, -0.11],
+        [-0.84, -0.18],
+        [-0.84, -0.32],
+        [-0.44, -0.44],
+        [-0.32, -0.84],
+        [-0.18, -0.84],
+        [-0.11, -0.68],
+        [0.11, -0.68],
+        [0.18, -0.84],
+        [0.32, -0.84],
+        [0.44, -0.44],
+        [0.84, -0.32],
+        [0.84, -0.18],
+        [0.68, -0.11],
+        [0.68, 0.11],
+        [0.84, 0.18],
+        [0.84, 0.32],
+        [0.44, 0.44],
+        [0.32, 0.84],
+        [0.18, 0.84],
+        [0.11, 0.68],
+        [-0.11, 0.68],
+        [-0.18, 0.84],
+        [-0.32, 0.84],
+        [-0.44, 0.44],
+        [-0.84, 0.32],
+        [-0.84, 0.18],
+        [-0.68, 0.11],
+      ]);
+      this.poly(outline, {
+        fill: undefined,
+        stroke: colors.outline,
+        strokeWidth: 0.05,
+        opacity: opts.opacity,
+      });
+
+      this.circle(x, y, {
+        radius: 0.65,
+        fill: "#232323",
+        strokeWidth: 0.035,
+        stroke: "#140a0a",
+        opacity: opts.opacity,
+      });
+
+      const spikes = relPoly(x, y, [
+        [-0.4, -0.1],
+        [-0.8, -0.2],
+        [-0.8, -0.3],
+        [-0.4, -0.4],
+        [-0.3, -0.8],
+        [-0.2, -0.8],
+        [-0.1, -0.4],
+        [0.1, -0.4],
+        [0.2, -0.8],
+        [0.3, -0.8],
+        [0.4, -0.4],
+        [0.8, -0.3],
+        [0.8, -0.2],
+        [0.4, -0.1],
+        [0.4, 0.1],
+        [0.8, 0.2],
+        [0.8, 0.3],
+        [0.4, 0.4],
+        [0.3, 0.8],
+        [0.2, 0.8],
+        [0.1, 0.4],
+        [-0.1, 0.4],
+        [-0.2, 0.8],
+        [-0.3, 0.8],
+        [-0.4, 0.4],
+        [-0.8, 0.3],
+        [-0.8, 0.2],
+        [-0.4, 0.1],
+      ]);
+      this.poly(spikes, {
+        fill: colors.gray,
+        stroke: "#140a0a",
+        strokeWidth: 0.04,
+        opacity: opts.opacity,
+      });
+
+      this.circle(x, y, {
+        radius: 0.54,
+        fill: "#302a2a",
+        strokeWidth: 0.04,
+        stroke: "#140a0a",
+        opacity: opts.opacity,
+      });
+      this.poly(relPoly(x, y, FACTORY_LEVEL_GAPS), {
+        fill: "#140a0a",
+        stroke: undefined,
+        opacity: opts.opacity,
+      });
+      this.circle(x, y, {
+        radius: 0.42,
+        fill: "#140a0a",
+        opacity: opts.opacity,
+      });
+      this.rect(x - 0.24, y - 0.24, 0.48, 0.48, {
+        fill: "#3f3f3f",
+        opacity: opts.opacity,
+      });
+      break;
+    }
     case STRUCTURE_EXTENSION:
       this.circle(x, y, {
         radius: 0.5,
@@ -157,7 +287,6 @@ RoomVisual.prototype.structure = function (
         fill: colors.energy,
         opacity: opts.opacity,
       });
-
       break;
     case STRUCTURE_POWER_SPAWN:
       this.circle(x, y, {
@@ -174,19 +303,17 @@ RoomVisual.prototype.structure = function (
       });
       break;
     case STRUCTURE_LINK: {
-      // let osize = 0.3;
-      // let isize = 0.2;
       let outer: Point[] = [
-        [0.0, -0.5],
-        [0.4, 0.0],
-        [0.0, 0.5],
-        [-0.4, 0.0],
+        [0, -0.5],
+        [0.4, 0],
+        [0, 0.5],
+        [-0.4, 0],
       ];
       let inner: Point[] = [
-        [0.0, -0.3],
-        [0.25, 0.0],
-        [0.0, 0.3],
-        [-0.25, 0.0],
+        [0, -0.3],
+        [0.25, 0],
+        [0, 0.3],
+        [-0.25, 0],
       ];
       outer = relPoly(x, y, outer);
       inner = relPoly(x, y, inner);
@@ -206,23 +333,23 @@ RoomVisual.prototype.structure = function (
     }
     case STRUCTURE_TERMINAL: {
       let outer: Point[] = [
-        [0.0, -0.8],
+        [0, -0.8],
         [0.55, -0.55],
-        [0.8, 0.0],
+        [0.8, 0],
         [0.55, 0.55],
-        [0.0, 0.8],
+        [0, 0.8],
         [-0.55, 0.55],
-        [-0.8, 0.0],
+        [-0.8, 0],
         [-0.55, -0.55],
       ];
       let inner: Point[] = [
-        [0.0, -0.65],
+        [0, -0.65],
         [0.45, -0.45],
-        [0.65, 0.0],
+        [0.65, 0],
         [0.45, 0.45],
-        [0.0, 0.65],
+        [0, 0.65],
         [-0.45, 0.45],
-        [-0.65, 0.0],
+        [-0.65, 0],
         [-0.45, -0.45],
       ];
       outer = relPoly(x, y, outer);
@@ -265,13 +392,12 @@ RoomVisual.prototype.structure = function (
         opacity: opts.opacity,
       });
       {
-        let box: Point[] = [
+        const box = relPoly(x, y, [
           [-0.45, 0.3],
           [-0.45, 0.55],
           [0.45, 0.55],
           [0.45, 0.3],
-        ];
-        box = relPoly(x, y, box);
+        ]);
         this.poly(box, {
           stroke: colors.outline,
           strokeWidth: 0.05,
@@ -325,7 +451,7 @@ RoomVisual.prototype.structure = function (
         opacity: opts.opacity,
       });
       break;
-    case STRUCTURE_STORAGE:
+    case STRUCTURE_STORAGE: {
       const storageOutline = relPoly(x, y, [
         [-0.45, -0.55],
         [0, -0.65],
@@ -348,6 +474,7 @@ RoomVisual.prototype.structure = function (
         opacity: opts.opacity,
       });
       break;
+    }
     case STRUCTURE_OBSERVER:
       this.circle(x, y, {
         fill: colors.dark,
@@ -362,29 +489,27 @@ RoomVisual.prototype.structure = function (
         opacity: opts.opacity,
       });
       break;
-    case STRUCTURE_NUKER:
-      let outline: Point[] = [
+    case STRUCTURE_NUKER: {
+      const outline = relPoly(x, y, [
         [0, -1],
         [-0.47, 0.2],
         [-0.5, 0.5],
         [0.5, 0.5],
         [0.47, 0.2],
         [0, -1],
-      ];
-      outline = relPoly(x, y, outline);
+      ]);
       this.poly(outline, {
         stroke: colors.outline,
         strokeWidth: 0.05,
         fill: colors.dark,
         opacity: opts.opacity,
       });
-      let inline: Point[] = [
+      const inline = relPoly(x, y, [
         [0, -0.8],
         [-0.4, 0.2],
         [0.4, 0.2],
         [0, -0.8],
-      ];
-      inline = relPoly(x, y, inline);
+      ]);
       this.poly(inline, {
         stroke: colors.outline,
         strokeWidth: 0.01,
@@ -392,6 +517,7 @@ RoomVisual.prototype.structure = function (
         opacity: opts.opacity,
       });
       break;
+    }
     case STRUCTURE_CONTAINER:
       this.rect(x - 0.225, y - 0.3, 0.45, 0.6, {
         fill: "yellow",
@@ -430,8 +556,12 @@ RoomVisual.prototype.connectRoads = function (
   this: RoomVisual,
   opts: RoomVisualOptions = {},
 ): RoomVisual {
-  opts = { opacity: 0.5, ...opts };
-  const color = opts.color || colors.road;
+  opts = {
+    ...opts,
+    opacity: opts.opacity ?? 0.5,
+  };
+  const color = opts.color ?? colors.road;
+
   if (!this.roads) {
     return this;
   }
@@ -459,7 +589,7 @@ RoomVisual.prototype.connectRoads = function (
 
       if (hasNeighborRoad) {
         this.line(x, y, neighborX, neighborY, {
-          color: color,
+          color,
           width: 0.35,
           opacity: opts.opacity,
         });
@@ -471,11 +601,7 @@ RoomVisual.prototype.connectRoads = function (
 };
 
 function relPoly(x: number, y: number, poly: Point[]): Point[] {
-  return poly.map((p) => {
-    p[0] += x;
-    p[1] += y;
-    return p;
-  });
+  return poly.map(([pointX, pointY]): Point => [pointX + x, pointY + y]);
 }
 
 const ColorSets: { [color: string]: [string, string] } = {
@@ -547,7 +673,7 @@ RoomVisual.prototype.resource = function (
   size = 0.25,
   opacity = 1,
 ) {
-  if (type == RESOURCE_ENERGY || type == RESOURCE_POWER) {
+  if (type === RESOURCE_ENERGY || type === RESOURCE_POWER) {
     drawResourceFluid(this, type, x, y, size, opacity);
   } else if (
     (
@@ -563,9 +689,10 @@ RoomVisual.prototype.resource = function (
     ).includes(type)
   ) {
     drawResourceMineral(this, type, x, y, size, opacity);
-  } else if (ResourceColors[type] != undefined) {
+  } else if (ResourceColors[type] !== undefined) {
     drawResourceCompound(this, type, x, y, size, opacity);
   }
+
   return this;
 };
 
@@ -580,14 +707,14 @@ function drawResourceFluid(
   vis.circle(x, y, {
     radius: size,
     fill: ResourceColors[type][0],
-    opacity: opacity,
+    opacity,
   });
   vis.text(type[0], x, y - size * 0.1, {
     font: size * 1.5,
     color: ResourceColors[type][1],
     backgroundColor: ResourceColors[type][0],
     backgroundPadding: 0,
-    opacity: opacity,
+    opacity,
   });
 }
 
@@ -602,19 +729,19 @@ function drawResourceMineral(
   vis.circle(x, y, {
     radius: size,
     fill: ResourceColors[type][0],
-    opacity: opacity,
+    opacity,
   });
   vis.circle(x, y, {
     radius: size * 0.8,
     fill: ResourceColors[type][1],
-    opacity: opacity,
+    opacity,
   });
   vis.text(type, x, y + size * 0.03, {
     font: "bold " + size * 1.25 + " arial",
     color: ResourceColors[type][0],
     backgroundColor: ResourceColors[type][1],
     backgroundPadding: 0,
-    opacity: opacity,
+    opacity,
   });
 }
 
@@ -629,10 +756,10 @@ function drawResourceCompound(
   const label = type.replace("2", "₂");
 
   vis.text(label, x, y, {
-    font: "bold " + size * 1 + " arial",
+    font: "bold " + size + " arial",
     color: ResourceColors[type][1],
     backgroundColor: ResourceColors[type][0],
     backgroundPadding: 0.3 * size,
-    opacity: opacity,
+    opacity,
   });
 }
