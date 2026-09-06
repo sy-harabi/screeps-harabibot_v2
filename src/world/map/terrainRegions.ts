@@ -1,4 +1,6 @@
 import { PriorityQueue } from "../../utils/priorityQueue";
+import { floodFill } from "./floodFill";
+import type { RoomCoordinate } from "./roomCoordinate";
 import {
   fromRoomIndex,
   NEIGHBOR_OFFSETS,
@@ -36,11 +38,14 @@ interface WatershedCandidate {
 }
 
 export function findTerrainRegions(
+  terrain: RoomTerrain,
   distances: Uint8Array,
 ): TerrainRegionsResult {
   if (distances.length !== ROOM_AREA) {
     throw new Error(`Expected ${ROOM_AREA} distance values`);
   }
+
+  const edgeDistances = findEdgeDistances(terrain);
 
   const regionByTile = new Int16Array(ROOM_AREA);
   regionByTile.fill(UNASSIGNED);
@@ -49,10 +54,26 @@ export function findTerrainRegions(
     createOutsideRegion(distances, regionByTile),
   ];
 
-  createPeakRegions(distances, regionByTile, regions);
-  floodRegions(distances, regionByTile, regions);
+  createPeakRegions(distances, edgeDistances, regionByTile, regions);
+  floodRegions(distances, edgeDistances, regionByTile, regions);
 
   return { regionByTile, regions };
+}
+
+function findEdgeDistances(terrain: RoomTerrain): Int16Array {
+  const edgeCoordinates: RoomCoordinate[] = [];
+
+  for (let x = 0; x < ROOM_SIZE; x++) {
+    edgeCoordinates.push({ x, y: 0 });
+    edgeCoordinates.push({ x, y: ROOM_SIZE - 1 });
+  }
+
+  for (let y = 1; y < ROOM_SIZE - 1; y++) {
+    edgeCoordinates.push({ x: 0, y });
+    edgeCoordinates.push({ x: ROOM_SIZE - 1, y });
+  }
+
+  return floodFill(terrain, edgeCoordinates).distances;
 }
 
 function createOutsideRegion(
@@ -105,6 +126,7 @@ function addOutsideSeed(
 
 function createPeakRegions(
   distances: Uint8Array,
+  edgeDistances: Int16Array,
   regionByTile: Int16Array,
   regions: MutableTerrainRegion[],
 ): void {
@@ -119,12 +141,10 @@ function createPeakRegions(
       continue;
     }
 
-    const distance = distances[index];
     const plateauIndices: number[] = [index];
     visited[index] = 1;
 
     let isLocalMaximum = true;
-    let touchesExistingRegionAtSameDistance = false;
     let queueHead = 0;
 
     while (queueHead < plateauIndices.length) {
@@ -142,22 +162,27 @@ function createPeakRegions(
         }
 
         const neighborIndex = toRoomIndex(neighborX, neighborY);
-        const neighborDistance = distances[neighborIndex];
 
-        if (neighborDistance > distance) {
+        if (distances[neighborIndex] === 0) {
+          continue;
+        }
+
+        const comparison = compareWatershedHeight(
+          neighborIndex,
+          index,
+          distances,
+          edgeDistances,
+        );
+
+        if (comparison > 0) {
           isLocalMaximum = false;
         }
 
-        if (neighborDistance !== distance) {
-          continue;
-        }
-
-        if (regionByTile[neighborIndex] !== UNASSIGNED) {
-          touchesExistingRegionAtSameDistance = true;
-          continue;
-        }
-
-        if (visited[neighborIndex]) {
+        if (
+          comparison !== 0 ||
+          visited[neighborIndex] ||
+          regionByTile[neighborIndex] !== UNASSIGNED
+        ) {
           continue;
         }
 
@@ -166,7 +191,7 @@ function createPeakRegions(
       }
     }
 
-    if (!isLocalMaximum || touchesExistingRegionAtSameDistance) {
+    if (!isLocalMaximum) {
       continue;
     }
 
@@ -181,13 +206,14 @@ function createPeakRegions(
       id: regionId,
       tileIndices: peakIndices.slice(),
       peakIndices,
-      peakDistance: distance,
+      peakDistance: distances[index],
     });
   }
 }
 
 function floodRegions(
   distances: Uint8Array,
+  edgeDistances: Int16Array,
   regionByTile: Int16Array,
   regions: MutableTerrainRegion[],
 ): void {
@@ -199,6 +225,7 @@ function floodRegions(
         peakIndex,
         region.id,
         distances,
+        edgeDistances,
         regionByTile,
         queue,
       );
@@ -221,7 +248,14 @@ function floodRegions(
     regionByTile[index] = regionId;
     regions[regionId].tileIndices.push(index);
 
-    enqueueUnassignedNeighbors(index, regionId, distances, regionByTile, queue);
+    enqueueUnassignedNeighbors(
+      index,
+      regionId,
+      distances,
+      edgeDistances,
+      regionByTile,
+      queue,
+    );
   }
 }
 
@@ -229,6 +263,7 @@ function enqueueUnassignedNeighbors(
   index: number,
   regionId: number,
   distances: Uint8Array,
+  edgeDistances: Int16Array,
   regionByTile: Int16Array,
   queue: PriorityQueue<WatershedCandidate>,
 ): void {
@@ -251,8 +286,44 @@ function enqueueUnassignedNeighbors(
       continue;
     }
 
-    queue.push({ index: neighborIndex, regionId }, distances[neighborIndex]);
+    queue.push(
+      { index: neighborIndex, regionId },
+      getWatershedPriority(neighborIndex, distances, edgeDistances),
+    );
   }
+}
+
+function compareWatershedHeight(
+  firstIndex: number,
+  secondIndex: number,
+  distances: Uint8Array,
+  edgeDistances: Int16Array,
+): number {
+  const distanceDifference = distances[firstIndex] - distances[secondIndex];
+
+  if (distanceDifference !== 0) {
+    return distanceDifference;
+  }
+
+  return (
+    getEdgeDepth(firstIndex, edgeDistances) -
+    getEdgeDepth(secondIndex, edgeDistances)
+  );
+}
+
+function getWatershedPriority(
+  index: number,
+  distances: Uint8Array,
+  edgeDistances: Int16Array,
+): number {
+  return (
+    distances[index] * (ROOM_AREA + 1) + getEdgeDepth(index, edgeDistances)
+  );
+}
+
+function getEdgeDepth(index: number, edgeDistances: Int16Array): number {
+  const edgeDistance = edgeDistances[index];
+  return edgeDistance === -1 ? ROOM_AREA : edgeDistance;
 }
 
 function isInsideRoom(x: number, y: number): boolean {
