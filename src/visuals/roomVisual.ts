@@ -10,6 +10,11 @@ export interface RoomVisualOptions {
   textstyle?: string;
 }
 
+export interface ArrowVisualOptions {
+  color?: string;
+  opacity?: number;
+}
+
 declare global {
   interface RoomVisual {
     roads?: Point[];
@@ -20,6 +25,12 @@ declare global {
       w: number,
       h: number,
       style?: LineStyle,
+    ): RoomVisual;
+
+    arrow(
+      from: RoomPosition,
+      to: RoomPosition,
+      opts?: ArrowVisualOptions,
     ): RoomVisual;
 
     multitext(
@@ -96,6 +107,78 @@ RoomVisual.prototype.box = function (
     .line(x + w, y, x + w, y + h, style)
     .line(x + w, y + h, x, y + h, style)
     .line(x, y + h, x, y, style);
+};
+
+RoomVisual.prototype.arrow = function (
+  this: RoomVisual,
+  from: RoomPosition,
+  to: RoomPosition,
+  opts: ArrowVisualOptions = {},
+): RoomVisual {
+  if (from.roomName !== to.roomName) {
+    return this;
+  }
+
+  const dx = to.x - from.x;
+  const dy = to.y - from.y;
+
+  if (Math.max(Math.abs(dx), Math.abs(dy)) !== 1) {
+    return this;
+  }
+
+  const length = Math.hypot(dx, dy);
+  const unitX = dx / length;
+  const unitY = dy / length;
+  const perpendicularX = -unitY;
+  const perpendicularY = unitX;
+
+  const startX = from.x + dx * 0.2;
+  const startY = from.y + dy * 0.2;
+  const neckX = from.x + dx * 0.58;
+  const neckY = from.y + dy * 0.58;
+  const tipX = from.x + dx * 0.82;
+  const tipY = from.y + dy * 0.82;
+
+  const tailHalfWidth = 0.025;
+  const shaftHalfWidth = 0.05;
+  const headHalfWidth = 0.16;
+
+  const points: Point[] = [
+    [
+      startX - perpendicularX * tailHalfWidth,
+      startY - perpendicularY * tailHalfWidth,
+    ],
+    [
+      neckX - perpendicularX * shaftHalfWidth,
+      neckY - perpendicularY * shaftHalfWidth,
+    ],
+    [
+      neckX - perpendicularX * headHalfWidth,
+      neckY - perpendicularY * headHalfWidth,
+    ],
+    [tipX, tipY],
+    [
+      neckX + perpendicularX * headHalfWidth,
+      neckY + perpendicularY * headHalfWidth,
+    ],
+    [
+      neckX + perpendicularX * shaftHalfWidth,
+      neckY + perpendicularY * shaftHalfWidth,
+    ],
+    [
+      startX + perpendicularX * tailHalfWidth,
+      startY + perpendicularY * tailHalfWidth,
+    ],
+  ];
+
+  const color = opts.color ?? "#ff5c5c";
+
+  return this.poly(points, {
+    fill: color,
+    stroke: color,
+    strokeWidth: 0.02,
+    opacity: opts.opacity ?? 0.9,
+  });
 };
 
 // Taken from https://github.com/screepers/RoomVisual with slight modification.
