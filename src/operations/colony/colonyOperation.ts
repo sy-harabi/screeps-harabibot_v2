@@ -1,3 +1,4 @@
+import { planBase } from "../../capabilities/basePlanning/planBase";
 import { distanceTransform } from "../../world/map/distanceTransform";
 import { fromRoomIndex, ROOM_AREA } from "../../world/map/roomGrid";
 import type { EmpireOperationRecord } from "../empire/empireOperation";
@@ -29,15 +30,24 @@ export const colonyOperationHandler: OperationHandler = {
   execute(operation: ColonyOperationRecord, context): void {
     const { roomName } = operation;
 
-    const terrrain = Game.map.getRoomTerrain(roomName);
+    const terrain = Game.map.getRoomTerrain(roomName);
 
-    const dt = distanceTransform(terrrain);
+    const room = Game.rooms[roomName];
 
-    const visual = new RoomVisual(roomName);
-    for (let index = 0; index < ROOM_AREA; index++) {
-      const coordinates = fromRoomIndex(index);
-      const distance = dt[index];
-      visual.text(`${distance}`, coordinates.x, coordinates.y);
+    if (!room.controller || !room.controller.my) {
+      return;
     }
+
+    const sources = room.find(FIND_SOURCES);
+
+    const minerals = room.find(FIND_MINERALS);
+
+    const basePlan = planBase(
+      roomName,
+      terrain,
+      room.controller,
+      sources,
+      minerals,
+    );
   },
 };
