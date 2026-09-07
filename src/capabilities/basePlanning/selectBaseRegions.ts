@@ -56,6 +56,7 @@ export function selectBaseRegions(
         (delta <= 0 && delta < bestDelta) ||
         (bestDelta > 0 && candidateNumTiles / delta > bestNumTiles / bestDelta)
       ) {
+        bestNumTiles = candidateNumTiles;
         bestCandidateId = candidateId;
         bestDelta = delta;
       }
