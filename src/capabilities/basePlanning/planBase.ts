@@ -1,8 +1,14 @@
 import { distanceTransform } from "../../world/map/distanceTransform";
-import { fromRoomIndex, ROOM_AREA } from "../../world/map/roomGrid";
+import { RoomCoordinate } from "../../world/map/roomCoordinate";
+import { fromRoomIndex, toRoomIndex } from "../../world/map/roomGrid";
 import { findTerrainRegions } from "../../world/map/terrainRegions";
 import type { BasePlan, PlannedStructure } from "./basePlan";
-import { findTerminalCandidates } from "./planControllerArea";
+import {
+  findTerminalCandidates,
+  findUpgradeRoots,
+  findUpgradeTiles,
+  followUpgradeWall,
+} from "./planControllerArea";
 import { selectBaseRegions } from "./selectBaseRegions";
 
 /**
@@ -49,10 +55,93 @@ export function planBase(
 
   terminalCandidates.forEach(({ x, y }) => visual.text("T", x, y));
 
+  const terminalCoordinate = terminalCandidates[0];
+  if (terminalCoordinate) {
+    const upgradeTiles = findUpgradeTiles(
+      controller,
+      selectedRegionIds,
+      regionByTile,
+    );
+    const upgradeTileIndices = new Set(
+      upgradeTiles.map(({ x, y }) => toRoomIndex(x, y)),
+    );
+
+    upgradeTiles.forEach(({ x, y }) => {
+      visual.circle(x, y, {
+        radius: 0.12,
+        fill: "white",
+        opacity: 0.5,
+        stroke: "transparent",
+      });
+    });
+
+    visual.circle(terminalCoordinate.x, terminalCoordinate.y, {
+      radius: 0.4,
+      fill: "transparent",
+      stroke: "white",
+    });
+
+    const roots = findUpgradeRoots(
+      terminalCoordinate,
+      controller,
+      upgradeTileIndices,
+    );
+
+    if (roots?.left) {
+      const leftPath = followUpgradeWall(
+        roots.left,
+        terminalCoordinate,
+        upgradeTileIndices,
+        "left",
+      );
+      visualizeUpgradePath(visual, leftPath, "L", "#ffd166");
+    }
+
+    if (roots?.middle) {
+      visual.text("M", roots.middle.x, roots.middle.y, {
+        color: "#ffffff",
+        font: 0.5,
+      });
+    }
+
+    if (roots?.right) {
+      const rightPath = followUpgradeWall(
+        roots.right,
+        terminalCoordinate,
+        upgradeTileIndices,
+        "right",
+      );
+      visualizeUpgradePath(visual, rightPath, "R", "#4cc9f0");
+    }
+  }
+
   const structures: PlannedStructure[] = [];
   const anchor = { x: 25, y: 25 };
 
   return { version: 1, roomName, anchor, structures };
+}
+
+function visualizeUpgradePath(
+  visual: RoomVisual,
+  path: RoomCoordinate[],
+  label: string,
+  color: string,
+): void {
+  path.forEach((coordinate, index) => {
+    if (index > 0) {
+      const previous = path[index - 1];
+      visual.line(previous.x, previous.y, coordinate.x, coordinate.y, {
+        color,
+        width: 0.12,
+        opacity: 0.8,
+      });
+    }
+
+    visual.text(`${label}${index + 1}`, coordinate.x, coordinate.y, {
+      color,
+      font: 0.45,
+    });
+  });
 }
 
 function getRegionColor(regionId: number, regionCount: number): string {
