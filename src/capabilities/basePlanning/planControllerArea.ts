@@ -51,7 +51,7 @@ export function findUpgradeChains(
   );
 
   const rightMax = followUpgradeWall(
-    roots.right || roots.middle,
+    roots.right,
     terminalCoordinate,
     upgradeTileIndices,
     "right",
@@ -104,16 +104,16 @@ export function findUpgradeChains(
           continue;
         }
 
-        const leftLength = 6 - path.length;
+        const remainingLength = 6 - path.length;
         const extendedPath = findLongestUpgradePath(
           path[path.length - 1],
           upgradeTileIndices,
           blockedTileIndices,
-          leftLength + 1,
+          remainingLength + 1,
         );
 
         if (extendedPath.length > 1) {
-          path.push(...extendedPath);
+          path.push(...extendedPath.slice(1));
 
           extendedPath.forEach((coordinate) =>
             blockedTileIndices.add(toRoomIndex(coordinate.x, coordinate.y)),
@@ -121,11 +121,11 @@ export function findUpgradeChains(
         }
       }
 
-      if (leftLength + rightLength + middle.length === 18) {
+      const currentNumTiles = left.length + right.length + middle.length;
+
+      if (currentNumTiles === 18) {
         return { left, right, middle };
       }
-
-      const currentNumTiles = leftLength + rightLength + middle.length;
 
       if (currentNumTiles > bestNumTiles) {
         best = { left, right, middle };
