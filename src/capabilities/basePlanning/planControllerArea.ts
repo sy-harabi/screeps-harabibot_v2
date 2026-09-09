@@ -2,8 +2,66 @@ import { getRange, RoomCoordinate } from "../../world/map/roomCoordinate";
 import {
   forEachCoordinateAtRange,
   forEachCoordinateInRange,
+  NEIGHBOR_OFFSETS,
   toRoomIndex,
 } from "../../world/map/roomGrid";
+
+interface UpgradeRoots {
+  left?: RoomCoordinate;
+  middle?: RoomCoordinate;
+  right?: RoomCoordinate;
+}
+
+function findUpgradeRoots(
+  terminalCoordinate: RoomCoordinate,
+  controller: StructureController,
+  upgradeTileIndices: Set<number>,
+): UpgradeRoots | undefined {
+  const dx = Math.sign(terminalCoordinate.x - controller.pos.x);
+  const dy = Math.sign(terminalCoordinate.y - controller.pos.y);
+
+  const startIndex = NEIGHBOR_OFFSETS.findIndex(
+    (offset) => offset.x === dx && offset.y === dy,
+  );
+
+  const roots: RoomCoordinate[] = [];
+
+  for (let i = 0; i < NEIGHBOR_OFFSETS.length; i++) {
+    const offset = NEIGHBOR_OFFSETS[(startIndex + i) % 8];
+
+    const coordinate = {
+      x: terminalCoordinate.x + offset.x,
+      y: terminalCoordinate.y + offset.y,
+    };
+
+    if (upgradeTileIndices.has(toRoomIndex(coordinate.x, coordinate.y))) {
+      roots.push(coordinate);
+    }
+  }
+
+  if (roots.length === 3) {
+    return {
+      left: roots[0],
+      middle: roots[1],
+      right: roots[2],
+    };
+  }
+
+  if (roots.length === 2) {
+    return {
+      left: roots[0],
+      right: roots[1],
+    };
+  }
+
+  if (roots.length === 1) {
+    return {
+      left: roots[0],
+    };
+  }
+
+  return undefined;
+}
 
 export function findUpgradeTiles(
   controller: StructureController,
