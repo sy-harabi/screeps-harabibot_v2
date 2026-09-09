@@ -8,13 +8,73 @@ import {
 } from "../../world/map/roomGrid";
 
 interface UpgradeRoots {
-  left?: RoomCoordinate;
+  left: RoomCoordinate;
   middle?: RoomCoordinate;
   right?: RoomCoordinate;
 }
 
 const LEFT_TURN_ORDER = [-2, -1, 0, 1, 2, 3, 4, 5];
-const RIGHT_TURN_ORDER = [2, 1, 0, -1, -2, -3, -4, 5];
+const RIGHT_TURN_ORDER = [2, 1, 0, -1, -2, -3, -4, -5];
+
+interface UpgradeChains {
+  left?: RoomCoordinate[];
+  middle?: RoomCoordinate[];
+  right?: RoomCoordinate[];
+}
+
+function findUpgradeChains(
+  roots: UpgradeRoots,
+  terminalCoordinate: RoomCoordinate,
+  upgradeTileIndices: Set<number>,
+): UpgradeChains | undefined {
+  const blockedIndices = new Set<number>();
+
+  const leftMax = followUpgradeWall(
+    roots.left,
+    terminalCoordinate,
+    upgradeTileIndices,
+    "left",
+    6,
+  );
+
+  if (roots.right === undefined) {
+    return { left: leftMax };
+  }
+
+  leftMax.forEach((coordinate) =>
+    blockedIndices.add(toRoomIndex(coordinate.x, coordinate.y)),
+  );
+
+  const rightMax = followUpgradeWall(
+    roots.right || roots.middle,
+    terminalCoordinate,
+    upgradeTileIndices,
+    "left",
+    6,
+    blockedIndices,
+  );
+
+  if (roots.middle === undefined) {
+    return { left: leftMax, right: rightMax };
+  }
+
+  rightMax.forEach((coordinate) =>
+    blockedIndices.add(toRoomIndex(coordinate.x, coordinate.y)),
+  );
+
+  for (let leftLength = leftMax.length; leftLength >= 1; leftLength--) {
+    for (let rightLength = rightMax.length; rightLength >= 1; rightLength--) {
+      const left = leftMax.slice(0, leftLength);
+      const right = rightMax.slice(0, rightLength);
+
+      // middle 찾기
+    }
+  }
+
+  // 1. left 최대 6
+  // 2. right 최대 6
+  // 3. 아직 middle은 하지 않음
+}
 
 export function followUpgradeWall(
   root: RoomCoordinate,
@@ -22,6 +82,7 @@ export function followUpgradeWall(
   upgradeTileIndices: Set<number>,
   hand: "left" | "right",
   maxLength = 6,
+  blockedIndices?: Set<number>,
 ): RoomCoordinate[] {
   const path: RoomCoordinate[] = [root];
   const visited = new Set<number>([toRoomIndex(root.x, root.y)]);
@@ -48,7 +109,11 @@ export function followUpgradeWall(
       }
 
       const nextIndex = toRoomIndex(next.x, next.y);
-      if (!upgradeTileIndices.has(nextIndex) || visited.has(nextIndex)) {
+      if (
+        !upgradeTileIndices.has(nextIndex) ||
+        visited.has(nextIndex) ||
+        blockedIndices?.has(nextIndex)
+      ) {
         continue;
       }
 

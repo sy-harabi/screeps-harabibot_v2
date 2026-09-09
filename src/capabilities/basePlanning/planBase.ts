@@ -130,11 +130,14 @@ function visualizeUpgradePath(
   path.forEach((coordinate, index) => {
     if (index > 0) {
       const previous = path[index - 1];
-      visual.line(previous.x, previous.y, coordinate.x, coordinate.y, {
-        color,
-        width: 0.12,
-        opacity: 0.8,
-      });
+      visual.arrow(
+        new RoomPosition(previous.x, previous.y, visual.roomName),
+        new RoomPosition(coordinate.x, coordinate.y, visual.roomName),
+        {
+          color,
+          opacity: 0.8,
+        },
+      );
     }
 
     visual.text(`${label}${index + 1}`, coordinate.x, coordinate.y, {
