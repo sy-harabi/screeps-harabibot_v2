@@ -27,7 +27,7 @@ function findUpgradeChains(
   terminalCoordinate: RoomCoordinate,
   upgradeTileIndices: Set<number>,
 ): UpgradeChains | undefined {
-  const blockedIndices = new Set<number>();
+  const blockedTileIndices = new Set<number>();
 
   const leftMax = followUpgradeWall(
     roots.left,
@@ -42,7 +42,7 @@ function findUpgradeChains(
   }
 
   leftMax.forEach((coordinate) =>
-    blockedIndices.add(toRoomIndex(coordinate.x, coordinate.y)),
+    blockedTileIndices.add(toRoomIndex(coordinate.x, coordinate.y)),
   );
 
   const rightMax = followUpgradeWall(
@@ -51,7 +51,7 @@ function findUpgradeChains(
     upgradeTileIndices,
     "left",
     6,
-    blockedIndices,
+    blockedTileIndices,
   );
 
   if (roots.middle === undefined) {
@@ -59,7 +59,7 @@ function findUpgradeChains(
   }
 
   rightMax.forEach((coordinate) =>
-    blockedIndices.add(toRoomIndex(coordinate.x, coordinate.y)),
+    blockedTileIndices.add(toRoomIndex(coordinate.x, coordinate.y)),
   );
 
   for (let leftLength = leftMax.length; leftLength >= 1; leftLength--) {
@@ -76,13 +76,94 @@ function findUpgradeChains(
   // 3. 아직 middle은 하지 않음
 }
 
+function findLongestUpgradePath(
+  root: RoomCoordinate,
+  upgradeTileIndices: Set<number>,
+  blockedTileIndices: Set<number>,
+  maxLength = 6,
+): RoomCoordinate[] {
+  const rootIndex = toRoomIndex(root.x, root.y);
+  const path = [root];
+  const bestPath = [root];
+
+  const visited = new Set<number>([rootIndex]);
+
+  return dfs(
+    root,
+    path,
+    bestPath,
+    upgradeTileIndices,
+    blockedTileIndices,
+    visited,
+    maxLength,
+  ).bestPath;
+}
+
+function dfs(
+  current: RoomCoordinate,
+  path: RoomCoordinate[],
+  bestPath: RoomCoordinate[],
+  upgradeTileIndices: Set<number>,
+  blockedTileIndices: Set<number>,
+  visited: Set<number>,
+  maxLength: number,
+): { succeed: boolean; path: RoomCoordinate[]; bestPath: RoomCoordinate[] } {
+  if (path.length === maxLength) {
+    return { succeed: true, path, bestPath: path };
+  }
+
+  if (path.length > bestPath.length) {
+    bestPath = [...path];
+  }
+
+  for (const offset of NEIGHBOR_OFFSETS) {
+    const next = {
+      x: current.x + offset.x,
+      y: current.y + offset.y,
+    };
+
+    const index = toRoomIndex(next.x, next.y);
+
+    if (
+      !upgradeTileIndices.has(index) ||
+      blockedTileIndices.has(index) ||
+      visited.has(index)
+    ) {
+      continue;
+    }
+
+    visited.add(index);
+    path.push(next);
+
+    const dfsResult = dfs(
+      next,
+      path,
+      bestPath,
+      upgradeTileIndices,
+      blockedTileIndices,
+      visited,
+      maxLength,
+    );
+
+    if (dfsResult.succeed) {
+      return dfsResult;
+    }
+
+    path.pop();
+
+    visited.delete(index);
+  }
+
+  return { succeed: false, path, bestPath };
+}
+
 export function followUpgradeWall(
   root: RoomCoordinate,
   terminalCoordinate: RoomCoordinate,
   upgradeTileIndices: Set<number>,
   hand: "left" | "right",
   maxLength = 6,
-  blockedIndices?: Set<number>,
+  blockedTileIndices?: Set<number>,
 ): RoomCoordinate[] {
   const path: RoomCoordinate[] = [root];
   const visited = new Set<number>([toRoomIndex(root.x, root.y)]);
@@ -112,7 +193,7 @@ export function followUpgradeWall(
       if (
         !upgradeTileIndices.has(nextIndex) ||
         visited.has(nextIndex) ||
-        blockedIndices?.has(nextIndex)
+        blockedTileIndices?.has(nextIndex)
       ) {
         continue;
       }
