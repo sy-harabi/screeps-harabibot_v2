@@ -52,6 +52,9 @@ export function planBase(
     controller,
     selectedRegionIds,
     regionByTile,
+  ).sort(
+    (a, b) =>
+      distances[toRoomIndex(b.x, b.y)] - distances[toRoomIndex(a.x, a.y)],
   );
 
   terminalCandidates.forEach(({ x, y }) => visual.text("T", x, y));
@@ -98,7 +101,7 @@ export function planBase(
 
       if (upgradeChains !== undefined) {
         for (const chain of Object.values(upgradeChains)) {
-          visualizeUpgradePath(visual, chain, "U", "#ffd166");
+          visualizeUpgradePath(visual, chain, "", "#ffd166");
         }
       }
     }

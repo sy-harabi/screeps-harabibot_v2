@@ -27,7 +27,11 @@ export function findUpgradeChains(
   terminalCoordinate: RoomCoordinate,
   upgradeTileIndices: Set<number>,
 ): UpgradeChains | undefined {
-  const blockedTileIndices = new Set<number>();
+  let blockedTileIndices = new Set(
+    Object.values(roots).map((coordinate) =>
+      toRoomIndex(coordinate.x, coordinate.y),
+    ),
+  );
 
   const leftMax = followUpgradeWall(
     roots.left,
@@ -35,6 +39,7 @@ export function findUpgradeChains(
     upgradeTileIndices,
     "left",
     6,
+    blockedTileIndices,
   );
 
   if (roots.right === undefined) {
@@ -58,10 +63,6 @@ export function findUpgradeChains(
     return { left: leftMax, right: rightMax };
   }
 
-  rightMax.forEach((coordinate) =>
-    blockedTileIndices.add(toRoomIndex(coordinate.x, coordinate.y)),
-  );
-
   let best = {
     left: leftMax,
     right: rightMax,
@@ -74,6 +75,13 @@ export function findUpgradeChains(
     for (let rightLength = rightMax.length; rightLength >= 1; rightLength--) {
       const left = leftMax.slice(0, leftLength);
       const right = rightMax.slice(0, rightLength);
+
+      blockedTileIndices = new Set(
+        [...left, ...right].map((coordinate) =>
+          toRoomIndex(coordinate.x, coordinate.y),
+        ),
+      );
+
       const middle: RoomCoordinate[] = findLongestUpgradePath(
         roots.middle,
         upgradeTileIndices,
@@ -81,11 +89,43 @@ export function findUpgradeChains(
         6,
       );
 
-      const currentNumTiles = leftLength + rightLength + middle.length;
-
-      if (currentNumTiles === 18) {
+      if (leftLength + rightLength + middle.length === 18) {
         return { left, right, middle };
       }
+
+      middle.forEach((coordinate) =>
+        blockedTileIndices.add(toRoomIndex(coordinate.x, coordinate.y)),
+      );
+
+      const paths = [left, right].sort((a, b) => a.length - b.length);
+
+      for (const path of paths) {
+        if (path.length === 6) {
+          continue;
+        }
+
+        const leftLength = 6 - path.length;
+        const extendedPath = findLongestUpgradePath(
+          path[path.length - 1],
+          upgradeTileIndices,
+          blockedTileIndices,
+          leftLength + 1,
+        );
+
+        if (extendedPath.length > 1) {
+          path.push(...extendedPath);
+
+          extendedPath.forEach((coordinate) =>
+            blockedTileIndices.add(toRoomIndex(coordinate.x, coordinate.y)),
+          );
+        }
+      }
+
+      if (leftLength + rightLength + middle.length === 18) {
+        return { left, right, middle };
+      }
+
+      const currentNumTiles = leftLength + rightLength + middle.length;
 
       if (currentNumTiles > bestNumTiles) {
         best = { left, right, middle };
