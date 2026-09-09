@@ -12,6 +12,52 @@ interface UpgradeRoots {
   right?: RoomCoordinate;
 }
 
+const LEFT_TURN_ORDER = [-2, -1, 0, 1, 2, 3, 4];
+const RIGHT_TURN_ORDER = [2, 1, 0, -1, -2, -3, -4];
+
+function followUpgradeWall(
+  root: RoomCoordinate,
+  terminalCoordinate: RoomCoordinate,
+  upgradeTileIndices: Set<number>,
+  hand: "left" | "right",
+  maxLength = 6,
+): RoomCoordinate[] {
+  const path: RoomCoordinate[] = [root];
+
+  let current = root;
+  let heading = NEIGHBOR_OFFSETS.findIndex(
+    (offset) =>
+      offset.x === Math.sign(root.x - terminalCoordinate.x) &&
+      offset.y === Math.sign(root.y - terminalCoordinate.y),
+  );
+
+  const order = hand === "left" ? LEFT_TURN_ORDER : RIGHT_TURN_ORDER;
+
+  while (path.length < maxLength) {
+    let moved = false;
+
+    for (const turn of order) {
+      const direction = (heading + turn + 8) % 8;
+      const offset = NEIGHBOR_OFFSETS[direction];
+      const next = { x: current.x + offset.x, y: current.y + offset.y };
+      if (!upgradeTileIndices.has(toRoomIndex(next.x, next.y))) {
+        continue;
+      }
+      current = next;
+      heading = direction;
+      path.push(next);
+      moved = true;
+      break;
+    }
+
+    if (!moved) {
+      break;
+    }
+  }
+
+  return path;
+}
+
 function findUpgradeRoots(
   terminalCoordinate: RoomCoordinate,
   controller: StructureController,
