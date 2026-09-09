@@ -1,6 +1,4 @@
 import { planBase } from "../../capabilities/basePlanning/planBase";
-import { distanceTransform } from "../../world/map/distanceTransform";
-import { fromRoomIndex, ROOM_AREA } from "../../world/map/roomGrid";
 import type { EmpireOperationRecord } from "../empire/empireOperation";
 import { OperationBase } from "../operation";
 import type { OperationHandler } from "../operationHandler";
@@ -42,6 +40,8 @@ export const colonyOperationHandler: OperationHandler = {
 
     const minerals = room.find(FIND_MINERALS);
 
+    let cpuBefore = Game.cpu.getUsed();
+
     const basePlan = planBase(
       roomName,
       terrain,
@@ -49,5 +49,7 @@ export const colonyOperationHandler: OperationHandler = {
       sources,
       minerals,
     );
+
+    console.log(Game.cpu.getUsed() - cpuBefore);
   },
 };

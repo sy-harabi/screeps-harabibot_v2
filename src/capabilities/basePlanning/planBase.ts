@@ -91,6 +91,7 @@ function visualizeUpgradePath(
     visual.text(`${label}${index + 1}`, coordinate.x, coordinate.y, {
       color,
       font: 0.45,
+      stroke: "black",
     });
   });
 }
