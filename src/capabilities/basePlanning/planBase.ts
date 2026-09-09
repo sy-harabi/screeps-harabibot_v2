@@ -5,10 +5,10 @@ import { findTerrainRegions } from "../../world/map/terrainRegions";
 import type { BasePlan, PlannedStructure } from "./basePlan";
 import {
   findTerminalCandidates,
-  findUpgradeChains,
   findUpgradeRoots,
   findUpgradeTiles,
   followUpgradeWall,
+  planControllerArea,
 } from "./planControllerArea";
 import { selectBaseRegions } from "./selectBaseRegions";
 
@@ -48,62 +48,18 @@ export function planBase(
     }
   }
 
-  const terminalCandidates = findTerminalCandidates(
+  const controllerArea = planControllerArea(
     controller,
     selectedRegionIds,
     regionByTile,
-  ).sort(
-    (a, b) =>
-      distances[toRoomIndex(b.x, b.y)] - distances[toRoomIndex(a.x, a.y)],
+    distances,
   );
 
-  terminalCandidates.forEach(({ x, y }) => visual.text("T", x, y));
+  if (controllerArea) {
+    visual.text("T", controllerArea.terminal.x, controllerArea.terminal.y);
 
-  const terminalCoordinate = terminalCandidates[0];
-
-  if (terminalCoordinate) {
-    const upgradeTiles = findUpgradeTiles(
-      controller,
-      selectedRegionIds,
-      regionByTile,
-    );
-    const upgradeTileIndices = new Set(
-      upgradeTiles.map(({ x, y }) => toRoomIndex(x, y)),
-    );
-
-    upgradeTiles.forEach(({ x, y }) => {
-      visual.circle(x, y, {
-        radius: 0.12,
-        fill: "white",
-        opacity: 0.5,
-        stroke: "transparent",
-      });
-    });
-
-    visual.circle(terminalCoordinate.x, terminalCoordinate.y, {
-      radius: 0.4,
-      fill: "transparent",
-      stroke: "white",
-    });
-
-    const roots = findUpgradeRoots(
-      terminalCoordinate,
-      controller,
-      upgradeTileIndices,
-    );
-
-    if (roots !== undefined) {
-      const upgradeChains = findUpgradeChains(
-        roots,
-        terminalCoordinate,
-        upgradeTileIndices,
-      );
-
-      if (upgradeChains !== undefined) {
-        for (const chain of Object.values(upgradeChains)) {
-          visualizeUpgradePath(visual, chain, "", "#ffd166");
-        }
-      }
+    for (const chain of Object.values(controllerArea.upgradeChains)) {
+      visualizeUpgradePath(visual, chain, "", "#ffd166");
     }
   }
 

@@ -22,19 +22,81 @@ interface UpgradeChains {
   right?: RoomCoordinate[];
 }
 
-export function compactUpgradeChains(
+export interface ControllerAreaPlan {
+  terminal: RoomCoordinate;
+  upgradeChains: UpgradeChains;
+}
+
+export function planControllerArea(
+  controller: StructureController,
+  selectedRegionIds: Set<number>,
+  regionByTile: Int16Array,
+  distances: Uint8Array,
+): ControllerAreaPlan | undefined {
+  const terminalCandidates = findTerminalCandidates(
+    controller,
+    selectedRegionIds,
+    regionByTile,
+  ).sort(
+    (a, b) =>
+      distances[toRoomIndex(b.x, b.y)] - distances[toRoomIndex(a.x, a.y)],
+  );
+
+  const terminalCoordinate = terminalCandidates[0];
+
+  if (!terminalCoordinate) {
+    return;
+  }
+
+  const upgradeTiles = findUpgradeTiles(
+    controller,
+    selectedRegionIds,
+    regionByTile,
+  );
+
+  const upgradeTileIndices = new Set(
+    upgradeTiles.map(({ x, y }) => toRoomIndex(x, y)),
+  );
+
+  const roots = findUpgradeRoots(
+    terminalCoordinate,
+    controller,
+    upgradeTileIndices,
+  );
+
+  if (roots === undefined) {
+    return;
+  }
+
+  const upgradeChains = findUpgradeChains(
+    roots,
+    terminalCoordinate,
+    upgradeTileIndices,
+  );
+
+  const compactChains = compactUpgradeChains(
+    upgradeChains,
+    roots,
+    terminalCoordinate,
+    upgradeTileIndices,
+  );
+
+  return { terminal: terminalCoordinate, upgradeChains: compactChains };
+}
+
+function compactUpgradeChains(
   chains: UpgradeChains,
   roots: UpgradeRoots,
   terminalCoordinate: RoomCoordinate,
   upgradeTileIndices: Set<number>,
 ): UpgradeChains {
-  let result = {
+  let result: UpgradeChains = {
     left: [...(chains.left ?? [])],
     right: [...(chains.right ?? [])],
     middle: [...(chains.middle ?? [])],
   };
 
-  for (const side of ["left", "right"]) {
+  for (const side of ["left", "right"] as const) {
     result = tryCompactOuterChain(
       result,
       side,
@@ -89,11 +151,11 @@ function tryCompactOuterChain(
   return chains;
 }
 
-export function findUpgradeChains(
+function findUpgradeChains(
   roots: UpgradeRoots,
   terminalCoordinate: RoomCoordinate,
   upgradeTileIndices: Set<number>,
-): UpgradeChains | undefined {
+): UpgradeChains {
   let blockedTileIndices = new Set(
     Object.values(roots).map((coordinate) =>
       toRoomIndex(coordinate.x, coordinate.y),
