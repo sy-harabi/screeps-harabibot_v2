@@ -22,6 +22,73 @@ interface UpgradeChains {
   right?: RoomCoordinate[];
 }
 
+export function compactUpgradeChains(
+  chains: UpgradeChains,
+  roots: UpgradeRoots,
+  terminalCoordinate: RoomCoordinate,
+  upgradeTileIndices: Set<number>,
+): UpgradeChains {
+  let result = {
+    left: [...(chains.left ?? [])],
+    right: [...(chains.right ?? [])],
+    middle: [...(chains.middle ?? [])],
+  };
+
+  for (const side of ["left", "right"]) {
+    result = tryCompactOuterChain(
+      result,
+      side,
+      roots,
+      terminalCoordinate,
+      upgradeTileIndices,
+    );
+  }
+
+  return result;
+}
+
+function tryCompactOuterChain(
+  chains: UpgradeChains,
+  side: "left" | "right",
+  roots: UpgradeRoots,
+  terminalCoordinate: RoomCoordinate,
+  upgradeTileIndices: Set<number>,
+): UpgradeChains {
+  if (roots[side] === undefined || chains[side] === undefined) {
+    return chains;
+  }
+
+  const blockedTiles = [];
+
+  for (const [currentSide, currentChain] of Object.entries(chains)) {
+    if (currentSide !== side) {
+      blockedTiles.push(...currentChain);
+    }
+  }
+
+  const blockedTileIndices = new Set<number>(
+    blockedTiles.map(({ x, y }) => toRoomIndex(x, y)),
+  );
+
+  const hand = side === "left" ? "right" : "left";
+
+  const compactPath = followUpgradeWall(
+    roots[side],
+    terminalCoordinate,
+    upgradeTileIndices,
+    hand,
+    6,
+    blockedTileIndices,
+  );
+
+  if (compactPath.length >= chains[side].length) {
+    chains[side] = compactPath;
+    return chains;
+  }
+
+  return chains;
+}
+
 export function findUpgradeChains(
   roots: UpgradeRoots,
   terminalCoordinate: RoomCoordinate,
