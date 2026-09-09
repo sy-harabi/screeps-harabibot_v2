@@ -5,6 +5,7 @@ import { findTerrainRegions } from "../../world/map/terrainRegions";
 import type { BasePlan, PlannedStructure } from "./basePlan";
 import {
   findTerminalCandidates,
+  findUpgradeChains,
   findUpgradeRoots,
   findUpgradeTiles,
   followUpgradeWall,
@@ -56,6 +57,7 @@ export function planBase(
   terminalCandidates.forEach(({ x, y }) => visual.text("T", x, y));
 
   const terminalCoordinate = terminalCandidates[0];
+
   if (terminalCoordinate) {
     const upgradeTiles = findUpgradeTiles(
       controller,
@@ -87,31 +89,18 @@ export function planBase(
       upgradeTileIndices,
     );
 
-    if (roots?.left) {
-      const leftPath = followUpgradeWall(
-        roots.left,
+    if (roots !== undefined) {
+      const upgradeChains = findUpgradeChains(
+        roots,
         terminalCoordinate,
         upgradeTileIndices,
-        "left",
       );
-      visualizeUpgradePath(visual, leftPath, "L", "#ffd166");
-    }
 
-    if (roots?.middle) {
-      visual.text("M", roots.middle.x, roots.middle.y, {
-        color: "#ffffff",
-        font: 0.5,
-      });
-    }
-
-    if (roots?.right) {
-      const rightPath = followUpgradeWall(
-        roots.right,
-        terminalCoordinate,
-        upgradeTileIndices,
-        "right",
-      );
-      visualizeUpgradePath(visual, rightPath, "R", "#4cc9f0");
+      if (upgradeChains !== undefined) {
+        for (const chain of Object.values(upgradeChains)) {
+          visualizeUpgradePath(visual, chain, "U", "#ffd166");
+        }
+      }
     }
   }
 

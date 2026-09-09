@@ -22,7 +22,7 @@ interface UpgradeChains {
   right?: RoomCoordinate[];
 }
 
-function findUpgradeChains(
+export function findUpgradeChains(
   roots: UpgradeRoots,
   terminalCoordinate: RoomCoordinate,
   upgradeTileIndices: Set<number>,
@@ -49,7 +49,7 @@ function findUpgradeChains(
     roots.right || roots.middle,
     terminalCoordinate,
     upgradeTileIndices,
-    "left",
+    "right",
     6,
     blockedTileIndices,
   );
@@ -62,18 +62,39 @@ function findUpgradeChains(
     blockedTileIndices.add(toRoomIndex(coordinate.x, coordinate.y)),
   );
 
+  let best = {
+    left: leftMax,
+    right: rightMax,
+    middle: [roots.middle],
+  };
+
+  let bestNumTiles = leftMax.length + rightMax.length + 1;
+
   for (let leftLength = leftMax.length; leftLength >= 1; leftLength--) {
     for (let rightLength = rightMax.length; rightLength >= 1; rightLength--) {
       const left = leftMax.slice(0, leftLength);
       const right = rightMax.slice(0, rightLength);
+      const middle: RoomCoordinate[] = findLongestUpgradePath(
+        roots.middle,
+        upgradeTileIndices,
+        blockedTileIndices,
+        6,
+      );
 
-      // middle 찾기
+      const currentNumTiles = leftLength + rightLength + middle.length;
+
+      if (currentNumTiles === 18) {
+        return { left, right, middle };
+      }
+
+      if (currentNumTiles > bestNumTiles) {
+        best = { left, right, middle };
+        bestNumTiles = currentNumTiles;
+      }
     }
   }
 
-  // 1. left 최대 6
-  // 2. right 최대 6
-  // 3. 아직 middle은 하지 않음
+  return best;
 }
 
 function findLongestUpgradePath(
@@ -82,81 +103,58 @@ function findLongestUpgradePath(
   blockedTileIndices: Set<number>,
   maxLength = 6,
 ): RoomCoordinate[] {
-  const rootIndex = toRoomIndex(root.x, root.y);
-  const path = [root];
-  const bestPath = [root];
+  const path: RoomCoordinate[] = [root];
+  let bestPath: RoomCoordinate[] = [root];
 
-  const visited = new Set<number>([rootIndex]);
+  const visited = new Set<number>([toRoomIndex(root.x, root.y)]);
 
-  return dfs(
-    root,
-    path,
-    bestPath,
-    upgradeTileIndices,
-    blockedTileIndices,
-    visited,
-    maxLength,
-  ).bestPath;
-}
-
-function dfs(
-  current: RoomCoordinate,
-  path: RoomCoordinate[],
-  bestPath: RoomCoordinate[],
-  upgradeTileIndices: Set<number>,
-  blockedTileIndices: Set<number>,
-  visited: Set<number>,
-  maxLength: number,
-): { succeed: boolean; path: RoomCoordinate[]; bestPath: RoomCoordinate[] } {
-  if (path.length === maxLength) {
-    return { succeed: true, path, bestPath: path };
-  }
-
-  if (path.length > bestPath.length) {
-    bestPath = [...path];
-  }
-
-  for (const offset of NEIGHBOR_OFFSETS) {
-    const next = {
-      x: current.x + offset.x,
-      y: current.y + offset.y,
-    };
-
-    const index = toRoomIndex(next.x, next.y);
-
-    if (
-      !upgradeTileIndices.has(index) ||
-      blockedTileIndices.has(index) ||
-      visited.has(index)
-    ) {
-      continue;
+  function dfs(current: RoomCoordinate): boolean {
+    if (path.length > bestPath.length) {
+      bestPath = [...path];
     }
 
-    visited.add(index);
-    path.push(next);
-
-    const dfsResult = dfs(
-      next,
-      path,
-      bestPath,
-      upgradeTileIndices,
-      blockedTileIndices,
-      visited,
-      maxLength,
-    );
-
-    if (dfsResult.succeed) {
-      return dfsResult;
+    if (path.length === maxLength) {
+      return true;
     }
 
-    path.pop();
+    for (const offset of NEIGHBOR_OFFSETS) {
+      const next = {
+        x: current.x + offset.x,
+        y: current.y + offset.y,
+      };
 
-    visited.delete(index);
+      if (!isInsideRoom(next.x, next.y)) {
+        continue;
+      }
+
+      const nextIndex = toRoomIndex(next.x, next.y);
+
+      if (
+        !upgradeTileIndices.has(nextIndex) ||
+        blockedTileIndices.has(nextIndex) ||
+        visited.has(nextIndex)
+      ) {
+        continue;
+      }
+
+      visited.add(nextIndex);
+      path.push(next);
+
+      if (dfs(next)) {
+        return true;
+      }
+
+      path.pop();
+      visited.delete(nextIndex);
+    }
+
+    return false;
   }
 
-  return { succeed: false, path, bestPath };
-}
+  dfs(root);
 
+  return bestPath;
+}
 export function followUpgradeWall(
   root: RoomCoordinate,
   terminalCoordinate: RoomCoordinate,
