@@ -2,6 +2,7 @@ import { getRange, RoomCoordinate } from "../../world/map/roomCoordinate";
 import {
   forEachCoordinateAtRange,
   forEachCoordinateInRange,
+  isInsideRoom,
   NEIGHBOR_OFFSETS,
   toRoomIndex,
 } from "../../world/map/roomGrid";
@@ -15,7 +16,7 @@ interface UpgradeRoots {
 const LEFT_TURN_ORDER = [-2, -1, 0, 1, 2, 3, 4, 5];
 const RIGHT_TURN_ORDER = [2, 1, 0, -1, -2, -3, -4, 5];
 
-function followUpgradeWall(
+export function followUpgradeWall(
   root: RoomCoordinate,
   terminalCoordinate: RoomCoordinate,
   upgradeTileIndices: Set<number>,
@@ -23,6 +24,7 @@ function followUpgradeWall(
   maxLength = 6,
 ): RoomCoordinate[] {
   const path: RoomCoordinate[] = [root];
+  const visited = new Set<number>([toRoomIndex(root.x, root.y)]);
 
   let current = root;
   let heading = NEIGHBOR_OFFSETS.findIndex(
@@ -40,12 +42,20 @@ function followUpgradeWall(
       const direction = (heading + turn + 8) % 8;
       const offset = NEIGHBOR_OFFSETS[direction];
       const next = { x: current.x + offset.x, y: current.y + offset.y };
-      if (!upgradeTileIndices.has(toRoomIndex(next.x, next.y))) {
+
+      if (!isInsideRoom(next.x, next.y)) {
         continue;
       }
+
+      const nextIndex = toRoomIndex(next.x, next.y);
+      if (!upgradeTileIndices.has(nextIndex) || visited.has(nextIndex)) {
+        continue;
+      }
+
       current = next;
       heading = direction;
       path.push(next);
+      visited.add(nextIndex);
       moved = true;
       break;
     }
@@ -58,7 +68,7 @@ function followUpgradeWall(
   return path;
 }
 
-function findUpgradeRoots(
+export function findUpgradeRoots(
   terminalCoordinate: RoomCoordinate,
   controller: StructureController,
   upgradeTileIndices: Set<number>,
