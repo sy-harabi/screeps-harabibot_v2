@@ -1,15 +1,12 @@
 import { distanceTransform } from "../../world/map/distanceTransform";
 import { RoomCoordinate } from "../../world/map/roomCoordinate";
-import { fromRoomIndex, toRoomIndex } from "../../world/map/roomGrid";
-import { findTerrainRegions } from "../../world/map/terrainRegions";
-import type { BasePlan, PlannedStructure } from "./basePlan";
+import { fromRoomIndex } from "../../world/map/roomGrid";
 import {
-  findTerminalCandidates,
-  findUpgradeRoots,
-  findUpgradeTiles,
-  followUpgradeWall,
-  planControllerArea,
-} from "./planControllerArea";
+  findTerrainRegions,
+  TerrainRegion,
+} from "../../world/map/terrainRegions";
+import type { BasePlan, PlannedStructure } from "./basePlan";
+import { planControllerArea } from "./planControllerArea";
 import { selectBaseRegions } from "./selectBaseRegions";
 
 /**
@@ -34,33 +31,9 @@ export function planBase(
     regions,
   );
 
-  let selectedRegionSumX = 0;
-  let selectedRegionSumY = 0;
-  let totalNumSelectedRegionTiles = 0;
+  visualizeSelectedRegions(selectedRegionIds, regions, visual);
 
-  for (const region of regions) {
-    if (selectedRegionIds.has(region.id)) {
-      totalNumSelectedRegionTiles += region.tileIndices.length;
-
-      region.tileIndices.forEach((index) => {
-        const { x, y } = fromRoomIndex(index);
-        selectedRegionSumX += x;
-        selectedRegionSumY += y;
-
-        const color = getRegionColor(region.id, regions.length);
-        visual.rect(x - 0.5, y - 0.5, 1, 1, {
-          fill: color,
-          opacity: 0.3,
-          stroke: "transparent",
-        });
-      });
-    }
-  }
-
-  const selectedCenter: RoomCoordinate = {
-    x: Math.round(selectedRegionSumX / totalNumSelectedRegionTiles),
-    y: Math.round(selectedRegionSumY / totalNumSelectedRegionTiles),
-  };
+  const selectedCenter = getSelectedRegionCenter(selectedRegionIds, regions);
 
   const controllerArea = planControllerArea(
     controller,
@@ -81,6 +54,55 @@ export function planBase(
   const anchor = { x: 25, y: 25 };
 
   return { version: 1, roomName, anchor, structures };
+}
+
+function visualizeSelectedRegions(
+  selectedRegionIds: Set<number>,
+  regions: readonly TerrainRegion[],
+  visual: RoomVisual,
+) {
+  for (const region of regions) {
+    if (selectedRegionIds.has(region.id)) {
+      region.tileIndices.forEach((index) => {
+        const { x, y } = fromRoomIndex(index);
+
+        const color = getRegionColor(region.id, regions.length);
+        visual.rect(x - 0.5, y - 0.5, 1, 1, {
+          fill: color,
+          opacity: 0.3,
+          stroke: "transparent",
+        });
+      });
+    }
+  }
+}
+
+function getSelectedRegionCenter(
+  selectedRegionIds: Set<number>,
+  regions: readonly TerrainRegion[],
+): RoomCoordinate {
+  let sumX = 0;
+  let sumY = 0;
+  let numTiles = 0;
+
+  for (const region of regions) {
+    if (!selectedRegionIds.has(region.id)) {
+      continue;
+    }
+
+    for (const index of region.tileIndices) {
+      const { x, y } = fromRoomIndex(index);
+
+      sumX += x;
+      sumY += y;
+      numTiles++;
+    }
+  }
+
+  return {
+    x: Math.round(sumX / numTiles),
+    y: Math.round(sumY / numTiles),
+  };
 }
 
 function visualizeUpgradePath(

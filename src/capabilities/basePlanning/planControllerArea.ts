@@ -73,7 +73,7 @@ export function planControllerArea(
     );
 
     if (roots === undefined) {
-      return;
+      continue;
     }
 
     const upgradeChains = findUpgradeChains(
@@ -372,7 +372,8 @@ function findLongestUpgradePath(
 
   return bestPath;
 }
-export function followUpgradeWall(
+
+function followUpgradeWall(
   root: RoomCoordinate,
   terminalCoordinate: RoomCoordinate,
   upgradeTileIndices: Set<number>,
@@ -429,7 +430,7 @@ export function followUpgradeWall(
   return path;
 }
 
-export function findUpgradeRoots(
+function findUpgradeRoots(
   terminalCoordinate: RoomCoordinate,
   controller: StructureController,
   upgradeTileIndices: Set<number>,
@@ -480,7 +481,7 @@ export function findUpgradeRoots(
   return undefined;
 }
 
-export function findUpgradeTiles(
+function findUpgradeTiles(
   controller: StructureController,
   selectedRegionIds: Set<number>,
   regionByTile: Int16Array,
@@ -497,7 +498,7 @@ export function findUpgradeTiles(
   return upgradeTiles;
 }
 
-export function findTerminalCandidates(
+function findTerminalCandidates(
   controller: StructureController,
   selectedRegionIds: Set<number>,
   regionByTile: Int16Array,
