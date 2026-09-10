@@ -48,9 +48,9 @@ export function planBase(
   }
 
   visual.structure(
-    controllerArea.terminal.x,
-    controllerArea.terminal.y,
-    STRUCTURE_TERMINAL,
+    controllerArea.storage.x,
+    controllerArea.storage.y,
+    STRUCTURE_STORAGE,
   );
 
   for (const chain of controllerArea.upgradeChains) {
@@ -59,7 +59,7 @@ export function planBase(
 
   const corePlan = planCore(
     controller,
-    controllerArea.terminal,
+    controllerArea.storage,
     controllerArea.upgradeChains,
     selectedRegionIds,
     regionByTile,
@@ -71,7 +71,7 @@ export function planBase(
   }
 
   visual.text("M", corePlan.manager.x, corePlan.manager.y);
-  visual.structure(corePlan.storage.x, corePlan.storage.y, STRUCTURE_STORAGE);
+  visual.structure(corePlan.terminal.x, corePlan.terminal.y, STRUCTURE_TERMINAL);
   visual.structure(corePlan.link.x, corePlan.link.y, STRUCTURE_LINK);
   visual.structure(
     corePlan.firstSpawn.x,

@@ -7,7 +7,7 @@ import {
 
 export interface CorePlan {
   manager: RoomCoordinate;
-  storage: RoomCoordinate;
+  terminal: RoomCoordinate;
   link: RoomCoordinate;
   firstSpawn: RoomCoordinate;
   access: RoomCoordinate;
@@ -20,7 +20,7 @@ interface CoreCandidate extends CorePlan {
 
 export function planCore(
   controller: StructureController,
-  terminal: RoomCoordinate,
+  storage: RoomCoordinate,
   upgradeChains: RoomCoordinate[][],
   selectedRegionIds: Set<number>,
   regionByTile: Int16Array,
@@ -31,7 +31,7 @@ export function planCore(
 
   for (const manager of findManagerCandidates(
     controller,
-    terminal,
+    storage,
     roots,
     selectedRegionIds,
     regionByTile,
@@ -39,7 +39,7 @@ export function planCore(
     coreCandidates.push(
       ...findCoreCandidatesForManager(
         controller,
-        terminal,
+        storage,
         manager,
         selectedRegionIds,
         regionByTile,
@@ -59,7 +59,7 @@ export function planCore(
 
 function findCoreCandidatesForManager(
   controller: StructureController,
-  terminal: RoomCoordinate,
+  storage: RoomCoordinate,
   manager: RoomCoordinate,
   selectedRegionIds: Set<number>,
   regionByTile: Int16Array,
@@ -67,33 +67,33 @@ function findCoreCandidatesForManager(
 ): CoreCandidate[] {
   const candidates: CoreCandidate[] = [];
 
-  for (const storage of findAdjacentCoreTiles(
+  for (const terminal of findAdjacentCoreTiles(
     controller,
     manager,
     selectedRegionIds,
     regionByTile,
-    [terminal, manager],
+    [storage, manager],
   )) {
     for (const link of findAdjacentCoreTiles(
       controller,
       manager,
       selectedRegionIds,
       regionByTile,
-      [terminal, manager, storage],
+      [storage, manager, terminal],
     )) {
       for (const firstSpawn of findAdjacentCoreTiles(
         controller,
         manager,
         selectedRegionIds,
         regionByTile,
-        [terminal, manager, storage, link],
+        [storage, manager, terminal, link],
       )) {
         const accessRoads = findCoreAccessRoads(
           terminal,
           storage,
           selectedRegionIds,
           regionByTile,
-          [terminal, manager, storage, link, firstSpawn],
+          [storage, manager, terminal, link, firstSpawn],
         );
 
         if (accessRoads.length === 0) {
@@ -106,7 +106,7 @@ function findCoreCandidatesForManager(
 
         candidates.push({
           manager,
-          storage,
+          terminal,
           link,
           firstSpawn,
           access: accessRoads[0],
@@ -122,14 +122,14 @@ function findCoreCandidatesForManager(
 
 function findManagerCandidates(
   controller: StructureController,
-  terminal: RoomCoordinate,
+  storage: RoomCoordinate,
   roots: RoomCoordinate[],
   selectedRegionIds: Set<number>,
   regionByTile: Int16Array,
 ): RoomCoordinate[] {
   const candidates: RoomCoordinate[] = [];
 
-  for (const manager of getNeighbors(terminal)) {
+  for (const manager of getNeighbors(storage)) {
     if (
       !isValidCoreTile(controller, manager, selectedRegionIds, regionByTile)
     ) {
