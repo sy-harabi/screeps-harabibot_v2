@@ -14,7 +14,6 @@ interface UpgradeRoots {
 }
 
 const UPGRADE_TILES_TIER_ONE_THRESHOLD = 16;
-
 const UPGRADE_TILES_TIER_TWO_THRESHOLD = 13;
 
 const LEFT_TURN_ORDER = [-2, -1, 0, 1, 2, 3, 4, 5];
@@ -27,12 +26,12 @@ interface UpgradeChains {
 }
 
 export interface ControllerAreaPlan {
-  terminal: RoomCoordinate;
+  storage: RoomCoordinate;
   upgradeChains: RoomCoordinate[][];
 }
 
 interface ControllerAreaCandidate {
-  terminal: RoomCoordinate;
+  storage: RoomCoordinate;
   upgradeChains: UpgradeChains;
   tier: number;
 }
@@ -43,13 +42,13 @@ export function planControllerArea(
   regionByTile: Int16Array,
   selectedCenter: RoomCoordinate,
 ): ControllerAreaPlan | undefined {
-  const terminalCandidates = findTerminalCandidates(
+  const storageCandidates = findStorageCandidates(
     controller,
     selectedRegionIds,
     regionByTile,
   );
 
-  if (terminalCandidates.length === 0) {
+  if (storageCandidates.length === 0) {
     return;
   }
 
@@ -65,9 +64,9 @@ export function planControllerArea(
 
   const controllerAreaCandidates: ControllerAreaCandidate[] = [];
 
-  for (const terminalCoordinate of terminalCandidates) {
+  for (const storageCoordinate of storageCandidates) {
     const roots = findUpgradeRoots(
-      terminalCoordinate,
+      storageCoordinate,
       controller,
       upgradeTileIndices,
     );
@@ -78,19 +77,19 @@ export function planControllerArea(
 
     const upgradeChains = findUpgradeChains(
       roots,
-      terminalCoordinate,
+      storageCoordinate,
       upgradeTileIndices,
     );
 
     const compactChains = compactUpgradeChains(
       upgradeChains,
       roots,
-      terminalCoordinate,
+      storageCoordinate,
       upgradeTileIndices,
     );
 
     controllerAreaCandidates.push({
-      terminal: terminalCoordinate,
+      storage: storageCoordinate,
       upgradeChains: compactChains,
       tier: getUpgradeCapacityTier(compactChains),
     });
@@ -99,8 +98,7 @@ export function planControllerArea(
   controllerAreaCandidates.sort(
     (a, b) =>
       a.tier - b.tier ||
-      getRange(selectedCenter, a.terminal) -
-        getRange(selectedCenter, b.terminal),
+      getRange(selectedCenter, a.storage) - getRange(selectedCenter, b.storage),
   );
 
   const best = controllerAreaCandidates[0];
@@ -110,7 +108,7 @@ export function planControllerArea(
   }
 
   return {
-    terminal: best.terminal,
+    storage: best.storage,
     upgradeChains: Object.values(best.upgradeChains).filter(
       (chain) => chain.length > 0,
     ),
@@ -131,13 +129,14 @@ function getUpgradeCapacityTier(upgradeChains: UpgradeChains): number {
   if (numUpgradeTiles >= UPGRADE_TILES_TIER_TWO_THRESHOLD) {
     return 2;
   }
+
   return 3;
 }
 
 function compactUpgradeChains(
   chains: UpgradeChains,
   roots: UpgradeRoots,
-  terminalCoordinate: RoomCoordinate,
+  storageCoordinate: RoomCoordinate,
   upgradeTileIndices: Set<number>,
 ): UpgradeChains {
   let result: UpgradeChains = {
@@ -151,7 +150,7 @@ function compactUpgradeChains(
       result,
       side,
       roots,
-      terminalCoordinate,
+      storageCoordinate,
       upgradeTileIndices,
     );
   }
@@ -163,14 +162,14 @@ function tryCompactOuterChain(
   chains: UpgradeChains,
   side: "left" | "right",
   roots: UpgradeRoots,
-  terminalCoordinate: RoomCoordinate,
+  storageCoordinate: RoomCoordinate,
   upgradeTileIndices: Set<number>,
 ): UpgradeChains {
   if (roots[side] === undefined || chains[side] === undefined) {
     return chains;
   }
 
-  const blockedTiles = [];
+  const blockedTiles: RoomCoordinate[] = [];
 
   for (const [currentSide, currentChain] of Object.entries(chains)) {
     if (currentSide !== side) {
@@ -186,7 +185,7 @@ function tryCompactOuterChain(
 
   const compactPath = followUpgradeWall(
     roots[side],
-    terminalCoordinate,
+    storageCoordinate,
     upgradeTileIndices,
     hand,
     6,
@@ -195,7 +194,6 @@ function tryCompactOuterChain(
 
   if (compactPath.length >= chains[side].length) {
     chains[side] = compactPath;
-    return chains;
   }
 
   return chains;
@@ -203,7 +201,7 @@ function tryCompactOuterChain(
 
 function findUpgradeChains(
   roots: UpgradeRoots,
-  terminalCoordinate: RoomCoordinate,
+  storageCoordinate: RoomCoordinate,
   upgradeTileIndices: Set<number>,
 ): UpgradeChains {
   let blockedTileIndices = new Set(
@@ -214,7 +212,7 @@ function findUpgradeChains(
 
   const leftMax = followUpgradeWall(
     roots.left,
-    terminalCoordinate,
+    storageCoordinate,
     upgradeTileIndices,
     "left",
     6,
@@ -231,7 +229,7 @@ function findUpgradeChains(
 
   const rightMax = followUpgradeWall(
     roots.right,
-    terminalCoordinate,
+    storageCoordinate,
     upgradeTileIndices,
     "right",
     6,
@@ -261,7 +259,7 @@ function findUpgradeChains(
         ),
       );
 
-      const middle: RoomCoordinate[] = findLongestUpgradePath(
+      const middle = findLongestUpgradePath(
         roots.middle,
         upgradeTileIndices,
         blockedTileIndices,
@@ -324,7 +322,6 @@ function findLongestUpgradePath(
 ): RoomCoordinate[] {
   const path: RoomCoordinate[] = [root];
   let bestPath: RoomCoordinate[] = [root];
-
   const visited = new Set<number>([toRoomIndex(root.x, root.y)]);
 
   function dfs(current: RoomCoordinate): boolean {
@@ -371,13 +368,12 @@ function findLongestUpgradePath(
   }
 
   dfs(root);
-
   return bestPath;
 }
 
 function followUpgradeWall(
   root: RoomCoordinate,
-  terminalCoordinate: RoomCoordinate,
+  storageCoordinate: RoomCoordinate,
   upgradeTileIndices: Set<number>,
   hand: "left" | "right",
   maxLength = 6,
@@ -389,8 +385,8 @@ function followUpgradeWall(
   let current = root;
   let heading = NEIGHBOR_OFFSETS.findIndex(
     (offset) =>
-      offset.x === Math.sign(root.x - terminalCoordinate.x) &&
-      offset.y === Math.sign(root.y - terminalCoordinate.y),
+      offset.x === Math.sign(root.x - storageCoordinate.x) &&
+      offset.y === Math.sign(root.y - storageCoordinate.y),
   );
 
   const order = hand === "left" ? LEFT_TURN_ORDER : RIGHT_TURN_ORDER;
@@ -408,6 +404,7 @@ function followUpgradeWall(
       }
 
       const nextIndex = toRoomIndex(next.x, next.y);
+
       if (
         !upgradeTileIndices.has(nextIndex) ||
         visited.has(nextIndex) ||
@@ -433,12 +430,12 @@ function followUpgradeWall(
 }
 
 function findUpgradeRoots(
-  terminalCoordinate: RoomCoordinate,
+  storageCoordinate: RoomCoordinate,
   controller: StructureController,
   upgradeTileIndices: Set<number>,
 ): UpgradeRoots | undefined {
-  const dx = Math.sign(terminalCoordinate.x - controller.pos.x);
-  const dy = Math.sign(terminalCoordinate.y - controller.pos.y);
+  const dx = Math.sign(storageCoordinate.x - controller.pos.x);
+  const dy = Math.sign(storageCoordinate.y - controller.pos.y);
 
   const startIndex = NEIGHBOR_OFFSETS.findIndex(
     (offset) => offset.x === dx && offset.y === dy,
@@ -448,10 +445,9 @@ function findUpgradeRoots(
 
   for (let i = 0; i < NEIGHBOR_OFFSETS.length; i++) {
     const offset = NEIGHBOR_OFFSETS[(startIndex + i) % 8];
-
     const coordinate = {
-      x: terminalCoordinate.x + offset.x,
-      y: terminalCoordinate.y + offset.y,
+      x: storageCoordinate.x + offset.x,
+      y: storageCoordinate.y + offset.y,
     };
 
     if (upgradeTileIndices.has(toRoomIndex(coordinate.x, coordinate.y))) {
@@ -492,6 +488,7 @@ function findUpgradeTiles(
 
   forEachCoordinateInRange(controller.pos, 3, (x, y) => {
     const index = toRoomIndex(x, y);
+
     if (selectedRegionIds.has(regionByTile[index])) {
       upgradeTiles.push({ x, y });
     }
@@ -500,19 +497,18 @@ function findUpgradeTiles(
   return upgradeTiles;
 }
 
-function findTerminalCandidates(
+function findStorageCandidates(
   controller: StructureController,
   selectedRegionIds: Set<number>,
   regionByTile: Int16Array,
-) {
+): RoomCoordinate[] {
   let candidates: RoomCoordinate[] = [];
   let maxNumAdjacents = 0;
 
   forEachCoordinateAtRange(controller.pos, 4, (x, y) => {
     const index = toRoomIndex(x, y);
-    const regionIndex = regionByTile[index];
 
-    if (!selectedRegionIds.has(regionIndex)) {
+    if (!selectedRegionIds.has(regionByTile[index])) {
       return;
     }
 
@@ -524,9 +520,8 @@ function findTerminalCandidates(
       }
 
       const neighborIndex = toRoomIndex(nx, ny);
-      const neighborRegionIndex = regionByTile[neighborIndex];
 
-      if (!selectedRegionIds.has(neighborRegionIndex)) {
+      if (!selectedRegionIds.has(regionByTile[neighborIndex])) {
         return;
       }
 
