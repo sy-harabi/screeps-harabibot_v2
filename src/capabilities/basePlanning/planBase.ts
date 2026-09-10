@@ -53,14 +53,14 @@ export function planBase(
     STRUCTURE_TERMINAL,
   );
 
-  for (const chain of Object.values(controllerArea.upgradeChains)) {
+  for (const chain of controllerArea.upgradeChains) {
     visualizeUpgradePath(visual, chain, "", "#ffd166");
   }
 
   const corePlan = planCore(
     controller,
-    controllerArea?.terminal,
-    controllerArea?.upgradeChains,
+    controllerArea.terminal,
+    controllerArea.upgradeChains,
     selectedRegionIds,
     regionByTile,
     selectedCenter,
@@ -72,11 +72,16 @@ export function planBase(
 
   visual.text("M", corePlan.manager.x, corePlan.manager.y);
   visual.structure(corePlan.storage.x, corePlan.storage.y, STRUCTURE_STORAGE);
-  visual.text("A", corePlan.access.x, corePlan.access.y);
   visual.structure(corePlan.link.x, corePlan.link.y, STRUCTURE_LINK);
+  visual.structure(
+    corePlan.firstSpawn.x,
+    corePlan.firstSpawn.y,
+    STRUCTURE_SPAWN,
+  );
+  visual.text("A", corePlan.access.x, corePlan.access.y);
 
-  corePlan.accessRoads.forEach((r) =>
-    visual.structure(r.x, r.y, STRUCTURE_ROAD),
+  corePlan.accessRoads.forEach((road) =>
+    visual.structure(road.x, road.y, STRUCTURE_ROAD),
   );
 
   visual.connectRoads();
