@@ -25,63 +25,23 @@ export function planCore(
 
   const coreCandidates = [];
 
-  function isValidTile(
-    { x, y }: RoomCoordinate,
-    blockedTileIndices?: Set<number>,
-  ): boolean {
-    if (!isInsideRoom(x, y)) {
-      return false;
-    }
-
-    if (getRange(controller.pos, { x, y }) <= 3) {
-      return false;
-    }
-
-    const index = toRoomIndex(x, y);
-
-    if (!selectedRegionIds.has(regionByTile[index])) {
-      return false;
-    }
-
-    if (blockedTileIndices && blockedTileIndices.has(index)) {
-      return false;
-    }
-
-    return true;
-  }
-
   // manager loop
-  for (const offset of NEIGHBOR_OFFSETS) {
-    const managerCandidate = {
-      x: terminal.x + offset.x,
-      y: terminal.y + offset.y,
-    };
-
-    if (!isValidTile(managerCandidate)) {
-      continue;
-    }
-
-    if (!roots.some((root) => getRange(root, managerCandidate) === 1)) {
-      continue;
-    }
-
+  for (const managerCandidate of findManagerCandidates(
+    controller,
+    selectedRegionIds,
+    regionByTile,
+    terminal,
+    roots,
+  )) {
     // storage loop
-    for (const offset of NEIGHBOR_OFFSETS) {
-      const blockedTileIndices = new Set<number>(
-        [terminal, managerCandidate].map(({ x, y }) => toRoomIndex(x, y)),
-      );
-
-      const storageCandidate = {
-        x: managerCandidate.x + offset.x,
-        y: managerCandidate.y + offset.y,
-      };
-
-      if (!isValidTile(storageCandidate, blockedTileIndices)) {
-        continue;
-      }
-
-      const coreAccessRoads = [];
-
+    for (const storageCandidate of findStorageCandidates(
+      controller,
+      managerCandidate,
+      selectedRegionIds,
+      regionByTile,
+      terminal,
+    )) {
+      // link loop
       for (const offset of NEIGHBOR_OFFSETS) {
         const blockedTileIndices = new Set<number>(
           [terminal, managerCandidate, storageCandidate].map(({ x, y }) =>
@@ -90,13 +50,23 @@ export function planCore(
         );
 
         const linkCandidate = {
-          x: storageCandidate.x + offset.x,
-          y: storageCandidate.y + offset.y,
+          x: managerCandidate.x + offset.x,
+          y: managerCandidate.y + offset.y,
         };
 
-        if (!isValidTile(linkCandidate, blockedTileIndices)) {
+        if (
+          !isValidTile(
+            controller,
+            linkCandidate,
+            selectedRegionIds,
+            regionByTile,
+            blockedTileIndices,
+          )
+        ) {
           continue;
         }
+
+        const coreAccessRoads = [];
 
         // access loop
         for (const offset of NEIGHBOR_OFFSETS) {
@@ -111,7 +81,15 @@ export function planCore(
             y: storageCandidate.y + offset.y,
           };
 
-          if (!isValidTile(accessCandidate, blockedTileIndices)) {
+          if (
+            !isValidTile(
+              controller,
+              accessCandidate,
+              selectedRegionIds,
+              regionByTile,
+              blockedTileIndices,
+            )
+          ) {
             continue;
           }
 
@@ -156,4 +134,142 @@ export function planCore(
   });
 
   return coreCandidates[0];
+}
+function findLinkCandidates(
+  controller: StructureController,
+  managerCandidate: RoomCoordinate,
+  storageCandidate: RoomCoordinate,
+  selectedRegionIds: Set<number>,
+  regionByTile: Int16Array,
+  terminal: RoomCoordinate,
+): RoomCoordinate[] {
+  const storageCandidates = [];
+
+  const blockedTileIndices = new Set<number>(
+    [terminal, managerCandidate].map(({ x, y }) => toRoomIndex(x, y)),
+  );
+
+  for (const offset of NEIGHBOR_OFFSETS) {
+    const storageCandidate = {
+      x: terminal.x + offset.x,
+      y: terminal.y + offset.y,
+    };
+
+    if (
+      !isValidTile(
+        controller,
+        storageCandidate,
+        selectedRegionIds,
+        regionByTile,
+        blockedTileIndices,
+      )
+    ) {
+      continue;
+    }
+
+    storageCandidates.push(storageCandidate);
+  }
+
+  return storageCandidates;
+}
+
+function findStorageCandidates(
+  controller: StructureController,
+  managerCandidate: RoomCoordinate,
+  selectedRegionIds: Set<number>,
+  regionByTile: Int16Array,
+  terminal: RoomCoordinate,
+): RoomCoordinate[] {
+  const storageCandidates = [];
+
+  const blockedTileIndices = new Set<number>(
+    [terminal, managerCandidate].map(({ x, y }) => toRoomIndex(x, y)),
+  );
+
+  for (const offset of NEIGHBOR_OFFSETS) {
+    const storageCandidate = {
+      x: terminal.x + offset.x,
+      y: terminal.y + offset.y,
+    };
+
+    if (
+      !isValidTile(
+        controller,
+        storageCandidate,
+        selectedRegionIds,
+        regionByTile,
+        blockedTileIndices,
+      )
+    ) {
+      continue;
+    }
+
+    storageCandidates.push(storageCandidate);
+  }
+
+  return storageCandidates;
+}
+
+function findManagerCandidates(
+  controller: StructureController,
+  selectedRegionIds: Set<number>,
+  regionByTile: Int16Array,
+  terminal: RoomCoordinate,
+  roots: RoomCoordinate[],
+): RoomCoordinate[] {
+  const managerCandidates = [];
+
+  for (const offset of NEIGHBOR_OFFSETS) {
+    const managerCandidate = {
+      x: terminal.x + offset.x,
+      y: terminal.y + offset.y,
+    };
+
+    if (
+      !isValidTile(
+        controller,
+        managerCandidate,
+        selectedRegionIds,
+        regionByTile,
+      )
+    ) {
+      continue;
+    }
+
+    if (!roots.some((root) => getRange(root, managerCandidate) === 1)) {
+      continue;
+    }
+
+    managerCandidates.push(managerCandidate);
+  }
+
+  return managerCandidates;
+}
+
+function isValidTile(
+  controller: StructureController,
+  coordinate: RoomCoordinate,
+  selectedRegionIds: Set<number>,
+  regionByTile: Int16Array,
+  blockedTileIndices?: Set<number>,
+): boolean {
+  if (!isInsideRoom(coordinate.x, coordinate.y)) {
+    return false;
+  }
+
+  if (getRange(controller.pos, coordinate) <= 3) {
+    return false;
+  }
+
+  const index = toRoomIndex(coordinate.x, coordinate.y);
+
+  if (!selectedRegionIds.has(regionByTile[index])) {
+    return false;
+  }
+
+  if (blockedTileIndices && blockedTileIndices.has(index)) {
+    return false;
+  }
+
+  return true;
 }
