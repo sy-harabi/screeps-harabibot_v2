@@ -27,6 +27,12 @@ export interface ControllerAreaPlan {
   upgradeChains: UpgradeChains;
 }
 
+interface ControllerAreaCandidate {
+  terminal: RoomCoordinate;
+  upgradeChains: UpgradeChains;
+  numUpgradeTiles: number;
+}
+
 export function planControllerArea(
   controller: StructureController,
   selectedRegionIds: Set<number>,
@@ -42,46 +48,68 @@ export function planControllerArea(
       distances[toRoomIndex(b.x, b.y)] - distances[toRoomIndex(a.x, a.y)],
   );
 
-  const terminalCoordinate = terminalCandidates[0];
-
-  if (!terminalCoordinate) {
+  if (terminalCandidates.length === 0) {
     return;
   }
 
-  const upgradeTiles = findUpgradeTiles(
-    controller,
-    selectedRegionIds,
-    regionByTile,
-  );
+  const controllerAreaCandidates: ControllerAreaCandidate[] = [];
 
-  const upgradeTileIndices = new Set(
-    upgradeTiles.map(({ x, y }) => toRoomIndex(x, y)),
-  );
+  for (const terminalCoordinate of terminalCandidates) {
+    const upgradeTiles = findUpgradeTiles(
+      controller,
+      selectedRegionIds,
+      regionByTile,
+    );
 
-  const roots = findUpgradeRoots(
-    terminalCoordinate,
-    controller,
-    upgradeTileIndices,
-  );
+    const upgradeTileIndices = new Set(
+      upgradeTiles.map(({ x, y }) => toRoomIndex(x, y)),
+    );
 
-  if (roots === undefined) {
-    return;
+    const roots = findUpgradeRoots(
+      terminalCoordinate,
+      controller,
+      upgradeTileIndices,
+    );
+
+    if (roots === undefined) {
+      return;
+    }
+
+    const upgradeChains = findUpgradeChains(
+      roots,
+      terminalCoordinate,
+      upgradeTileIndices,
+    );
+
+    const compactChains = compactUpgradeChains(
+      upgradeChains,
+      roots,
+      terminalCoordinate,
+      upgradeTileIndices,
+    );
+
+    controllerAreaCandidates.push({
+      terminal: terminalCoordinate,
+      upgradeChains: compactChains,
+      numUpgradeTiles: getControllerAreaNumUpgradeTiles(compactChains),
+    });
   }
 
-  const upgradeChains = findUpgradeChains(
-    roots,
-    terminalCoordinate,
-    upgradeTileIndices,
+  controllerAreaCandidates.sort(
+    (a, b) => b.numUpgradeTiles - a.numUpgradeTiles,
   );
+}
 
-  const compactChains = compactUpgradeChains(
-    upgradeChains,
-    roots,
-    terminalCoordinate,
-    upgradeTileIndices,
-  );
+function getControllerAreaNumUpgradeTiles(
+  upgradeChains: UpgradeChains,
+): number {
+  let numUpgradeTiles = 0;
 
-  return { terminal: terminalCoordinate, upgradeChains: compactChains };
+  for (const chain of Object.values(upgradeChains)) {
+    numUpgradeTiles += chain.length;
+  }
+
+  return numUpgradeTiles;
 }
 
 function compactUpgradeChains(
