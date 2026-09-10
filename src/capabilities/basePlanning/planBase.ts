@@ -47,7 +47,11 @@ export function planBase(
     return;
   }
 
-  visual.text("T", controllerArea.terminal.x, controllerArea.terminal.y);
+  visual.structure(
+    controllerArea.terminal.x,
+    controllerArea.terminal.y,
+    STRUCTURE_TERMINAL,
+  );
 
   for (const chain of Object.values(controllerArea.upgradeChains)) {
     visualizeUpgradePath(visual, chain, "", "#ffd166");
@@ -67,12 +71,15 @@ export function planBase(
   }
 
   visual.text("M", corePlan.manager.x, corePlan.manager.y);
-  visual.text("S", corePlan.storage.x, corePlan.storage.y);
+  visual.structure(corePlan.storage.x, corePlan.storage.y, STRUCTURE_STORAGE);
   visual.text("A", corePlan.access.x, corePlan.access.y);
+  visual.structure(corePlan.link.x, corePlan.link.y, STRUCTURE_LINK);
 
   corePlan.accessRoads.forEach((r) =>
     visual.structure(r.x, r.y, STRUCTURE_ROAD),
   );
+
+  visual.connectRoads();
 
   const structures: PlannedStructure[] = [];
   const anchor = { x: 25, y: 25 };

@@ -8,6 +8,7 @@ import {
 export interface CorePlan {
   manager: RoomCoordinate;
   storage: RoomCoordinate;
+  link: RoomCoordinate;
   access: RoomCoordinate;
   accessRoads: RoomCoordinate[];
 }
@@ -88,41 +89,58 @@ export function planCore(
           ),
         );
 
-        const accessCandidate = {
+        const linkCandidate = {
           x: storageCandidate.x + offset.x,
           y: storageCandidate.y + offset.y,
         };
 
-        if (!isValidTile(accessCandidate, blockedTileIndices)) {
+        if (!isValidTile(linkCandidate, blockedTileIndices)) {
           continue;
         }
 
-        if (getRange(accessCandidate, terminal) > 1) {
+        // access loop
+        for (const offset of NEIGHBOR_OFFSETS) {
+          const blockedTileIndices = new Set<number>(
+            [terminal, managerCandidate, storageCandidate, linkCandidate].map(
+              ({ x, y }) => toRoomIndex(x, y),
+            ),
+          );
+
+          const accessCandidate = {
+            x: storageCandidate.x + offset.x,
+            y: storageCandidate.y + offset.y,
+          };
+
+          if (!isValidTile(accessCandidate, blockedTileIndices)) {
+            continue;
+          }
+
+          if (getRange(accessCandidate, terminal) > 1) {
+            continue;
+          }
+
+          coreAccessRoads.push(accessCandidate);
+        }
+
+        if (coreAccessRoads.length === 0) {
           continue;
         }
 
-        coreAccessRoads.push(accessCandidate);
+        coreAccessRoads.sort(
+          (a, b) => getRange(a, selectedCenter) - getRange(b, selectedCenter),
+        );
+
+        const access = coreAccessRoads[0];
+
+        coreCandidates.push({
+          manager: managerCandidate,
+          storage: storageCandidate,
+          link: linkCandidate,
+          access,
+          accessRoads: coreAccessRoads,
+          accessTier: Math.max(1, 4 - coreAccessRoads.length),
+        });
       }
-
-      if (coreAccessRoads.length === 0) {
-        continue;
-      }
-
-      coreAccessRoads.sort(
-        (a, b) => getRange(a, selectedCenter) - getRange(b, selectedCenter),
-      );
-
-      const access = coreAccessRoads[0];
-
-      const accessRoads = coreAccessRoads.slice(1);
-
-      coreCandidates.push({
-        manager: managerCandidate,
-        storage: storageCandidate,
-        access,
-        accessRoads,
-        accessTier: accessRoads.length >= 3 ? 1 : 2,
-      });
     }
   }
 

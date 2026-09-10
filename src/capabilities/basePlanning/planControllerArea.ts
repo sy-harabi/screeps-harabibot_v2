@@ -111,7 +111,9 @@ export function planControllerArea(
 
   return {
     terminal: best.terminal,
-    upgradeChains: Object.values(best.upgradeChains),
+    upgradeChains: Object.values(best.upgradeChains).filter(
+      (chain) => chain.length > 0,
+    ),
   };
 }
 
