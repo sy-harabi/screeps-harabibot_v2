@@ -34,10 +34,19 @@ export function planBase(
     regions,
   );
 
+  let selectedRegionSumX = 0;
+  let selectedRegionSumY = 0;
+  let totalNumSelectedRegionTiles = 0;
+
   for (const region of regions) {
     if (selectedRegionIds.has(region.id)) {
+      totalNumSelectedRegionTiles += region.tileIndices.length;
+
       region.tileIndices.forEach((index) => {
         const { x, y } = fromRoomIndex(index);
+        selectedRegionSumX += x;
+        selectedRegionSumY += y;
+
         const color = getRegionColor(region.id, regions.length);
         visual.rect(x - 0.5, y - 0.5, 1, 1, {
           fill: color,
@@ -48,11 +57,16 @@ export function planBase(
     }
   }
 
+  const selectedCenter: RoomCoordinate = {
+    x: Math.round(selectedRegionSumX / totalNumSelectedRegionTiles),
+    y: Math.round(selectedRegionSumY / totalNumSelectedRegionTiles),
+  };
+
   const controllerArea = planControllerArea(
     controller,
     selectedRegionIds,
     regionByTile,
-    distances,
+    selectedCenter,
   );
 
   if (controllerArea) {

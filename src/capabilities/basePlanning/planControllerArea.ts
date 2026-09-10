@@ -13,6 +13,10 @@ interface UpgradeRoots {
   right?: RoomCoordinate;
 }
 
+const UPGRADE_TILES_TIER_ONE_THRESHOLD = 16;
+
+const UPGRADE_TILES_TIER_TWO_THRESHOLD = 13;
+
 const LEFT_TURN_ORDER = [-2, -1, 0, 1, 2, 3, 4, 5];
 const RIGHT_TURN_ORDER = [2, 1, 0, -1, -2, -3, -4, -5];
 
@@ -30,41 +34,38 @@ export interface ControllerAreaPlan {
 interface ControllerAreaCandidate {
   terminal: RoomCoordinate;
   upgradeChains: UpgradeChains;
-  numUpgradeTiles: number;
+  tier: number;
 }
 
 export function planControllerArea(
   controller: StructureController,
   selectedRegionIds: Set<number>,
   regionByTile: Int16Array,
-  distances: Uint8Array,
+  selectedCenter: RoomCoordinate,
 ): ControllerAreaPlan | undefined {
   const terminalCandidates = findTerminalCandidates(
     controller,
     selectedRegionIds,
     regionByTile,
-  ).sort(
-    (a, b) =>
-      distances[toRoomIndex(b.x, b.y)] - distances[toRoomIndex(a.x, a.y)],
   );
 
   if (terminalCandidates.length === 0) {
     return;
   }
 
+  const upgradeTiles = findUpgradeTiles(
+    controller,
+    selectedRegionIds,
+    regionByTile,
+  );
+
+  const upgradeTileIndices = new Set(
+    upgradeTiles.map(({ x, y }) => toRoomIndex(x, y)),
+  );
+
   const controllerAreaCandidates: ControllerAreaCandidate[] = [];
 
   for (const terminalCoordinate of terminalCandidates) {
-    const upgradeTiles = findUpgradeTiles(
-      controller,
-      selectedRegionIds,
-      regionByTile,
-    );
-
-    const upgradeTileIndices = new Set(
-      upgradeTiles.map(({ x, y }) => toRoomIndex(x, y)),
-    );
-
     const roots = findUpgradeRoots(
       terminalCoordinate,
       controller,
@@ -91,25 +92,44 @@ export function planControllerArea(
     controllerAreaCandidates.push({
       terminal: terminalCoordinate,
       upgradeChains: compactChains,
-      numUpgradeTiles: getControllerAreaNumUpgradeTiles(compactChains),
+      tier: getUpgradeCapacityTier(compactChains),
     });
   }
 
   controllerAreaCandidates.sort(
-    (a, b) => b.numUpgradeTiles - a.numUpgradeTiles,
+    (a, b) =>
+      a.tier - b.tier ||
+      getRange(selectedCenter, a.terminal) -
+        getRange(selectedCenter, b.terminal),
   );
+
+  const best = controllerAreaCandidates[0];
+
+  if (!best) {
+    return;
+  }
+
+  return {
+    terminal: best.terminal,
+    upgradeChains: best.upgradeChains,
+  };
 }
 
-function getControllerAreaNumUpgradeTiles(
-  upgradeChains: UpgradeChains,
-): number {
+function getUpgradeCapacityTier(upgradeChains: UpgradeChains): number {
   let numUpgradeTiles = 0;
 
   for (const chain of Object.values(upgradeChains)) {
     numUpgradeTiles += chain.length;
   }
 
-  return numUpgradeTiles;
+  if (numUpgradeTiles >= UPGRADE_TILES_TIER_ONE_THRESHOLD) {
+    return 1;
+  }
+
+  if (numUpgradeTiles >= UPGRADE_TILES_TIER_TWO_THRESHOLD) {
+    return 2;
+  }
+  return 3;
 }
 
 function compactUpgradeChains(
