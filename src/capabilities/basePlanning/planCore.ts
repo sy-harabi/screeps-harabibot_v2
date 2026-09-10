@@ -9,8 +9,13 @@ export interface CorePlan {
   manager: RoomCoordinate;
   storage: RoomCoordinate;
   link: RoomCoordinate;
+  firstSpawn: RoomCoordinate;
   access: RoomCoordinate;
   accessRoads: RoomCoordinate[];
+}
+
+interface CoreCandidate extends CorePlan {
+  accessTier: number;
 }
 
 export function planCore(
@@ -22,213 +27,113 @@ export function planCore(
   selectedCenter: RoomCoordinate,
 ): CorePlan | undefined {
   const roots = upgradeChains.map((chain) => chain[0]);
+  const coreCandidates: CoreCandidate[] = [];
 
-  const coreCandidates = [];
-
-  // manager loop
-  for (const managerCandidate of findManagerCandidates(
+  for (const manager of findManagerCandidates(
     controller,
-    selectedRegionIds,
-    regionByTile,
     terminal,
     roots,
+    selectedRegionIds,
+    regionByTile,
   )) {
-    // storage loop
-    for (const storageCandidate of findStorageCandidates(
+    coreCandidates.push(
+      ...findCoreCandidatesForManager(
+        controller,
+        terminal,
+        manager,
+        selectedRegionIds,
+        regionByTile,
+        selectedCenter,
+      ),
+    );
+  }
+
+  coreCandidates.sort(
+    (a, b) =>
+      a.accessTier - b.accessTier ||
+      getRange(a.access, selectedCenter) - getRange(b.access, selectedCenter),
+  );
+
+  return coreCandidates[0];
+}
+
+function findCoreCandidatesForManager(
+  controller: StructureController,
+  terminal: RoomCoordinate,
+  manager: RoomCoordinate,
+  selectedRegionIds: Set<number>,
+  regionByTile: Int16Array,
+  selectedCenter: RoomCoordinate,
+): CoreCandidate[] {
+  const candidates: CoreCandidate[] = [];
+
+  for (const storage of findAdjacentCoreTiles(
+    controller,
+    manager,
+    selectedRegionIds,
+    regionByTile,
+    [terminal, manager],
+  )) {
+    for (const link of findAdjacentCoreTiles(
       controller,
-      managerCandidate,
+      manager,
       selectedRegionIds,
       regionByTile,
-      terminal,
+      [terminal, manager, storage],
     )) {
-      // link loop
-      for (const offset of NEIGHBOR_OFFSETS) {
-        const blockedTileIndices = new Set<number>(
-          [terminal, managerCandidate, storageCandidate].map(({ x, y }) =>
-            toRoomIndex(x, y),
-          ),
+      for (const firstSpawn of findAdjacentCoreTiles(
+        controller,
+        manager,
+        selectedRegionIds,
+        regionByTile,
+        [terminal, manager, storage, link],
+      )) {
+        const accessRoads = findCoreAccessRoads(
+          terminal,
+          storage,
+          selectedRegionIds,
+          regionByTile,
+          [terminal, manager, storage, link, firstSpawn],
         );
 
-        const linkCandidate = {
-          x: managerCandidate.x + offset.x,
-          y: managerCandidate.y + offset.y,
-        };
-
-        if (
-          !isValidTile(
-            controller,
-            linkCandidate,
-            selectedRegionIds,
-            regionByTile,
-            blockedTileIndices,
-          )
-        ) {
+        if (accessRoads.length === 0) {
           continue;
         }
 
-        const coreAccessRoads = [];
-
-        // access loop
-        for (const offset of NEIGHBOR_OFFSETS) {
-          const blockedTileIndices = new Set<number>(
-            [terminal, managerCandidate, storageCandidate, linkCandidate].map(
-              ({ x, y }) => toRoomIndex(x, y),
-            ),
-          );
-
-          const accessCandidate = {
-            x: storageCandidate.x + offset.x,
-            y: storageCandidate.y + offset.y,
-          };
-
-          if (
-            !isValidTile(
-              controller,
-              accessCandidate,
-              selectedRegionIds,
-              regionByTile,
-              blockedTileIndices,
-            )
-          ) {
-            continue;
-          }
-
-          if (getRange(accessCandidate, terminal) > 1) {
-            continue;
-          }
-
-          coreAccessRoads.push(accessCandidate);
-        }
-
-        if (coreAccessRoads.length === 0) {
-          continue;
-        }
-
-        coreAccessRoads.sort(
+        accessRoads.sort(
           (a, b) => getRange(a, selectedCenter) - getRange(b, selectedCenter),
         );
 
-        const access = coreAccessRoads[0];
-
-        coreCandidates.push({
-          manager: managerCandidate,
-          storage: storageCandidate,
-          link: linkCandidate,
-          access,
-          accessRoads: coreAccessRoads,
-          accessTier: Math.max(1, 4 - coreAccessRoads.length),
+        candidates.push({
+          manager,
+          storage,
+          link,
+          firstSpawn,
+          access: accessRoads[0],
+          accessRoads,
+          accessTier: getAccessTier(accessRoads.length),
         });
       }
     }
   }
 
-  if (coreCandidates.length === 0) {
-    return;
-  }
-
-  coreCandidates.sort((a, b) => {
-    return (
-      a.accessTier - b.accessTier ||
-      getRange(a.access, selectedCenter) - getRange(b.access, selectedCenter)
-    );
-  });
-
-  return coreCandidates[0];
-}
-function findLinkCandidates(
-  controller: StructureController,
-  managerCandidate: RoomCoordinate,
-  storageCandidate: RoomCoordinate,
-  selectedRegionIds: Set<number>,
-  regionByTile: Int16Array,
-  terminal: RoomCoordinate,
-): RoomCoordinate[] {
-  const storageCandidates = [];
-
-  const blockedTileIndices = new Set<number>(
-    [terminal, managerCandidate].map(({ x, y }) => toRoomIndex(x, y)),
-  );
-
-  for (const offset of NEIGHBOR_OFFSETS) {
-    const storageCandidate = {
-      x: terminal.x + offset.x,
-      y: terminal.y + offset.y,
-    };
-
-    if (
-      !isValidTile(
-        controller,
-        storageCandidate,
-        selectedRegionIds,
-        regionByTile,
-        blockedTileIndices,
-      )
-    ) {
-      continue;
-    }
-
-    storageCandidates.push(storageCandidate);
-  }
-
-  return storageCandidates;
-}
-
-function findStorageCandidates(
-  controller: StructureController,
-  managerCandidate: RoomCoordinate,
-  selectedRegionIds: Set<number>,
-  regionByTile: Int16Array,
-  terminal: RoomCoordinate,
-): RoomCoordinate[] {
-  const storageCandidates = [];
-
-  const blockedTileIndices = new Set<number>(
-    [terminal, managerCandidate].map(({ x, y }) => toRoomIndex(x, y)),
-  );
-
-  for (const offset of NEIGHBOR_OFFSETS) {
-    const storageCandidate = {
-      x: terminal.x + offset.x,
-      y: terminal.y + offset.y,
-    };
-
-    if (
-      !isValidTile(
-        controller,
-        storageCandidate,
-        selectedRegionIds,
-        regionByTile,
-        blockedTileIndices,
-      )
-    ) {
-      continue;
-    }
-
-    storageCandidates.push(storageCandidate);
-  }
-
-  return storageCandidates;
+  return candidates;
 }
 
 function findManagerCandidates(
   controller: StructureController,
-  selectedRegionIds: Set<number>,
-  regionByTile: Int16Array,
   terminal: RoomCoordinate,
   roots: RoomCoordinate[],
+  selectedRegionIds: Set<number>,
+  regionByTile: Int16Array,
 ): RoomCoordinate[] {
-  const managerCandidates = [];
+  const candidates: RoomCoordinate[] = [];
 
-  for (const offset of NEIGHBOR_OFFSETS) {
-    const managerCandidate = {
-      x: terminal.x + offset.x,
-      y: terminal.y + offset.y,
-    };
-
+  for (const manager of getNeighbors(terminal)) {
     if (
-      !isValidTile(
+      !isValidCoreTile(
         controller,
-        managerCandidate,
+        manager,
         selectedRegionIds,
         regionByTile,
       )
@@ -236,24 +141,83 @@ function findManagerCandidates(
       continue;
     }
 
-    if (!roots.some((root) => getRange(root, managerCandidate) === 1)) {
+    if (!roots.some((root) => getRange(root, manager) === 1)) {
       continue;
     }
 
-    managerCandidates.push(managerCandidate);
+    candidates.push(manager);
   }
 
-  return managerCandidates;
+  return candidates;
 }
 
-function isValidTile(
+function findAdjacentCoreTiles(
+  controller: StructureController,
+  origin: RoomCoordinate,
+  selectedRegionIds: Set<number>,
+  regionByTile: Int16Array,
+  blockedCoordinates: readonly RoomCoordinate[],
+): RoomCoordinate[] {
+  const blockedTileIndices = toIndexSet(blockedCoordinates);
+  const candidates: RoomCoordinate[] = [];
+
+  for (const coordinate of getNeighbors(origin)) {
+    if (
+      isValidCoreTile(
+        controller,
+        coordinate,
+        selectedRegionIds,
+        regionByTile,
+        blockedTileIndices,
+      )
+    ) {
+      candidates.push(coordinate);
+    }
+  }
+
+  return candidates;
+}
+
+function findCoreAccessRoads(
+  terminal: RoomCoordinate,
+  storage: RoomCoordinate,
+  selectedRegionIds: Set<number>,
+  regionByTile: Int16Array,
+  blockedCoordinates: readonly RoomCoordinate[],
+): RoomCoordinate[] {
+  const blockedTileIndices = toIndexSet(blockedCoordinates);
+  const roads: RoomCoordinate[] = [];
+
+  for (const coordinate of getNeighbors(storage)) {
+    if (getRange(coordinate, terminal) > 1) {
+      continue;
+    }
+
+    if (
+      !isValidRoadTile(
+        coordinate,
+        selectedRegionIds,
+        regionByTile,
+        blockedTileIndices,
+      )
+    ) {
+      continue;
+    }
+
+    roads.push(coordinate);
+  }
+
+  return roads;
+}
+
+function isValidCoreTile(
   controller: StructureController,
   coordinate: RoomCoordinate,
   selectedRegionIds: Set<number>,
   regionByTile: Int16Array,
   blockedTileIndices?: Set<number>,
 ): boolean {
-  if (!isInsideRoom(coordinate.x, coordinate.y)) {
+  if (!isValidSelectedRegionTile(coordinate, selectedRegionIds, regionByTile)) {
     return false;
   }
 
@@ -261,15 +225,57 @@ function isValidTile(
     return false;
   }
 
-  const index = toRoomIndex(coordinate.x, coordinate.y);
+  return !blockedTileIndices?.has(toRoomIndex(coordinate.x, coordinate.y));
+}
 
-  if (!selectedRegionIds.has(regionByTile[index])) {
+function isValidRoadTile(
+  coordinate: RoomCoordinate,
+  selectedRegionIds: Set<number>,
+  regionByTile: Int16Array,
+  blockedTileIndices: Set<number>,
+): boolean {
+  if (!isValidSelectedRegionTile(coordinate, selectedRegionIds, regionByTile)) {
     return false;
   }
 
-  if (blockedTileIndices && blockedTileIndices.has(index)) {
+  return !blockedTileIndices.has(toRoomIndex(coordinate.x, coordinate.y));
+}
+
+function isValidSelectedRegionTile(
+  coordinate: RoomCoordinate,
+  selectedRegionIds: Set<number>,
+  regionByTile: Int16Array,
+): boolean {
+  if (!isInsideRoom(coordinate.x, coordinate.y)) {
     return false;
   }
 
-  return true;
+  return selectedRegionIds.has(
+    regionByTile[toRoomIndex(coordinate.x, coordinate.y)],
+  );
+}
+
+function getNeighbors(coordinate: RoomCoordinate): RoomCoordinate[] {
+  return NEIGHBOR_OFFSETS.map((offset) => ({
+    x: coordinate.x + offset.x,
+    y: coordinate.y + offset.y,
+  }));
+}
+
+function toIndexSet(coordinates: readonly RoomCoordinate[]): Set<number> {
+  return new Set(
+    coordinates.map(({ x, y }) => toRoomIndex(x, y)),
+  );
+}
+
+function getAccessTier(numAccessRoads: number): number {
+  if (numAccessRoads >= 3) {
+    return 1;
+  }
+
+  if (numAccessRoads === 2) {
+    return 2;
+  }
+
+  return 3;
 }
