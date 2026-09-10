@@ -28,7 +28,7 @@ interface UpgradeChains {
 
 export interface ControllerAreaPlan {
   terminal: RoomCoordinate;
-  upgradeChains: UpgradeChains;
+  upgradeChains: RoomCoordinate[][];
 }
 
 interface ControllerAreaCandidate {
@@ -111,7 +111,7 @@ export function planControllerArea(
 
   return {
     terminal: best.terminal,
-    upgradeChains: best.upgradeChains,
+    upgradeChains: Object.values(best.upgradeChains),
   };
 }
 

@@ -7,6 +7,7 @@ import {
 } from "../../world/map/terrainRegions";
 import type { BasePlan, PlannedStructure } from "./basePlan";
 import { planControllerArea } from "./planControllerArea";
+import { planCore } from "./planCore";
 import { selectBaseRegions } from "./selectBaseRegions";
 
 /**
@@ -18,7 +19,7 @@ export function planBase(
   controller: StructureController,
   sources: Source[],
   mineral: Mineral[],
-): BasePlan {
+): BasePlan | undefined {
   const distances = distanceTransform(terrain);
 
   const { regionByTile, regions } = findTerrainRegions(terrain, distances);
@@ -42,13 +43,36 @@ export function planBase(
     selectedCenter,
   );
 
-  if (controllerArea) {
-    visual.text("T", controllerArea.terminal.x, controllerArea.terminal.y);
-
-    for (const chain of Object.values(controllerArea.upgradeChains)) {
-      visualizeUpgradePath(visual, chain, "", "#ffd166");
-    }
+  if (!controllerArea) {
+    return;
   }
+
+  visual.text("T", controllerArea.terminal.x, controllerArea.terminal.y);
+
+  for (const chain of Object.values(controllerArea.upgradeChains)) {
+    visualizeUpgradePath(visual, chain, "", "#ffd166");
+  }
+
+  const corePlan = planCore(
+    controller,
+    controllerArea?.terminal,
+    controllerArea?.upgradeChains,
+    selectedRegionIds,
+    regionByTile,
+    selectedCenter,
+  );
+
+  if (!corePlan) {
+    return;
+  }
+
+  visual.text("M", corePlan.manager.x, corePlan.manager.y);
+  visual.text("S", corePlan.storage.x, corePlan.storage.y);
+  visual.text("A", corePlan.access.x, corePlan.access.y);
+
+  corePlan.accessRoads.forEach((r) =>
+    visual.structure(r.x, r.y, STRUCTURE_ROAD),
+  );
 
   const structures: PlannedStructure[] = [];
   const anchor = { x: 25, y: 25 };
