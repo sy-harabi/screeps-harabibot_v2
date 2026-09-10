@@ -131,12 +131,7 @@ function findManagerCandidates(
 
   for (const manager of getNeighbors(terminal)) {
     if (
-      !isValidCoreTile(
-        controller,
-        manager,
-        selectedRegionIds,
-        regionByTile,
-      )
+      !isValidCoreTile(controller, manager, selectedRegionIds, regionByTile)
     ) {
       continue;
     }
@@ -263,9 +258,7 @@ function getNeighbors(coordinate: RoomCoordinate): RoomCoordinate[] {
 }
 
 function toIndexSet(coordinates: readonly RoomCoordinate[]): Set<number> {
-  return new Set(
-    coordinates.map(({ x, y }) => toRoomIndex(x, y)),
-  );
+  return new Set(coordinates.map(({ x, y }) => toRoomIndex(x, y)));
 }
 
 function getAccessTier(numAccessRoads: number): number {
