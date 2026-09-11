@@ -42,13 +42,7 @@ export function planResourceTree(
   const distanceMap = dijkstraMap(
     terrain,
     corePlan.roads,
-    (x, y, terrainType) => {
-      if (terrainType === TERRAIN_MASK_SWAMP) {
-        return 6;
-      }
-
-      return 5;
-    },
+    getRoadCost,
     (x, y) => {
       if (blockedMap[toRoomIndex(x, y)] === 1) {
         return false;
@@ -102,32 +96,32 @@ export function planResourceTree(
       targetCoordinates,
       terrain,
       distanceMap,
-      (x, y, terrainType) => {
-        if (terrainType === TERRAIN_MASK_WALL) {
-          return -1;
-        }
-
-        if (terrainType === TERRAIN_MASK_SWAMP) {
-          return 6;
-        }
-
-        return 5;
-      },
+      getRoadCost,
     );
 
     for (let index = 0; index < ROOM_AREA; index++) {
-      const coordinate = fromRoomIndex(index);
-
       if (pathMask[index] > 0) {
         resourcePathMask[index] |= resourceBit;
-        visual.text(resourcePathMask[index] + "", coordinate.x, coordinate.y, {
-          font: 0.5,
-          stroke: "black",
-        });
       }
     }
 
     resourceBit <<= 1;
+  }
+
+  for (let index = 0; index < ROOM_AREA; index++) {
+    if (resourcePathMask[index] > 0) {
+      const coordinate = fromRoomIndex(index);
+
+      visual.text(
+        resourcePathMask[index].toString(),
+        coordinate.x,
+        coordinate.y,
+        {
+          font: 0.5,
+          stroke: "black",
+        },
+      );
+    }
   }
 }
 
@@ -190,4 +184,8 @@ function buildShortestPathMask(
   }
 
   return mask;
+}
+
+function getRoadCost(_x: number, _y: number, terrainType: number): number {
+  return terrainType === TERRAIN_MASK_SWAMP ? 6 : 5;
 }
