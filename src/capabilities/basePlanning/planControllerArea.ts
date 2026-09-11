@@ -25,23 +25,18 @@ interface UpgradeChains {
   right?: RoomCoordinate[];
 }
 
-export interface ControllerAreaPlan {
-  storage: RoomCoordinate;
-  upgradeChains: RoomCoordinate[][];
-}
-
 interface ControllerAreaCandidate {
   storage: RoomCoordinate;
-  upgradeChains: UpgradeChains;
+  upgradeChains: RoomCoordinate[][];
   tier: number;
 }
 
-export function planControllerArea(
+export function findControllerAreaCandidates(
   controller: StructureController,
   selectedRegionIds: Set<number>,
   regionByTile: Int16Array,
   selectedCenter: RoomCoordinate,
-): ControllerAreaPlan | undefined {
+): ControllerAreaCandidate[] | undefined {
   const storageCandidates = findStorageCandidates(
     controller,
     selectedRegionIds,
@@ -90,29 +85,14 @@ export function planControllerArea(
 
     controllerAreaCandidates.push({
       storage: storageCoordinate,
-      upgradeChains: compactChains,
+      upgradeChains: Object.values(compactChains).filter(
+        (chain) => chain.length > 0,
+      ),
       tier: getUpgradeCapacityTier(compactChains),
     });
   }
 
-  controllerAreaCandidates.sort(
-    (a, b) =>
-      a.tier - b.tier ||
-      getRange(selectedCenter, a.storage) - getRange(selectedCenter, b.storage),
-  );
-
-  const best = controllerAreaCandidates[0];
-
-  if (!best) {
-    return;
-  }
-
-  return {
-    storage: best.storage,
-    upgradeChains: Object.values(best.upgradeChains).filter(
-      (chain) => chain.length > 0,
-    ),
-  };
+  return controllerAreaCandidates.sort((a, b) => a.tier - b.tier);
 }
 
 function getUpgradeCapacityTier(upgradeChains: UpgradeChains): number {
