@@ -1,296 +1,315 @@
-# Base planner core layout
+# Base planner controller area and core layout
 
-Status: proposed
-Date: 2026-09-10
+Status: implemented through core selection
+Date: 2026-09-11
 
 ## Context
 
-The V2 base planner is being designed before source management because the layout determines several long-lived economy and logistics constraints.
+The V2 base planner establishes the controller area and the permanent local core before building the rest of the room road network.
 
-The main goals are:
+The current design goals are:
 
-- keep the base compact enough to defend efficiently;
-- make extension and general refill paths short and simple;
-- avoid the controller-energy throughput problems of the old central-hub design;
-- keep the terminal and storage usable by ordinary haulers instead of making them effectively manager-only;
-- make the controller-side storage useful as soon as RCL4 rather than reserving the prime controller position for the RCL6 terminal;
-- reuse required logistics roads as the backbone for later layout generation;
-- prefer simple structural rules over a large weighted scoring function.
+- reserve strong controller upgrade geometry before later structures consume it;
+- use storage as the controller-side anchor from RCL4 onward;
+- keep the local core small and deterministic;
+- allow the small core to rotate and mirror with terrain rather than use a large bunker stamp;
+- reject bad geometry explicitly instead of accumulating weighted heuristics;
+- keep upgrade-chain tiles reserved for stationary upgraders;
+- prefer a core that faces the selected base area after controller quality has been preserved.
 
-The planner should distinguish three kinds of rules:
-
-1. hard constraints that make a candidate valid or invalid;
-2. explicit lexicographic preferences that have been intentionally chosen;
-3. raw metrics used for inspection and later decisions.
-
-Do not introduce additional weighted heuristics without a separate design decision.
+The planner uses hard validity rules first and a short lexicographic preference order second. It intentionally avoids a large weighted score.
 
 ## Terminology
 
 - **selected regions**: terrain regions chosen as the initial base area.
-- **selected center**: center of mass of all tiles in the selected regions. Average `x` and `y` independently, then round both coordinates with `Math.round`.
-- **Screeps range**: Chebyshev distance, equivalent to `getRange`.
-- **S**: storage and controller-area anchor.
-- **T**: terminal.
-- **M**: stationary manager tile.
-- **L**: manager-serviced storage/core link.
-- **P1**: first spawn.
-- **A**: logistics root/access tile used as the main starting point for external hauling roads.
+- **selected center**: the rounded center of mass of all tiles in the selected regions.
 - **upgrade area**: selected-region tiles within controller range 3.
-- **upgrade chains**: walkable upgrader positions generated from roots adjacent to the storage.
-- **core access roads**: walkable tiles other than occupied core tiles that are adjacent to both `T` and `S`.
-- **resource lane/tree**: roads from `A` to source and mineral work tiles.
-- **lab service branch**: additional walkable service tiles branching from the resource lane when the lane alone cannot support a good dynamic lab cluster near `A`.
+- **storage candidate**: a selected-region tile at controller range 4 with three adjacent upgrade roots.
+- **upgrade roots**: the left, middle, and right upgrader tiles adjacent to a storage candidate.
+- **upgrade chains**: up to three paths grown from those roots, with a maximum length of 6 per chain.
+- **middle root**: the middle of the three upgrade roots. The vector `storage -> middleRoot` defines the forward direction of the core stamp.
+- **core stamp**: a small local-coordinate template containing terminal, manager tile, first spawn, link, and core roads around storage.
+- **manager tile**: the stationary logistics-creep position; it is not a structure.
+- **mirror**: reflection of the core stamp across its forward axis before converting local coordinates to room coordinates.
 
-## Current implementation
+## Current planning pipeline
 
-`planControllerArea.ts` implements the controller-side storage and upgrade-chain generation:
-
-- storage candidates are on controller range 4 and inside selected regions;
-- candidate generation keeps candidates with the maximum number of adjacent upgrade-area tiles;
-- roots adjacent to the storage are ordered as left, middle, and right relative to the controller-storage direction;
-- each chain has a maximum length of 6;
-- the planner searches combinations of left/right lengths and a middle path to reach up to 18 total upgrader tiles;
-- shorter outer chains may be extended after the middle path is chosen;
-- completed outer chains are compacted by retrying them with the opposite wall-following hand, but only when the compact path does not reduce chain length;
-- storage candidates are ranked by upgrade-capacity tier and then by Screeps range to the rounded selected center.
-
-`planCore.ts` then generates the remaining local core around the selected storage:
-
-- `M` is adjacent to `S` and at least one upgrade-chain root;
-- `T`, `L`, and `P1` are generated on free tiles adjacent to `M`;
-- after those occupied tiles are reserved, common `T/S` access roads are calculated;
-- `A` is the common access-road tile closest to the selected center;
-- cores are ranked by access-road tier and then by `A` distance to the selected center.
-
-## Decision
-
-### 1. Storage selection is based on upgrade capacity first
-
-Storage, rather than terminal, is the controller-area anchor.
-
-Storage becomes available at RCL4 while terminal becomes available at RCL6. The controller-facing high-value position should therefore become useful earlier and remain useful throughout the room lifecycle.
-
-Generate the upgrade chains for each storage candidate before committing to a storage position.
-
-Classify candidates by total usable upgrade-chain tiles:
-
-- `>= 16`: top tier;
-- `13..15`: middle tier;
-- `<= 12`: bottom tier.
-
-Choose the highest available tier.
-
-Within the same tier, choose the storage with the smallest Screeps range to the rounded selected center.
-
-Do not use Euclidean distance, distance transform, openness, or a weighted hub score as an additional tie-breaker. If candidates are still tied, preserve stable candidate order until there is a reason to introduce another rule.
-
-### 2. The core is based on S, M, T, L, P1, and A
-
-The desired topology is defined by relationships rather than a fixed stamp.
-
-Required relationships include:
+The implemented pipeline through core selection is:
 
 ```text
-range(M, S) = 1
-range(M, T) = 1
-range(M, L) = 1
-range(M, P1) = 1
-range(A, S) = 1
-range(A, T) = 1
-M != A
-```
-
-All occupied tiles must also satisfy the usual terrain, selected-region, reserved-tile, and structure-overlap constraints.
-
-`M` must be adjacent to at least one upgrade-chain root. The storage is already the controller-area anchor, so `M` naturally sits between the controller-side upgrade geometry and the rest of the core.
-
-The intended roles are:
-
-- `S` is the early controller-side energy store and permanent core anchor;
-- `M` handles stationary storage/terminal/link logistics;
-- `T` is added around the manager later when it becomes available;
-- `L` is reserved beside the manager for high-throughput link logistics;
-- `P1` is reserved as part of the local core rather than being added afterward and accidentally consuming critical access geometry;
-- `A` faces the base side and is the root of external logistics;
-- `T` and `S` remain accessible to creeps other than the manager.
-
-No additional score is currently applied to `T`, `L`, or `P1` beyond validity and their effect on the resulting access-road tier. Remaining ties preserve stable iteration order.
-
-### 3. Prefer at least three common T/S access roads
-
-For a valid core, find all buildable walkable tiles that are adjacent to both `T` and `S`, excluding occupied core tiles.
-
-These tiles are reserved as core access roads. `A` is one of the common-access positions and acts as the primary logistics root.
-
-Preference is tiered rather than weighted:
-
-- first prefer cores with at least 3 common T/S access roads;
-- if that is impossible, prefer 2;
-- if that is impossible, allow 1;
-- 4 roads are not inherently preferred over 3 roads.
-
-Within the same access tier, prefer the candidate whose `A` has the smallest Screeps range to the rounded selected center.
-
-Core access roads may lie inside controller range 3 when the tile is otherwise walkable and valid. The controller range restriction applies to occupied core structures, not automatically to roads.
-
-The purpose of the additional roads is not to create several long hauling trunks immediately. They keep terminal/storage traffic from being manager-exclusive and provide multiple future connections to the base road network.
-
-### 4. Resource roads start from A and form a merged shortest-path tree
-
-After choosing the core, connect `A` to the source and mineral work tiles.
-
-Each resource path should remain a shortest path from `A` to its work tile. Merging is optimized only among paths that preserve that shortest hauling distance.
-
-The initial prototype exposed a bug where each target received an independent shortest path and the paths were merely unioned afterward. The corrected approach chooses among equivalent shortest paths so that new paths join the existing tree whenever possible.
-
-With two sources and one mineral, all six resource-processing orders are cheap enough to test. Prefer the result with the fewest unique road tiles while preserving each target's shortest-path distance. Remaining ties use stable iteration order.
-
-The resource tree becomes the shared backbone for later labs, extensions, and general room logistics.
-
-### 5. Labs are dynamic and are generated around a service network
-
-The old fixed lab stamp is discarded.
-
-Labs should begin near `A` and the resource lane, but they do not have to remain directly adjacent to the resource lane. When needed, the planner may grow a short service branch from the lane.
-
-The service network is:
-
-```text
-resource lane + optional lab service branch
-```
-
-Service-network tiles remain walkable and may not be occupied by labs.
-
-For every candidate lab layout:
-
-- choose two input labs;
-- choose eight output labs;
-- every output lab must be within range 2 of both input labs;
-- all ten labs must be adjacent to at least one reachable service-network tile;
-- connectivity from `A` through the service network must be checked explicitly so a lab can never block the only route to another lab.
-
-Lab placement preference is lexicographic:
-
-1. minimize the maximum service-network distance from `A` needed to reach a tile adjacent to any of the ten labs;
-2. among equal results, minimize the number of added lab-branch tiles;
-3. preserve stable iteration order for remaining ties.
-
-This deliberately allows a short branch even when a zero-branch layout exists. A one-tile branch close to `A` is preferable to placing the whole lab cluster far down a resource road simply to avoid creating a branch.
-
-The important abstraction is therefore not a lab stamp but a compact lab cluster serviced from the beginning of the room's existing logistics network.
-
-## Candidate pipeline
-
-The intended planning order is:
-
-```text
-terrain regions
+terrain
+    -> distance transform
+    -> terrain regions
     -> selected regions
-    -> rounded selected center
+    -> selected center
     -> storage candidates at controller range 4
-    -> upgrade chains for each storage candidate
-    -> storage chain tier
-    -> storage distance to selected center
-    -> manager candidates
-    -> terminal / link / first-spawn candidates around manager
-    -> common T/S access-road tier
-    -> A distance to selected center
-    -> merged shortest-path resource tree
-    -> dynamic labs near A with optional service branch
+         -> require three upgrade roots
+         -> generate upgrade chains
+         -> compact outer chains
+         -> assign upgrade-capacity tier
+    -> for every controller-area candidate
+         -> try normal core stamp
+         -> try mirrored core stamp
+         -> reject invalid stamps
+    -> choose best pair by
+         1. upgrade-capacity tier
+         2. first-spawn range to selected center
 ```
 
-A downstream hard failure should reject that candidate and allow the planner to try the next candidate. It should not force invalid geometry merely because an earlier local candidate ranked first.
+A downstream core failure rejects only that controller-area/core candidate. The planner may continue with another storage candidate or mirror.
+
+## Controller area
+
+### Storage is the controller-side anchor
+
+Storage is placed at controller range 4 and becomes the permanent anchor for the upgrade area and local core.
+
+This keeps the prime controller-facing position useful from RCL4, rather than reserving it for the RCL6 terminal.
+
+### Storage candidates must have three roots
+
+A storage candidate is accepted only when it has three adjacent tiles that are:
+
+- in the selected regions; and
+- inside controller range 3.
+
+These three tiles become `left`, `middle`, and `right` upgrade roots.
+
+The roots are found while evaluating the storage candidate and are carried directly into upgrade-chain generation. The planner does not count adjacent tiles first and rediscover the same roots later.
+
+Requiring three roots also gives the core a stable middle root and therefore a well-defined forward direction.
+
+### Upgrade chains
+
+Each root may grow into an upgrade chain of length at most 6.
+
+The current chain search:
+
+- follows the outer left and right chains along the upgrade-area boundary;
+- searches combinations of outer-chain lengths to make room for a middle path;
+- attempts to reach 18 total upgrader tiles;
+- extends shorter outer chains when useful after the middle path is found;
+- retries completed outer chains with the opposite wall-following hand to compact them when chain length is not reduced.
+
+All three chains are represented explicitly as:
+
+```ts
+interface UpgradeChains {
+  left: RoomCoordinate[];
+  middle: RoomCoordinate[];
+  right: RoomCoordinate[];
+}
+```
+
+### Upgrade-capacity tiers
+
+Controller-area quality is classified by total upgrade-chain tiles:
+
+- tier 1: at least 16 tiles;
+- tier 2: 13-15 tiles;
+- tier 3: 12 or fewer tiles.
+
+Tier is the primary preference for final controller-area/core selection.
+
+## Core stamp
+
+### Small stamp, not a large bunker
+
+After upgrade chains are known, the remaining tightly coupled local structures use a small fixed stamp.
+
+The canonical local-coordinate stamp is currently:
+
+```ts
+export const CORE_STAMP = {
+  storage: { x: 0, y: 0 },
+  terminal: { x: 1, y: 1 },
+  manager: { x: 1, y: 0 },
+  spawn: { x: 2, y: 1 },
+  link: { x: 2, y: -1 },
+  linkFallback: { x: 2, y: 0 },
+  roads: [
+    { x: -1, y: 1 },
+    { x: 0, y: 2 },
+    { x: 1, y: 3 },
+    { x: 2, y: 2 },
+    { x: 3, y: 1 },
+  ],
+};
+```
+
+Storage is the local origin and is already supplied by the controller-area candidate.
+
+The previously tested protruding road at `(-2, 0)` was removed rather than given a road fallback. It did not justify making otherwise good rooms fail. The previous road at `(2, 0)` is also not part of the fixed road list because that tile is reserved as the link fallback.
+
+### Orientation comes from the middle root
+
+The stamp does not search arbitrary rotations.
+
+Its forward direction is always:
+
+```text
+storage -> middleRoot
+```
+
+For valid controller-area candidates this direction is cardinal, so no 45-degree stamp rotation is required.
+
+The canonical stamp is defined once. Room coordinates are produced from a local `forward` vector and its corresponding `right` vector. This avoids maintaining separate N/E/S/W stamp constants.
+
+Because Screeps screen coordinates have increasing `y` downward, the transform is expressed in terms of `forward` and `right` rather than clockwise/counterclockwise terminology.
+
+### Mirror search
+
+For each controller-area candidate, the planner tries both reflections of the same oriented stamp:
+
+```text
+forward fixed by middle root
+    -> mirrored = true
+    -> mirrored = false
+```
+
+The stamp does not freely rotate after the controller area has been chosen. Controller geometry determines forward; mirror is the remaining local degree of freedom.
+
+## Core construction and validity
+
+`findCorePlans()` calls `tryCoreStamp()` for the two mirror states.
+
+`tryCoreStamp()` constructs the core while validating it. Returning a `CorePlan` therefore means the stamp is valid; returning `undefined` means the candidate failed.
+
+The order is intentionally simple:
+
+```text
+manager
+    -> invalid: fail
+terminal
+    -> invalid: fail
+first spawn
+    -> invalid: fail
+primary link
+    -> invalid: try link fallback
+    -> fallback invalid: fail
+core roads
+    -> any invalid: fail
+return CorePlan
+```
+
+A coordinate is invalid when:
+
+- it lies outside the room;
+- it is outside the selected regions; or
+- it overlaps an upgrade-chain tile.
+
+Upgrade-chain tiles are reserved working positions. Core roads are not allowed to overlap them even though Screeps mechanically permits a creep to stand on a road. The planner wants those tiles to remain dedicated upgrader positions rather than become part of through traffic.
+
+### Link fallback
+
+The link is the only current flexible stamp element.
+
+Primary position:
+
+```text
+(2, -1)
+```
+
+Fallback position:
+
+```text
+(2, 0)
+```
+
+The fallback is attempted only when the primary link coordinate is invalid. If the fallback is also invalid, the stamp fails.
+
+There is currently no road fallback. The stamp road footprint was reduced instead of adding road-specific deformation rules.
+
+## Final core selection
+
+All valid core plans from all controller-area candidates compete globally.
+
+The preference is lexicographic:
+
+1. lower upgrade-capacity tier number;
+2. smaller Screeps range from `firstSpawn` to `selectedCenter`;
+3. stable iteration order for remaining ties.
+
+In other words:
+
+```text
+controller upgrade quality
+    > core facing the useful interior of the base
+```
+
+The first spawn is used as the base-facing representative point of the small core. No extra score is currently applied for storage openness, distance transform, link position, terminal position, symmetry, or visual appearance.
+
+## Region policy
+
+The planner currently does not modify terrain-region generation to rescue controller areas that are assigned to the outside region.
+
+Some unusual rooms may therefore be unsupported even when a hand-designed base could fit there. This is intentional for now: the planner prefers a simple, reliable rule set over adding region exceptions for rare room geometry.
+
+If real room samples later show that this rejects too many otherwise valuable rooms, the region policy can be revisited as a separate design decision.
 
 ## Upgrade-chain lifecycle
 
-The planner should keep early-RCL construction from destroying controller capacity.
+The long-term direction remains:
 
-Current design direction:
+- RCL1-6: preserve all generated upgrade-chain tiles;
+- RCL7: two chains are sufficient, so one chain may eventually be reclaimed for late structures;
+- RCL8: one final upgrader chain is sufficient for the controller's 15 energy/tick cap, so other chain tiles may eventually be reclaimed.
 
-- RCL 1-6: preserve all generated upgrade chains;
-- RCL 7: two chains are more than sufficient, so one chain may become available for late structures when three exist;
-- RCL 8: one final upgrader chain is sufficient for the controller's 15 energy/tick cap; other chain tiles may be reclaimed;
-- the final RCL8 upgrader root/path must remain accessible so the upgrader can be replaced.
+The exact per-tile RCL availability representation is not yet implemented.
 
-This should eventually be represented as per-tile RCL availability rather than ad-hoc structure exceptions. The exact reclaim implementation is still open.
+## Why this design
 
-## Experimental evidence
+The current design deliberately combines dynamic geometry with one very small stamp.
 
-The design was exercised against saved `shardSeason` room data rather than only hand-designed maps.
+Dynamic controller analysis solves the part where terrain matters most: storage location and upgrade capacity. The small stamp then locks together structures whose relative positions matter operationally: storage, terminal, manager, link, spawn, and a few local roads.
 
-Notable observations from the experiments:
+This avoids both extremes:
 
-- evaluating upgrade-chain capacity before choosing the controller-area anchor found rooms where the first local candidate provided only 13 chain tiles while another provided 17;
-- the `T/M/A/S` relationship topology was feasible in almost all sampled ordinary two-source rooms;
-- in the 30-room access-road sample, 26 rooms supported at least 3 common T/S access roads, 3 supported only 2, and one narrow-wall case failed the hub topology entirely;
-- forcing labs to use only the resource lane produced poor or unreachable layouts in some rooms;
-- allowing short lab branches while prioritizing distance from `A` moved several lab clusters dramatically closer to the core;
-- independent shortest-path generation created unnecessary parallel roads; choosing among equal shortest paths allowed substantial road merging in some rooms.
+- a large fixed bunker that rejects irregular but usable terrain;
+- a fully dynamic local brute-force search with many arbitrary tie-breakers.
 
-These results are evidence that the abstractions are viable, not permanent thresholds for future scoring.
-
-## Reasons
-
-This design keeps the planner relatively small while tying each local decision to a concrete gameplay role.
-
-Storage gets the controller-facing anchor because it becomes available at RCL4, two controller levels before terminal, and remains central to energy flow for the lifetime of the room. The terminal can then occupy another manager-adjacent core tile when it becomes available at RCL6 without changing the upgrade geometry.
-
-The manager is naturally controller-facing. The logistics root is naturally base-facing. Storage and terminal have multiple public access points. Required source/mineral roads become the base's main skeleton instead of being generated as an afterthought. Labs reuse that skeleton and only add local branches when necessary.
-
-The design also avoids a monolithic score whose weights would be difficult to justify. When trade-offs appear, they remain visible as explicit ordered decisions instead of being hidden inside arbitrary coefficients.
+The core search space is tiny: controller-area candidates multiplied by two mirror states, with one deterministic link fallback.
 
 ## Consequences
 
-- Storage selection is more expensive because upgrade chains must be generated for multiple candidates, but the candidate count is small and base planning is not a per-tick hot path.
-- Storage becomes useful in its final controller-facing position from RCL4 onward; the terminal no longer reserves that prime position before it can be built.
-- Core generation remains a small local brute-force search around the storage/manager pair.
-- Link and first-spawn positions are part of candidate generation, so they cannot silently consume access-road tiles after the core is selected.
-- The road planner must retain target paths, not only a set of road tiles, so merging and visualization are understandable.
-- Lab generation becomes a search around a service network rather than stamp placement.
-- Planner visualization should draw connected upgrade-chain paths, connected resource paths, shared road segments, core access roads, and lab branches rather than displaying only isolated tiles.
-- Future extension generation should reuse the same road-tree concept where possible instead of creating an unrelated second transport network.
+- Controller quality is preserved before core compactness is considered.
+- The core has deterministic structure and predictable manager logistics.
+- Core roads and structures never consume planned upgrader tiles.
+- The link can adapt by one tile in constrained terrain without turning the whole stamp into a generic deformation system.
+- Removing the unnecessary protruding road reduces false core failures and keeps the fallback system small.
+- Some unusual rooms are deliberately unsupported rather than forcing special-case region behavior.
+- Downstream systems can treat the chosen controller area and core as fixed reserved geometry.
 
-## Alternatives considered
+## Next step: resource tree
 
-### Weighted hub score
+The next planner stage is `planResourceTree.ts`.
 
-An experimental score mixed nearby free space, outward tiles, storage distance transform, and other terms. It was discarded because the coefficients did not have a defensible gameplay meaning and could silently override more important structural properties.
+It should connect the chosen core to:
 
-### Euclidean center distance
+- source 1;
+- source 2;
+- mineral.
 
-The selected-region center was initially considered as a floating-point coordinate with squared Euclidean distance. This was rejected. The center is rounded to an actual room coordinate and compared with normal Screeps range.
+The next design question is how to define the road root/frontier from the new small core and how to generate a merged resource tree while respecting:
 
-### Terminal as the controller-area anchor
+- core structures and roads;
+- reserved upgrade-chain tiles;
+- terrain costs;
+- later reuse by labs, rampart access, and extensions.
 
-The earlier design placed the terminal at controller range 4 and generated upgrade chains around it. This geometry works, but the terminal is unavailable until RCL6 while storage is available from RCL4. Giving the permanent controller-facing anchor to storage allows the core to use its final high-value position earlier without losing the same manager/access topology.
-
-### Fixed lab stamp
-
-A fixed lab pattern was rejected because it wastes space in irregular terrain and can force bad roads. Reaction geometry and service reachability are the real constraints.
-
-### Labs restricted to the resource lane
-
-This was too rigid. Labs may use a short service branch as long as the branch remains connected and walkable.
-
-### Minimize lab branch length first
-
-This caused zero-branch lab layouts far down resource roads to beat much closer layouts near `A`. Lab proximity to `A` is now the primary preference; branch length is secondary.
-
-### Independent resource shortest paths followed by union
-
-This produced parallel roads that failed to merge even when equivalent shortest paths could share tiles. Resource paths now preserve shortest distance while preferring a smaller merged tree.
+The previous prototype direction of using a Dijkstra-style distance map and preferring merged equivalent routes remains relevant, but it should now be reconsidered against the finalized small-core geometry rather than copied from the earlier dynamic-core prototype.
 
 ## Open questions
 
-The following are intentionally not settled by this record:
+The following are intentionally left for later stages:
 
-- whether terminal, link, or first-spawn placement needs an additional explicit preference after observing more rooms;
-- whether common T/S access-road fallback needs stronger rules for unusual narrow rooms;
-- extension-tree generation and filler behavior;
-- exact RCL7/RCL8 upgrade-chain tile reclamation policy and data representation;
-- placement of later spawns, factory, power spawn, towers, and other late structures;
-- final defense/min-cut/rampart integration;
-- how much room-level energy-flow and CPU telemetry should feed later planner decisions.
+- exact resource-tree root/frontier and merge objective;
+- source/mineral work-tile selection;
+- dynamic lab placement relative to the final resource tree;
+- extension growth root after removal of the old explicit `A` access tile;
+- expected rampart boundary and internal access lanes;
+- final RCL ordering and reclamation of upgrade tiles;
+- later spawns, factory, power spawn, towers, and other late structures;
+- final min-cut/rampart integration.
 
-These should be decided from actual planner output and measured in-game behavior rather than by adding speculative scoring terms to the current core design.
+These should be decided from actual planner output rather than by adding speculative weights to the core selection.
