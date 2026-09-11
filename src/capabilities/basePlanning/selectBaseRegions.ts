@@ -8,6 +8,8 @@ import {
   TerrainRegion,
 } from "../../world/map/terrainRegions";
 
+const minInnderTiles = 150;
+
 export function selectBaseRegions(
   controller: StructureController,
   regionByTile: Int16Array,
@@ -19,7 +21,7 @@ export function selectBaseRegions(
     const index = toRoomIndex(x, y);
     const regionId = regionByTile[index];
 
-    if (regionId >= 0) {
+    if (regionId > OUTSIDE_REGION_ID) {
       selectedRegionIds.add(regionId);
     }
   });
@@ -34,7 +36,7 @@ export function selectBaseRegions(
 
   const connections = getTotalRegionConnections(regionByTile, regions);
 
-  while (numInnerTiles < 100) {
+  while (numInnerTiles < minInnderTiles) {
     const candidates = getMergeCandidates(selectedRegionIds, connections);
 
     let bestCandidateId: number | undefined;

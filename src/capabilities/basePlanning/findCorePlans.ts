@@ -9,22 +9,21 @@ export const CORE_STAMP = {
   manager: { x: 1, y: 0 },
   spawn: { x: 2, y: 1 },
   link: { x: 2, y: -1 },
+  linkFallback: { x: 2, y: 0 },
   roads: [
-    { x: -2, y: 0 },
     { x: -1, y: 1 },
     { x: 0, y: 2 },
     { x: 1, y: 3 },
     { x: 2, y: 2 },
     { x: 3, y: 1 },
-    { x: 2, y: 0 },
   ],
 };
 
 export interface CorePlan {
   manager: RoomCoordinate;
   terminal: RoomCoordinate;
-  link: RoomCoordinate;
   firstSpawn: RoomCoordinate;
+  link: RoomCoordinate;
   roads: RoomCoordinate[];
 }
 
@@ -46,16 +45,16 @@ export function findCorePlans(
   const middleRoot = upgradeChains.middle[0];
 
   for (const mirrored of [true, false]) {
-    const corePlan = applyCoreStamp(storage, middleRoot, mirrored);
+    const corePlan = tryCoreStamp(
+      storage,
+      selectedRegionIds,
+      regionByTile,
+      upgradeTileIndices,
+      middleRoot,
+      mirrored,
+    );
 
-    if (
-      !isValidCorePlan(
-        corePlan,
-        selectedRegionIds,
-        regionByTile,
-        upgradeTileIndices,
-      )
-    ) {
+    if (!corePlan) {
       continue;
     }
 
@@ -63,29 +62,6 @@ export function findCorePlans(
   }
 
   return coreCandidates;
-}
-
-function isValidCorePlan(
-  corePlan: CorePlan,
-  selectedRegionIds: Set<number>,
-  regionByTile: Int16Array,
-  upgradeTileIndices: Set<number>,
-) {
-  const isValid = (coordinate: RoomCoordinate) =>
-    isValidCoordinate(
-      coordinate,
-      selectedRegionIds,
-      regionByTile,
-      upgradeTileIndices,
-    );
-
-  return (
-    isValid(corePlan.firstSpawn) &&
-    isValid(corePlan.link) &&
-    isValid(corePlan.manager) &&
-    isValid(corePlan.terminal) &&
-    corePlan.roads.every((coordinate) => isValid(coordinate))
-  );
 }
 
 function isValidCoordinate(
@@ -111,11 +87,14 @@ function isValidCoordinate(
   return true;
 }
 
-function applyCoreStamp(
+function tryCoreStamp(
   storage: RoomCoordinate,
+  selectedRegionIds: Set<number>,
+  regionByTile: Int16Array,
+  upgradeTileIndices: Set<number>,
   middleRoot: RoomCoordinate,
   mirrored: boolean,
-): CorePlan {
+): CorePlan | undefined {
   const forward = {
     x: middleRoot.x - storage.x,
     y: middleRoot.y - storage.y,
@@ -124,12 +103,52 @@ function applyCoreStamp(
   const transform = (coordinate: RoomCoordinate) =>
     transformCoreCoordinate(coordinate, storage, forward, mirrored);
 
+  const isValid = (coordinate: RoomCoordinate) =>
+    isValidCoordinate(
+      coordinate,
+      selectedRegionIds,
+      regionByTile,
+      upgradeTileIndices,
+    );
+
+  const manager = transform(CORE_STAMP.manager);
+
+  if (!isValid(manager)) {
+    return;
+  }
+  const terminal = transform(CORE_STAMP.terminal);
+
+  if (!isValid(terminal)) {
+    return;
+  }
+
+  const firstSpawn = transform(CORE_STAMP.spawn);
+
+  if (!isValid(firstSpawn)) {
+    return;
+  }
+
+  let link = transform(CORE_STAMP.link);
+
+  if (!isValid(link)) {
+    link = transform(CORE_STAMP.linkFallback);
+    if (!isValid(link)) {
+      return;
+    }
+  }
+
+  const roads = CORE_STAMP.roads.map(transform);
+
+  if (roads.some((road) => !isValid(road))) {
+    return;
+  }
+
   return {
-    manager: transform(CORE_STAMP.manager),
-    terminal: transform(CORE_STAMP.terminal),
-    link: transform(CORE_STAMP.link),
-    firstSpawn: transform(CORE_STAMP.spawn),
-    roads: CORE_STAMP.roads.map(transform),
+    manager,
+    terminal,
+    firstSpawn,
+    link,
+    roads,
   };
 }
 
