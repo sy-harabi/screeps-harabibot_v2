@@ -44,18 +44,6 @@ export function planCore(
   regionByTile: Int16Array,
   selectedCenter: RoomCoordinate,
 ): CorePlan | undefined {
-  const terminal = {
-    x: storage.x + CORE_STAMP.terminal.x,
-    y: storage.y + CORE_STAMP.terminal.y,
-  };
-
-  const manager = {
-    x: storage.x + CORE_STAMP.manager.x,
-    y: storage.y + CORE_STAMP.manager.y,
-  };
-
-  const roots = Object.values(upgradeChains).map((chain) => chain[0]);
-
   const coreCandidates: CoreCandidate[] = [];
 
   return coreCandidates[0];
