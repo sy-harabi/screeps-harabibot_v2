@@ -7,17 +7,17 @@ import {
   toRoomIndex,
 } from "../../world/map/roomGrid";
 
-interface UpgradeRoots {
-  left: RoomCoordinate;
-  middle?: RoomCoordinate;
-  right?: RoomCoordinate;
-}
-
 const UPGRADE_TILES_TIER_ONE_THRESHOLD = 16;
 const UPGRADE_TILES_TIER_TWO_THRESHOLD = 13;
 
 const LEFT_TURN_ORDER = [-2, -1, 0, 1, 2, 3, 4, 5];
 const RIGHT_TURN_ORDER = [2, 1, 0, -1, -2, -3, -4, -5];
+
+interface UpgradeRoots {
+  left: RoomCoordinate;
+  middle?: RoomCoordinate;
+  right?: RoomCoordinate;
+}
 
 interface UpgradeChains {
   left?: RoomCoordinate[];
@@ -25,23 +25,19 @@ interface UpgradeChains {
   right?: RoomCoordinate[];
 }
 
-export interface ControllerAreaPlan {
-  storage: RoomCoordinate;
-  upgradeChains: RoomCoordinate[][];
-}
-
 interface ControllerAreaCandidate {
   storage: RoomCoordinate;
-  upgradeChains: UpgradeChains;
+  upgradeChains: RoomCoordinate[][];
   tier: number;
 }
 
-export function planControllerArea(
+export function findControllerAreaCandidates(
   controller: StructureController,
   selectedRegionIds: Set<number>,
   regionByTile: Int16Array,
-  selectedCenter: RoomCoordinate,
-): ControllerAreaPlan | undefined {
+): ControllerAreaCandidate[] {
+  const controllerAreaCandidates: ControllerAreaCandidate[] = [];
+
   const storageCandidates = findStorageCandidates(
     controller,
     selectedRegionIds,
@@ -49,7 +45,7 @@ export function planControllerArea(
   );
 
   if (storageCandidates.length === 0) {
-    return;
+    return controllerAreaCandidates;
   }
 
   const upgradeTiles = findUpgradeTiles(
@@ -61,8 +57,6 @@ export function planControllerArea(
   const upgradeTileIndices = new Set(
     upgradeTiles.map(({ x, y }) => toRoomIndex(x, y)),
   );
-
-  const controllerAreaCandidates: ControllerAreaCandidate[] = [];
 
   for (const storageCoordinate of storageCandidates) {
     const roots = findUpgradeRoots(
@@ -90,29 +84,14 @@ export function planControllerArea(
 
     controllerAreaCandidates.push({
       storage: storageCoordinate,
-      upgradeChains: compactChains,
+      upgradeChains: Object.values(compactChains).filter(
+        (chain) => chain.length > 0,
+      ),
       tier: getUpgradeCapacityTier(compactChains),
     });
   }
 
-  controllerAreaCandidates.sort(
-    (a, b) =>
-      a.tier - b.tier ||
-      getRange(selectedCenter, a.storage) - getRange(selectedCenter, b.storage),
-  );
-
-  const best = controllerAreaCandidates[0];
-
-  if (!best) {
-    return;
-  }
-
-  return {
-    storage: best.storage,
-    upgradeChains: Object.values(best.upgradeChains).filter(
-      (chain) => chain.length > 0,
-    ),
-  };
+  return controllerAreaCandidates;
 }
 
 function getUpgradeCapacityTier(upgradeChains: UpgradeChains): number {
@@ -514,12 +493,12 @@ function findStorageCandidates(
 
     let numAdjacents = 0;
 
-    forEachCoordinateAtRange({ x, y }, 1, (nx, ny) => {
-      if (getRange(controller.pos, { x: nx, y: ny }) > 3) {
+    forEachCoordinateAtRange({ x, y }, 1, (neighborX, neighborY) => {
+      if (getRange(controller.pos, { x: neighborX, y: neighborY }) > 3) {
         return;
       }
 
-      const neighborIndex = toRoomIndex(nx, ny);
+      const neighborIndex = toRoomIndex(neighborX, neighborY);
 
       if (!selectedRegionIds.has(regionByTile[neighborIndex])) {
         return;

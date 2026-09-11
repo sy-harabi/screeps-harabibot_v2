@@ -6,7 +6,7 @@ import {
   TerrainRegion,
 } from "../../world/map/terrainRegions";
 import type { BasePlan, PlannedStructure } from "./basePlan";
-import { planControllerArea } from "./planControllerArea";
+import { findControllerAreaCandidates } from "./findControllerAreaCandidates";
 import { planCore } from "./planCore";
 import { selectBaseRegions } from "./selectBaseRegions";
 
@@ -36,12 +36,17 @@ export function planBase(
 
   const selectedCenter = getSelectedRegionCenter(selectedRegionIds, regions);
 
-  const controllerArea = planControllerArea(
+  const controllerAreaCandidates = findControllerAreaCandidates(
     controller,
     selectedRegionIds,
     regionByTile,
-    selectedCenter,
   );
+
+  if (!controllerAreaCandidates || controllerAreaCandidates.length === 0) {
+    return;
+  }
+
+  let controllerArea = controllerAreaCandidates[0];
 
   if (!controllerArea) {
     return;
@@ -71,7 +76,11 @@ export function planBase(
   }
 
   visual.text("M", corePlan.manager.x, corePlan.manager.y);
-  visual.structure(corePlan.terminal.x, corePlan.terminal.y, STRUCTURE_TERMINAL);
+  visual.structure(
+    corePlan.terminal.x,
+    corePlan.terminal.y,
+    STRUCTURE_TERMINAL,
+  );
   visual.structure(corePlan.link.x, corePlan.link.y, STRUCTURE_LINK);
   visual.structure(
     corePlan.firstSpawn.x,
