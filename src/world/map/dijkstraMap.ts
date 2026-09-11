@@ -1,8 +1,8 @@
 import { PriorityQueue } from "../../utils/priorityQueue";
 import { RoomCoordinate } from "./roomCoordinate";
 import {
-  forEachCoordinateAtRange,
   fromRoomIndex,
+  isInsideRoom,
   NEIGHBOR_OFFSETS,
   ROOM_AREA,
   toRoomIndex,
@@ -10,7 +10,7 @@ import {
 
 export function dijkstraMap(
   terrain: RoomTerrain,
-  startCoordinates: readonly RoomCoordinate[],
+  startCoordinates: RoomCoordinate[],
   getCost: (x: number, y: number) => number,
   canVisit?: (x: number, y: number) => boolean,
 ): Int32Array {
@@ -19,9 +19,23 @@ export function dijkstraMap(
 
   const queue = new PriorityQueue<number>();
 
-  const visted = new Uint8Array(ROOM_AREA);
+  const visited = new Uint8Array(ROOM_AREA);
 
   for (const coordinate of startCoordinates) {
+    const { x, y } = coordinate;
+
+    if (!isInsideRoom(x, y)) {
+      continue;
+    }
+
+    if (terrain.get(x, y) === TERRAIN_MASK_WALL) {
+      continue;
+    }
+
+    if (canVisit && !canVisit(x, y)) {
+      continue;
+    }
+
     const index = toRoomIndex(coordinate.x, coordinate.y);
 
     queue.push(index, 0);
@@ -37,9 +51,11 @@ export function dijkstraMap(
 
     const index = candidate;
 
-    if (visted[index]) {
+    if (visited[index]) {
       continue;
     }
+
+    visited[index] = 1;
 
     const distance = distances[index];
 
@@ -48,6 +64,14 @@ export function dijkstraMap(
     for (const offset of NEIGHBOR_OFFSETS) {
       const neighborX = coordinate.x + offset.x;
       const neighborY = coordinate.y + offset.y;
+
+      if (!isInsideRoom(neighborX, neighborY)) {
+        continue;
+      }
+
+      if (terrain.get(neighborX, neighborY) === TERRAIN_MASK_WALL) {
+        continue;
+      }
 
       if (canVisit && !canVisit(neighborX, neighborY)) {
         continue;
@@ -68,7 +92,7 @@ export function dijkstraMap(
 
       distances[neighborIndex] = nextDistance;
 
-      queue.push(index, -nextDistance);
+      queue.push(neighborIndex, -nextDistance);
     }
   }
 

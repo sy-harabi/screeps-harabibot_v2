@@ -1,6 +1,11 @@
+import { dijkstraMap } from "../../world/map/dijkstraMap";
 import { distanceTransform } from "../../world/map/distanceTransform";
 import { getRange, RoomCoordinate } from "../../world/map/roomCoordinate";
-import { fromRoomIndex } from "../../world/map/roomGrid";
+import {
+  fromRoomIndex,
+  ROOM_AREA,
+  toRoomIndex,
+} from "../../world/map/roomGrid";
 import {
   findTerrainRegions,
   TerrainRegion,
@@ -109,6 +114,60 @@ export function planBase(
   );
 
   visual.connectRoads();
+
+  const unWalkableMap = new Uint8Array(ROOM_AREA);
+
+  unWalkableMap[
+    toRoomIndex(bestControllerArea.storage.x, bestControllerArea.storage.y)
+  ] = 1;
+
+  for (const chain of Object.values(bestControllerArea.upgradeChains)) {
+    chain.forEach((tile: RoomCoordinate) => {
+      unWalkableMap[toRoomIndex(tile.x, tile.y)] = 1;
+    });
+  }
+
+  unWalkableMap[
+    toRoomIndex(bestCorePlan.firstSpawn.x, bestCorePlan.firstSpawn.y)
+  ] = 1;
+
+  unWalkableMap[toRoomIndex(bestCorePlan.terminal.x, bestCorePlan.terminal.y)] =
+    1;
+
+  unWalkableMap[toRoomIndex(bestCorePlan.link.x, bestCorePlan.link.y)] = 1;
+
+  unWalkableMap[toRoomIndex(bestCorePlan.manager.x, bestCorePlan.manager.y)] =
+    1;
+
+  const distanceMap = dijkstraMap(
+    terrain,
+    bestCorePlan.roads,
+    (x, y) => {
+      if (terrain.get(x, y) === TERRAIN_MASK_SWAMP) {
+        return 6;
+      }
+
+      return 5;
+    },
+    (x, y) => {
+      if (unWalkableMap[toRoomIndex(x, y)] === 1) {
+        return false;
+      }
+
+      return true;
+    },
+  );
+
+  for (let index = 0; index < ROOM_AREA; index++) {
+    const coordinate = fromRoomIndex(index);
+
+    if (distanceMap[index] > 0) {
+      visual.text(distanceMap[index] + "", coordinate.x, coordinate.y, {
+        font: 0.5,
+        stroke: "black",
+      });
+    }
+  }
 
   const structures: PlannedStructure[] = [];
   const anchor = { x: 25, y: 25 };
