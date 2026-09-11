@@ -58,7 +58,7 @@ export function planBase(
     STRUCTURE_STORAGE,
   );
 
-  for (const chain of controllerArea.upgradeChains) {
+  for (const chain of Object.values(controllerArea.upgradeChains)) {
     visualizeUpgradePath(visual, chain, "", "#ffd166");
   }
 

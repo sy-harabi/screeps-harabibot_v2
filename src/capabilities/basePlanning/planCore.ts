@@ -4,6 +4,7 @@ import {
   NEIGHBOR_OFFSETS,
   toRoomIndex,
 } from "../../world/map/roomGrid";
+import { UpgradeChains } from "./findControllerAreaCandidates";
 
 export const CORE_STAMP = {
   storage: { x: 0, y: 0 },
@@ -38,7 +39,7 @@ interface CoreCandidate extends CorePlan {
 export function planCore(
   controller: StructureController,
   storage: RoomCoordinate,
-  upgradeChains: RoomCoordinate[][],
+  upgradeChains: UpgradeChains,
   selectedRegionIds: Set<number>,
   regionByTile: Int16Array,
   selectedCenter: RoomCoordinate,
@@ -53,7 +54,7 @@ export function planCore(
     y: storage.y + CORE_STAMP.manager.y,
   };
 
-  const roots = upgradeChains.map((chain) => chain[0]);
+  const roots = Object.values(upgradeChains).map((chain) => chain[0]);
   const coreCandidates: CoreCandidate[] = [];
 
   for (const manager of findManagerCandidates(
