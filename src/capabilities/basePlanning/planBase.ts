@@ -1,5 +1,5 @@
 import { distanceTransform } from "../../world/map/distanceTransform";
-import { RoomCoordinate } from "../../world/map/roomCoordinate";
+import { getRange, RoomCoordinate } from "../../world/map/roomCoordinate";
 import { fromRoomIndex } from "../../world/map/roomGrid";
 import {
   findTerrainRegions,
@@ -7,7 +7,7 @@ import {
 } from "../../world/map/terrainRegions";
 import type { BasePlan, PlannedStructure } from "./basePlan";
 import { findControllerAreaCandidates } from "./findControllerAreaCandidates";
-import { planCore } from "./planCore";
+import { CorePlan, findCorePlans } from "./planCore";
 import { selectBaseRegions } from "./selectBaseRegions";
 
 /**
@@ -42,54 +42,70 @@ export function planBase(
     regionByTile,
   );
 
-  if (!controllerAreaCandidates || controllerAreaCandidates.length === 0) {
+  const coreCandidates: CorePlan[] = [];
+
+  let bestTier = Infinity;
+  let bestDistance = Infinity;
+  let bestCorePlan;
+  let bestControllerArea;
+
+  for (const controllerAreaCandidate of controllerAreaCandidates) {
+    if (controllerAreaCandidate.tier > bestTier) {
+      continue;
+    }
+
+    const corePlans = findCorePlans(
+      controllerAreaCandidate,
+      selectedRegionIds,
+      regionByTile,
+    );
+
+    for (const corePlan of corePlans) {
+      const candidateDistance = getRange(corePlan.firstSpawn, selectedCenter);
+      if (
+        controllerAreaCandidate.tier < bestTier ||
+        candidateDistance < bestDistance
+      ) {
+        bestTier = controllerAreaCandidate.tier;
+        bestDistance = candidateDistance;
+        bestCorePlan = corePlan;
+        bestControllerArea = controllerAreaCandidate;
+      }
+    }
+
+    coreCandidates.push(...corePlans);
+  }
+
+  if (!bestCorePlan || !bestControllerArea) {
     return;
   }
 
-  let controllerArea = controllerAreaCandidates[0];
-
-  if (!controllerArea) {
-    return;
-  }
+  Game.map.visual.text("SUCCESS", new RoomPosition(25, 25, roomName));
 
   visual.structure(
-    controllerArea.storage.x,
-    controllerArea.storage.y,
+    bestControllerArea.storage.x,
+    bestControllerArea.storage.y,
     STRUCTURE_STORAGE,
   );
 
-  for (const chain of Object.values(controllerArea.upgradeChains)) {
+  for (const chain of Object.values(bestControllerArea.upgradeChains)) {
     visualizeUpgradePath(visual, chain, "", "#ffd166");
   }
 
-  const corePlan = planCore(
-    controller,
-    controllerArea.storage,
-    controllerArea.upgradeChains,
-    selectedRegionIds,
-    regionByTile,
-    selectedCenter,
-  );
-
-  if (!corePlan) {
-    return;
-  }
-
-  visual.text("M", corePlan.manager.x, corePlan.manager.y);
+  visual.text("M", bestCorePlan.manager.x, bestCorePlan.manager.y);
   visual.structure(
-    corePlan.terminal.x,
-    corePlan.terminal.y,
+    bestCorePlan.terminal.x,
+    bestCorePlan.terminal.y,
     STRUCTURE_TERMINAL,
   );
-  visual.structure(corePlan.link.x, corePlan.link.y, STRUCTURE_LINK);
+  visual.structure(bestCorePlan.link.x, bestCorePlan.link.y, STRUCTURE_LINK);
   visual.structure(
-    corePlan.firstSpawn.x,
-    corePlan.firstSpawn.y,
+    bestCorePlan.firstSpawn.x,
+    bestCorePlan.firstSpawn.y,
     STRUCTURE_SPAWN,
   );
-  visual.text("A", corePlan.access.x, corePlan.access.y);
 
-  corePlan.accessRoads.forEach((road) =>
+  bestCorePlan.roads.forEach((road) =>
     visual.structure(road.x, road.y, STRUCTURE_ROAD),
   );
 

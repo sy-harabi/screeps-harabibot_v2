@@ -1,10 +1,10 @@
-import { getRange, RoomCoordinate } from "../../world/map/roomCoordinate";
+import { RoomCoordinate } from "../../world/map/roomCoordinate";
+import { isInsideRoom, toRoomIndex } from "../../world/map/roomGrid";
+
 import {
-  isInsideRoom,
-  NEIGHBOR_OFFSETS,
-  toRoomIndex,
-} from "../../world/map/roomGrid";
-import { UpgradeChains } from "./findControllerAreaCandidates";
+  ControllerAreaCandidate,
+  UpgradeChains,
+} from "./findControllerAreaCandidates";
 
 export const CORE_STAMP = {
   storage: { x: 0, y: 0 },
@@ -28,23 +28,103 @@ export interface CorePlan {
   terminal: RoomCoordinate;
   link: RoomCoordinate;
   firstSpawn: RoomCoordinate;
-  access: RoomCoordinate;
-  accessRoads: RoomCoordinate[];
+  roads: RoomCoordinate[];
 }
 
-interface CoreCandidate extends CorePlan {
-  accessTier: number;
-}
-
-export function planCore(
-  controller: StructureController,
-  storage: RoomCoordinate,
-  upgradeChains: UpgradeChains,
+export function findCorePlans(
+  controllerAreaCandidate: ControllerAreaCandidate,
   selectedRegionIds: Set<number>,
   regionByTile: Int16Array,
-  selectedCenter: RoomCoordinate,
-): CorePlan | undefined {
-  const coreCandidates: CoreCandidate[] = [];
+): CorePlan[] {
+  const { storage, upgradeChains } = controllerAreaCandidate;
 
-  return coreCandidates[0];
+  const middleRoot = upgradeChains.middle[0];
+
+  const coreCandidates: CorePlan[] = [];
+
+  for (const mirrored of [true, false]) {
+    const corePlan = applyCoreStamp(storage, middleRoot, mirrored);
+
+    if (!isValidCorePlan(corePlan, selectedRegionIds, regionByTile)) {
+      continue;
+    }
+
+    coreCandidates.push(corePlan);
+  }
+
+  return coreCandidates;
+}
+
+function isValidCorePlan(
+  corePlan: CorePlan,
+  selectedRegionIds: Set<number>,
+  regionByTile: Int16Array,
+) {
+  const isValid = (coordinate: RoomCoordinate) =>
+    isValidCoordinate(coordinate, selectedRegionIds, regionByTile);
+
+  return (
+    isValid(corePlan.firstSpawn) &&
+    isValid(corePlan.link) &&
+    isValid(corePlan.manager) &&
+    isValid(corePlan.terminal) &&
+    corePlan.roads.every((coordinate) => isValid(coordinate))
+  );
+}
+
+function isValidCoordinate(
+  coordinate: RoomCoordinate,
+  selectedRegionIds: Set<number>,
+  regionByTile: Int16Array,
+): boolean {
+  if (!isInsideRoom(coordinate.x, coordinate.y)) {
+    return false;
+  }
+
+  const index = toRoomIndex(coordinate.x, coordinate.y);
+
+  if (!selectedRegionIds.has(regionByTile[index])) {
+    return false;
+  }
+
+  return true;
+}
+
+function applyCoreStamp(
+  storage: RoomCoordinate,
+  middleRoot: RoomCoordinate,
+  mirrored: boolean,
+): CorePlan {
+  const forward = {
+    x: middleRoot.x - storage.x,
+    y: middleRoot.y - storage.y,
+  };
+
+  const transform = (coordinate: RoomCoordinate) =>
+    transformCoreCoordinate(coordinate, storage, forward, mirrored);
+
+  return {
+    manager: transform(CORE_STAMP.manager),
+    terminal: transform(CORE_STAMP.terminal),
+    link: transform(CORE_STAMP.link),
+    firstSpawn: transform(CORE_STAMP.spawn),
+    roads: CORE_STAMP.roads.map(transform),
+  };
+}
+
+function transformCoreCoordinate(
+  coordinate: RoomCoordinate,
+  anchor: RoomCoordinate,
+  forward: RoomCoordinate,
+  mirrored: boolean,
+): RoomCoordinate {
+  const localX = mirrored ? -coordinate.x : coordinate.x;
+
+  const rightX = -forward.y;
+  const rightY = forward.x;
+
+  return {
+    x: anchor.x + localX * rightX - coordinate.y * forward.x,
+    y: anchor.y + localX * rightY - coordinate.y * forward.y,
+  };
 }

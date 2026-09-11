@@ -25,7 +25,7 @@ export interface UpgradeChains {
   right: RoomCoordinate[];
 }
 
-interface ControllerAreaCandidate {
+export interface ControllerAreaCandidate {
   storage: RoomCoordinate;
   upgradeChains: UpgradeChains;
   tier: number;
