@@ -1,11 +1,6 @@
-import { dijkstraMap } from "../../world/map/dijkstraMap";
 import { distanceTransform } from "../../world/map/distanceTransform";
 import { getRange, RoomCoordinate } from "../../world/map/roomCoordinate";
-import {
-  fromRoomIndex,
-  ROOM_AREA,
-  toRoomIndex,
-} from "../../world/map/roomGrid";
+import { fromRoomIndex } from "../../world/map/roomGrid";
 import {
   findTerrainRegions,
   TerrainRegion,
@@ -114,17 +109,16 @@ export function planBase(
     visual.structure(road.x, road.y, STRUCTURE_ROAD),
   );
 
-  visual.connectRoads();
-
   const resourceTree = planResourceTree(
     terrain,
-    controller,
     sources,
     minerals,
     bestControllerArea,
     bestCorePlan,
     visual,
   );
+
+  visual.connectRoads();
 
   const structures: PlannedStructure[] = [];
   const anchor = { x: 25, y: 25 };
