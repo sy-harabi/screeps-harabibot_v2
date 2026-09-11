@@ -6,7 +6,7 @@ import {
   TerrainRegion,
 } from "../../world/map/terrainRegions";
 import type { BasePlan, PlannedStructure } from "./basePlan";
-import { findControllerAreaCandidates } from "./planControllerArea";
+import { findControllerAreaCandidates } from "./findControllerAreaCandidates";
 import { planCore } from "./planCore";
 import { selectBaseRegions } from "./selectBaseRegions";
 
@@ -40,7 +40,6 @@ export function planBase(
     controller,
     selectedRegionIds,
     regionByTile,
-    selectedCenter,
   );
 
   if (!controllerAreaCandidates || controllerAreaCandidates.length === 0) {
