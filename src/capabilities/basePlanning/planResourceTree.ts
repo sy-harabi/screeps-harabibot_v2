@@ -69,9 +69,10 @@ export function planResourceTree(
   //   }
   // }
 
-  const totalMask = new Uint8Array(ROOM_AREA);
+  const resourcePathMask = new Uint8Array(ROOM_AREA);
+  const targetMask = new Uint8Array(ROOM_AREA);
 
-  let i = 1;
+  let resourceBit = 1;
 
   for (const coordinate of [...sources, ...minerals].map((obj) => obj.pos)) {
     let targetCoordinates: RoomCoordinate[] = [];
@@ -92,6 +93,10 @@ export function planResourceTree(
         targetCoordinates.push({ x, y });
       }
     });
+
+    for (const target of targetCoordinates) {
+      targetMask[toRoomIndex(target.x, target.y)] |= resourceBit;
+    }
 
     const pathMask = buildShortestPathMask(
       targetCoordinates,
@@ -114,15 +119,15 @@ export function planResourceTree(
       const coordinate = fromRoomIndex(index);
 
       if (pathMask[index] > 0) {
-        totalMask[index] += i;
-        visual.text(totalMask[index] + "", coordinate.x, coordinate.y, {
+        resourcePathMask[index] |= resourceBit;
+        visual.text(resourcePathMask[index] + "", coordinate.x, coordinate.y, {
           font: 0.5,
           stroke: "black",
         });
       }
     }
 
-    i *= 2;
+    resourceBit <<= 1;
   }
 }
 
