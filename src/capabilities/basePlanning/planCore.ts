@@ -5,6 +5,23 @@ import {
   toRoomIndex,
 } from "../../world/map/roomGrid";
 
+export const CORE_STAMP = {
+  storage: { x: 0, y: 0 },
+  terminal: { x: 1, y: 1 },
+  manager: { x: 1, y: 0 },
+  spawn: { x: 2, y: 1 },
+  link: { x: 2, y: -1 },
+  roads: [
+    { x: -2, y: 0 },
+    { x: -1, y: 1 },
+    { x: 0, y: 2 },
+    { x: 1, y: 3 },
+    { x: 2, y: 2 },
+    { x: 3, y: 1 },
+    { x: 2, y: 0 },
+  ],
+};
+
 export interface CorePlan {
   manager: RoomCoordinate;
   terminal: RoomCoordinate;
