@@ -136,9 +136,21 @@ export function planResourceTree(
       let bestDecisionType = DECISION_NONE;
       let bestDecisionValue = -1;
 
-      if ((targetMask[index] & mask) === mask) {
-        best = tileCost;
-        bestDecisionType = DECISION_TARGET;
+      const endpointBits = targetMask[index];
+
+      if (endpointBits !== 0) {
+        // Resource endpoints are reserved for miners. They can only terminate
+        // the matching single-resource path and may not be used as transit
+        // tiles or shared branch points by other resource paths.
+        if ((mask & (mask - 1)) === 0 && endpointBits === mask) {
+          best = tileCost;
+          bestDecisionType = DECISION_TARGET;
+        }
+
+        dp[key] = best;
+        decisionType[key] = bestDecisionType;
+        decisionValue[key] = bestDecisionValue;
+        continue;
       }
 
       for (const offset of NEIGHBOR_OFFSETS) {
