@@ -16,6 +16,7 @@ import {
   findControllerAreaCandidates,
 } from "./findControllerAreaCandidates";
 import { CorePlan, findCorePlans } from "./findCorePlans";
+import { planResourceTree } from "./planResourceTree";
 import { selectBaseRegions } from "./selectBaseRegions";
 
 /**
@@ -26,7 +27,7 @@ export function planBase(
   terrain: RoomTerrain,
   controller: StructureController,
   sources: Source[],
-  mineral: Mineral[],
+  minerals: Mineral[],
 ): BasePlan | undefined {
   const distances = distanceTransform(terrain);
 
@@ -115,59 +116,15 @@ export function planBase(
 
   visual.connectRoads();
 
-  const unWalkableMap = new Uint8Array(ROOM_AREA);
-
-  unWalkableMap[
-    toRoomIndex(bestControllerArea.storage.x, bestControllerArea.storage.y)
-  ] = 1;
-
-  for (const chain of Object.values(bestControllerArea.upgradeChains)) {
-    chain.forEach((tile: RoomCoordinate) => {
-      unWalkableMap[toRoomIndex(tile.x, tile.y)] = 1;
-    });
-  }
-
-  unWalkableMap[
-    toRoomIndex(bestCorePlan.firstSpawn.x, bestCorePlan.firstSpawn.y)
-  ] = 1;
-
-  unWalkableMap[toRoomIndex(bestCorePlan.terminal.x, bestCorePlan.terminal.y)] =
-    1;
-
-  unWalkableMap[toRoomIndex(bestCorePlan.link.x, bestCorePlan.link.y)] = 1;
-
-  unWalkableMap[toRoomIndex(bestCorePlan.manager.x, bestCorePlan.manager.y)] =
-    1;
-
-  const distanceMap = dijkstraMap(
+  const resourceTree = planResourceTree(
     terrain,
-    bestCorePlan.roads,
-    (x, y, terrainType) => {
-      if (terrainType === TERRAIN_MASK_SWAMP) {
-        return 6;
-      }
-
-      return 5;
-    },
-    (x, y) => {
-      if (unWalkableMap[toRoomIndex(x, y)] === 1) {
-        return false;
-      }
-
-      return true;
-    },
+    controller,
+    sources,
+    minerals,
+    bestControllerArea,
+    bestCorePlan,
+    visual,
   );
-
-  for (let index = 0; index < ROOM_AREA; index++) {
-    const coordinate = fromRoomIndex(index);
-
-    if (distanceMap[index] > 0) {
-      visual.text(distanceMap[index] + "", coordinate.x, coordinate.y, {
-        font: 0.5,
-        stroke: "black",
-      });
-    }
-  }
 
   const structures: PlannedStructure[] = [];
   const anchor = { x: 25, y: 25 };
