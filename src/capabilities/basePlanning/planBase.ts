@@ -142,8 +142,8 @@ export function planBase(
   const distanceMap = dijkstraMap(
     terrain,
     bestCorePlan.roads,
-    (x, y) => {
-      if (terrain.get(x, y) === TERRAIN_MASK_SWAMP) {
+    (x, y, terrainType) => {
+      if (terrainType === TERRAIN_MASK_SWAMP) {
         return 6;
       }
 

@@ -8,10 +8,16 @@ import {
   toRoomIndex,
 } from "./roomGrid";
 
+/**
+ * Builds minimum-cost distances from multiple starts.
+ * `getCost` must return a non-negative cost for entering a tile.
+ * Walls and tiles rejected by `canVisit` are unreachable.
+ * Unreachable tiles have distance -1.
+ */
 export function dijkstraMap(
   terrain: RoomTerrain,
-  startCoordinates: RoomCoordinate[],
-  getCost: (x: number, y: number) => number,
+  startCoordinates: readonly RoomCoordinate[],
+  getCost: (x: number, y: number, terrainType: number) => number,
   canVisit?: (x: number, y: number) => boolean,
 ): Int32Array {
   const distances = new Int32Array(ROOM_AREA);
@@ -37,6 +43,10 @@ export function dijkstraMap(
     }
 
     const index = toRoomIndex(coordinate.x, coordinate.y);
+
+    if (distances[index] !== -1) {
+      continue;
+    }
 
     queue.push(index, 0);
     distances[index] = 0;
@@ -69,7 +79,9 @@ export function dijkstraMap(
         continue;
       }
 
-      if (terrain.get(neighborX, neighborY) === TERRAIN_MASK_WALL) {
+      const terrainType = terrain.get(neighborX, neighborY);
+
+      if (terrainType === TERRAIN_MASK_WALL) {
         continue;
       }
 
@@ -77,7 +89,7 @@ export function dijkstraMap(
         continue;
       }
 
-      const cost = getCost(neighborX, neighborY);
+      const cost = getCost(neighborX, neighborY, terrainType);
 
       const nextDistance = distance + cost;
 
