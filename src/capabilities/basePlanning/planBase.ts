@@ -6,8 +6,11 @@ import {
   TerrainRegion,
 } from "../../world/map/terrainRegions";
 import type { BasePlan, PlannedStructure } from "./basePlan";
-import { findControllerAreaCandidates } from "./findControllerAreaCandidates";
-import { CorePlan, findCorePlans } from "./planCore";
+import {
+  ControllerAreaCandidate,
+  findControllerAreaCandidates,
+} from "./findControllerAreaCandidates";
+import { CorePlan, findCorePlans } from "./findCorePlans";
 import { selectBaseRegions } from "./selectBaseRegions";
 
 /**
@@ -42,12 +45,10 @@ export function planBase(
     regionByTile,
   );
 
-  const coreCandidates: CorePlan[] = [];
-
   let bestTier = Infinity;
   let bestDistance = Infinity;
-  let bestCorePlan;
-  let bestControllerArea;
+  let bestCorePlan: CorePlan | undefined;
+  let bestControllerArea: ControllerAreaCandidate | undefined;
 
   for (const controllerAreaCandidate of controllerAreaCandidates) {
     if (controllerAreaCandidate.tier > bestTier) {
@@ -72,8 +73,6 @@ export function planBase(
         bestControllerArea = controllerAreaCandidate;
       }
     }
-
-    coreCandidates.push(...corePlans);
   }
 
   if (!bestCorePlan || !bestControllerArea) {

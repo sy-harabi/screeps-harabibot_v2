@@ -1,10 +1,7 @@
 import { RoomCoordinate } from "../../world/map/roomCoordinate";
 import { isInsideRoom, toRoomIndex } from "../../world/map/roomGrid";
 
-import {
-  ControllerAreaCandidate,
-  UpgradeChains,
-} from "./findControllerAreaCandidates";
+import { ControllerAreaCandidate } from "./findControllerAreaCandidates";
 
 export const CORE_STAMP = {
   storage: { x: 0, y: 0 },
@@ -38,14 +35,27 @@ export function findCorePlans(
 ): CorePlan[] {
   const { storage, upgradeChains } = controllerAreaCandidate;
 
-  const middleRoot = upgradeChains.middle[0];
+  const upgradeTileIndices = new Set(
+    Object.values(upgradeChains)
+      .flat()
+      .map(({ x, y }) => toRoomIndex(x, y)),
+  );
 
   const coreCandidates: CorePlan[] = [];
+
+  const middleRoot = upgradeChains.middle[0];
 
   for (const mirrored of [true, false]) {
     const corePlan = applyCoreStamp(storage, middleRoot, mirrored);
 
-    if (!isValidCorePlan(corePlan, selectedRegionIds, regionByTile)) {
+    if (
+      !isValidCorePlan(
+        corePlan,
+        selectedRegionIds,
+        regionByTile,
+        upgradeTileIndices,
+      )
+    ) {
       continue;
     }
 
@@ -59,9 +69,15 @@ function isValidCorePlan(
   corePlan: CorePlan,
   selectedRegionIds: Set<number>,
   regionByTile: Int16Array,
+  upgradeTileIndices: Set<number>,
 ) {
   const isValid = (coordinate: RoomCoordinate) =>
-    isValidCoordinate(coordinate, selectedRegionIds, regionByTile);
+    isValidCoordinate(
+      coordinate,
+      selectedRegionIds,
+      regionByTile,
+      upgradeTileIndices,
+    );
 
   return (
     isValid(corePlan.firstSpawn) &&
@@ -76,6 +92,7 @@ function isValidCoordinate(
   coordinate: RoomCoordinate,
   selectedRegionIds: Set<number>,
   regionByTile: Int16Array,
+  upgradeTileIndices: Set<number>,
 ): boolean {
   if (!isInsideRoom(coordinate.x, coordinate.y)) {
     return false;
@@ -84,6 +101,10 @@ function isValidCoordinate(
   const index = toRoomIndex(coordinate.x, coordinate.y);
 
   if (!selectedRegionIds.has(regionByTile[index])) {
+    return false;
+  }
+
+  if (upgradeTileIndices.has(index)) {
     return false;
   }
 
