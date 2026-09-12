@@ -10,6 +10,7 @@ import {
 } from "../../world/map/roomGrid";
 import { ControllerAreaCandidate } from "./findControllerAreaCandidates";
 import { CorePlan } from "./findCorePlans";
+import { RegionBoundaryRoadPlan } from "./planRegionBoundaryRoads";
 import { ResourceTreePlan } from "./planResourceTree";
 
 const MAX_SERVICE_DISTANCE = 20;
@@ -41,6 +42,7 @@ export function planLabs(
   controllerArea: ControllerAreaCandidate,
   corePlan: CorePlan,
   resourceTree: ResourceTreePlan,
+  boundaryRoadPlan: RegionBoundaryRoadPlan,
   visual: RoomVisual,
 ): LabPlan | undefined {
   const reservedMask = buildReservedMask(
@@ -54,7 +56,11 @@ export function planLabs(
 
   const serviceMask = new Uint8Array(ROOM_AREA);
 
-  for (const { x, y } of [...corePlan.roads, ...resourceTree.roads]) {
+  for (const { x, y } of [
+    ...corePlan.roads,
+    ...resourceTree.roads,
+    ...boundaryRoadPlan.roads,
+  ]) {
     serviceMask[toRoomIndex(x, y)] = 1;
   }
 
