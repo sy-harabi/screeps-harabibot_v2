@@ -16,6 +16,7 @@ import {
   RegionBoundaryComponent,
 } from "./findRegionBoundaryComponents";
 import { planLabs } from "./planLabs";
+import { planRegionBoundaryRoads } from "./planRegionBoundaryRoads";
 import { planResourceTree } from "./planResourceTree";
 import { selectBaseRegions } from "./selectBaseRegions";
 
@@ -132,6 +133,18 @@ export function planBase(
     return;
   }
 
+  const boundaryRoadPlan = planRegionBoundaryRoads(
+    terrain,
+    boundaryComponents,
+    bestCorePlan,
+    resourceTree,
+    visual,
+  );
+
+  if (!boundaryRoadPlan) {
+    return;
+  }
+
   const labPlan = planLabs(
     terrain,
     controller,
@@ -142,6 +155,7 @@ export function planBase(
     bestControllerArea,
     bestCorePlan,
     resourceTree,
+    boundaryRoadPlan,
     visual,
   );
 
