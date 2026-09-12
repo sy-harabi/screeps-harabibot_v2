@@ -13,6 +13,7 @@ import { CorePlan } from "./findCorePlans";
 import { ResourceTreePlan } from "./planResourceTree";
 
 const MAX_SERVICE_DISTANCE = 20;
+const MAX_BRANCH_LENGTH = 3;
 
 interface LabLayout {
   readonly inputLabs: [RoomCoordinate, RoomCoordinate];
@@ -51,11 +52,9 @@ export function planLabs(
     resourceTree,
   );
 
-  const serviceRoads = [...corePlan.roads, ...resourceTree.roads];
-
   const serviceMask = new Uint8Array(ROOM_AREA);
 
-  for (const { x, y } of serviceRoads) {
+  for (const { x, y } of [...corePlan.roads, ...resourceTree.roads]) {
     serviceMask[toRoomIndex(x, y)] = 1;
   }
 
@@ -67,10 +66,10 @@ export function planLabs(
 
   for (
     let maxServiceDistance = 0;
-    maxServiceDistance < MAX_SERVICE_DISTANCE;
+    maxServiceDistance <= MAX_SERVICE_DISTANCE;
     maxServiceDistance++
   ) {
-    const candidates = collectLabCandidates(
+    const layout = tryLabLayout(
       terrain,
       serviceMask,
       serviceDistanceMap,
@@ -80,25 +79,200 @@ export function planLabs(
       regionByTile,
     );
 
-    const layout = findLabLayout(candidates);
-
     if (layout) {
-      layout.inputLabs.forEach((coordinate) =>
-        visual.structure(coordinate.x, coordinate.y, STRUCTURE_LAB),
-      );
-
-      layout.outputLabs.forEach((coordinate) =>
-        visual.structure(coordinate.x, coordinate.y, STRUCTURE_LAB),
-      );
-
-      return {
+      const plan: LabPlan = {
         ...layout,
         serviceRoads: [],
       };
+
+      visualizeLabPlan(plan, visual);
+      return plan;
+    }
+
+    for (let branchLength = 1; branchLength <= MAX_BRANCH_LENGTH; branchLength++) {
+      const plan = findLabPlanWithBranch(
+        terrain,
+        serviceMask,
+        serviceDistanceMap,
+        corePlan.roads,
+        branchLength,
+        maxServiceDistance,
+        reservedMask,
+        selectedRegionIds,
+        regionByTile,
+      );
+
+      if (plan) {
+        visualizeLabPlan(plan, visual);
+        return plan;
+      }
     }
   }
 
   return;
+}
+
+function findLabPlanWithBranch(
+  terrain: RoomTerrain,
+  baseServiceMask: Uint8Array,
+  baseServiceDistanceMap: Int32Array,
+  roots: readonly RoomCoordinate[],
+  branchLength: number,
+  maxServiceDistance: number,
+  reservedMask: Uint8Array,
+  selectedRegionIds: Set<number>,
+  regionByTile: Int16Array,
+): LabPlan | undefined {
+  if (maxServiceDistance === 0) {
+    return;
+  }
+
+  const branchMask = new Uint8Array(ROOM_AREA);
+  const branch: RoomCoordinate[] = [];
+  const seenVariants = new Set<string>();
+
+  const searchBranch = (
+    current: RoomCoordinate,
+    remainingLength: number,
+  ): LabPlan | undefined => {
+    if (remainingLength === 0) {
+      const variantKey = branch
+        .map(({ x, y }) => toRoomIndex(x, y))
+        .sort((left, right) => left - right)
+        .join(",");
+
+      if (seenVariants.has(variantKey)) {
+        return;
+      }
+      seenVariants.add(variantKey);
+
+      const serviceMask = baseServiceMask.slice();
+
+      for (const { x, y } of branch) {
+        serviceMask[toRoomIndex(x, y)] = 1;
+      }
+
+      const serviceDistanceMap = buildServiceDistanceMap(
+        terrain,
+        serviceMask,
+        roots,
+      );
+
+      for (const { x, y } of branch) {
+        const serviceDistance = serviceDistanceMap[toRoomIndex(x, y)];
+
+        if (
+          serviceDistance < 0 ||
+          serviceDistance > maxServiceDistance
+        ) {
+          return;
+        }
+      }
+
+      const layout = tryLabLayout(
+        terrain,
+        serviceMask,
+        serviceDistanceMap,
+        maxServiceDistance,
+        reservedMask,
+        selectedRegionIds,
+        regionByTile,
+      );
+
+      if (!layout) {
+        return;
+      }
+
+      return {
+        ...layout,
+        serviceRoads: [...branch],
+      };
+    }
+
+    for (const offset of NEIGHBOR_OFFSETS) {
+      const x = current.x + offset.x;
+      const y = current.y + offset.y;
+
+      if (!isInsideRoom(x, y)) {
+        continue;
+      }
+
+      const index = toRoomIndex(x, y);
+
+      if (branchMask[index]) {
+        continue;
+      }
+
+      if (baseServiceMask[index]) {
+        continue;
+      }
+
+      if (reservedMask[index]) {
+        continue;
+      }
+
+      if (!selectedRegionIds.has(regionByTile[index])) {
+        continue;
+      }
+
+      if (terrain.get(x, y) === TERRAIN_MASK_WALL) {
+        continue;
+      }
+
+      const coordinate = { x, y };
+      branchMask[index] = 1;
+      branch.push(coordinate);
+
+      const plan = searchBranch(coordinate, remainingLength - 1);
+
+      if (plan) {
+        return plan;
+      }
+
+      branch.pop();
+      branchMask[index] = 0;
+    }
+
+    return;
+  };
+
+  for (let serviceIndex = 0; serviceIndex < ROOM_AREA; serviceIndex++) {
+    const serviceDistance = baseServiceDistanceMap[serviceIndex];
+
+    if (serviceDistance < 0 || serviceDistance >= maxServiceDistance) {
+      continue;
+    }
+
+    const plan = searchBranch(fromRoomIndex(serviceIndex), branchLength);
+
+    if (plan) {
+      return plan;
+    }
+  }
+
+  return;
+}
+
+function tryLabLayout(
+  terrain: RoomTerrain,
+  serviceMask: Uint8Array,
+  serviceDistanceMap: Int32Array,
+  maxServiceDistance: number,
+  reservedMask: Uint8Array,
+  selectedRegionIds: Set<number>,
+  regionByTile: Int16Array,
+): LabLayout | undefined {
+  const candidates = collectLabCandidates(
+    terrain,
+    serviceMask,
+    serviceDistanceMap,
+    maxServiceDistance,
+    reservedMask,
+    selectedRegionIds,
+    regionByTile,
+  );
+
+  return findLabLayout(candidates);
 }
 
 function findLabLayout(
@@ -302,4 +476,18 @@ function buildReservedMask(
   }
 
   return reservedMask;
+}
+
+function visualizeLabPlan(plan: LabPlan, visual: RoomVisual): void {
+  plan.inputLabs.forEach((coordinate) =>
+    visual.structure(coordinate.x, coordinate.y, STRUCTURE_LAB),
+  );
+
+  plan.outputLabs.forEach((coordinate) =>
+    visual.structure(coordinate.x, coordinate.y, STRUCTURE_LAB),
+  );
+
+  plan.serviceRoads.forEach((coordinate) =>
+    visual.structure(coordinate.x, coordinate.y, STRUCTURE_ROAD),
+  );
 }
