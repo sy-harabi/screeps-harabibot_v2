@@ -58,7 +58,9 @@ export function planResourceTree(
 
   let resourceBit = 1;
 
-  for (const coordinate of [...sources, ...minerals].map((object) => object.pos)) {
+  for (const coordinate of [...sources, ...minerals].map(
+    (object) => object.pos,
+  )) {
     let targetCoordinates: RoomCoordinate[] = [];
     let minDistance = Infinity;
 
