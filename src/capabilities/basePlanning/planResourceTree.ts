@@ -18,8 +18,25 @@ const DECISION_TARGET = 1;
 const DECISION_CONTINUE = 2;
 const DECISION_SPLIT = 3;
 
+interface ResourceTarget {
+  readonly targetId: Id<Source> | Id<Mineral>;
+  readonly coordinate: RoomCoordinate;
+  readonly bit: number;
+}
+
+interface SelectedResourceTarget extends ResourceTarget {
+  readonly container: RoomCoordinate;
+}
+
+export interface ResourceBranchPlan {
+  readonly targetId: Id<Source> | Id<Mineral>;
+  readonly container: RoomCoordinate;
+  readonly roads: RoomCoordinate[];
+}
+
 export interface ResourceTreePlan {
-  roads: RoomCoordinate[];
+  readonly roads: RoomCoordinate[];
+  readonly branches: ResourceBranchPlan[];
 }
 
 export function planResourceTree(
@@ -30,55 +47,63 @@ export function planResourceTree(
   corePlan: CorePlan,
   visual: RoomVisual,
 ): ResourceTreePlan | undefined {
-  const blockedMap = new Uint8Array(ROOM_AREA);
+  const targets: ResourceTarget[] = [...sources, ...minerals].map(
+    (object, index) => ({
+      targetId: object.id,
+      coordinate: object.pos,
+      bit: 1 << index,
+    }),
+  );
 
-  blockedMap[toRoomIndex(controllerArea.storage.x, controllerArea.storage.y)] =
-    1;
-
-  for (const chain of Object.values(controllerArea.upgradeChains)) {
-    chain.forEach((tile: RoomCoordinate) => {
-      blockedMap[toRoomIndex(tile.x, tile.y)] = 1;
-    });
+  if (targets.length === 0) {
+    return { roads: [], branches: [] };
   }
 
-  blockedMap[toRoomIndex(corePlan.firstSpawn.x, corePlan.firstSpawn.y)] = 1;
-  blockedMap[toRoomIndex(corePlan.terminal.x, corePlan.terminal.y)] = 1;
-  blockedMap[toRoomIndex(corePlan.link.x, corePlan.link.y)] = 1;
-  blockedMap[toRoomIndex(corePlan.manager.x, corePlan.manager.y)] = 1;
+  const blockedMap = buildBlockedMap(
+    sources,
+    minerals,
+    controllerArea,
+    corePlan,
+  );
+  const coreRoadMask = new Uint8Array(ROOM_AREA);
 
-  const distanceMap = dijkstraMap(
+  corePlan.roads.forEach(({ x, y }) => {
+    coreRoadMask[toRoomIndex(x, y)] = 1;
+  });
+
+  const selectedTargets = selectResourceContainers(
     terrain,
+    targets,
+    blockedMap,
+    coreRoadMask,
     corePlan.roads,
-    getRoadCost,
-    (x, y) => blockedMap[toRoomIndex(x, y)] === 0,
+  );
+
+  if (!selectedTargets) {
+    return;
+  }
+
+  const distanceMap = buildResourceDistanceMap(
+    terrain,
+    blockedMap,
+    corePlan.roads,
   );
 
   const resourcePathMask = new Uint8Array(ROOM_AREA);
   const targetMask = new Uint8Array(ROOM_AREA);
 
-  let resourceBit = 1;
+  for (const target of selectedTargets) {
+    const targetCoordinates = findClosestReachableAdjacentCoordinates(
+      target.container,
+      distanceMap,
+    );
 
-  for (const coordinate of [...sources, ...minerals].map((object) => object.pos)) {
-    let targetCoordinates: RoomCoordinate[] = [];
-    let minDistance = Infinity;
+    if (targetCoordinates.length === 0) {
+      return;
+    }
 
-    forEachCoordinateAtRange(coordinate, 1, (x, y) => {
-      const distance = distanceMap[toRoomIndex(x, y)];
-
-      if (distance < 0) {
-        return;
-      }
-
-      if (distance < minDistance) {
-        minDistance = distance;
-        targetCoordinates = [{ x, y }];
-      } else if (distance === minDistance) {
-        targetCoordinates.push({ x, y });
-      }
-    });
-
-    for (const target of targetCoordinates) {
-      targetMask[toRoomIndex(target.x, target.y)] |= resourceBit;
+    for (const coordinate of targetCoordinates) {
+      targetMask[toRoomIndex(coordinate.x, coordinate.y)] |= target.bit;
     }
 
     const pathMask = buildShortestPathMask(
@@ -90,21 +115,15 @@ export function planResourceTree(
 
     for (let index = 0; index < ROOM_AREA; index++) {
       if (pathMask[index]) {
-        resourcePathMask[index] |= resourceBit;
+        resourcePathMask[index] |= target.bit;
       }
     }
-
-    resourceBit <<= 1;
   }
 
-  const maskCount = resourceBit;
+  const maskCount = 1 << targets.length;
   const fullMask = maskCount - 1;
-
-  if (fullMask === 0) {
-    return { roads: [] };
-  }
-
   const stateCount = ROOM_AREA * maskCount;
+
   const dp = new Int16Array(stateCount);
   dp.fill(INF);
 
@@ -120,7 +139,10 @@ export function planResourceTree(
     }
   }
 
-  pathIndices.sort((a, b) => distanceMap[b] - distanceMap[a]);
+  pathIndices.sort(
+    (left, right) =>
+      distanceMap[right] - distanceMap[left] || left - right,
+  );
 
   for (const index of pathIndices) {
     const coordinate = fromRoomIndex(index);
@@ -136,21 +158,9 @@ export function planResourceTree(
       let bestDecisionType = DECISION_NONE;
       let bestDecisionValue = -1;
 
-      const endpointBits = targetMask[index];
-
-      if (endpointBits !== 0) {
-        // Resource endpoints are reserved for miners. They can only terminate
-        // the matching single-resource path and may not be used as transit
-        // tiles or shared branch points by other resource paths.
-        if ((mask & (mask - 1)) === 0 && endpointBits === mask) {
-          best = tileCost;
-          bestDecisionType = DECISION_TARGET;
-        }
-
-        dp[key] = best;
-        decisionType[key] = bestDecisionType;
-        decisionValue[key] = bestDecisionValue;
-        continue;
+      if ((targetMask[index] & mask) === mask) {
+        best = tileCost;
+        bestDecisionType = DECISION_TARGET;
       }
 
       for (const offset of NEIGHBOR_OFFSETS) {
@@ -286,6 +296,341 @@ export function planResourceTree(
     return;
   }
 
+  const roadMask = traceResourceTree(
+    fullMask,
+    maskCount,
+    distanceMap,
+    decisionType,
+    decisionValue,
+    rootDecisionType,
+    rootDecisionValue,
+  );
+
+  const roads: RoomCoordinate[] = [];
+
+  for (let index = 0; index < ROOM_AREA; index++) {
+    if (!roadMask[index]) {
+      continue;
+    }
+
+    const coordinate = fromRoomIndex(index);
+    roads.push(coordinate);
+    visual.structure(coordinate.x, coordinate.y, STRUCTURE_ROAD);
+  }
+
+  const selectedTargetByBit = new Map(
+    selectedTargets.map((target) => [target.bit, target]),
+  );
+
+  const branches: ResourceBranchPlan[] = [];
+
+  for (const target of targets) {
+    const selectedTarget = selectedTargetByBit.get(target.bit);
+
+    if (!selectedTarget) {
+      return;
+    }
+
+    const branchRoadIndices = traceResourceBranch(
+      target.bit,
+      fullMask,
+      maskCount,
+      distanceMap,
+      decisionType,
+      decisionValue,
+      rootDecisionType,
+      rootDecisionValue,
+    );
+
+    const branchRoads = branchRoadIndices.map(fromRoomIndex);
+
+    branches.push({
+      targetId: target.targetId,
+      container: selectedTarget.container,
+      roads: branchRoads,
+    });
+
+    visual.structure(
+      selectedTarget.container.x,
+      selectedTarget.container.y,
+      STRUCTURE_CONTAINER,
+    );
+  }
+
+  return { roads, branches };
+}
+
+function buildBlockedMap(
+  sources: Source[],
+  minerals: Mineral[],
+  controllerArea: ControllerAreaCandidate,
+  corePlan: CorePlan,
+): Uint8Array {
+  const blockedMap = new Uint8Array(ROOM_AREA);
+
+  blockedMap[toRoomIndex(controllerArea.storage.x, controllerArea.storage.y)] =
+    1;
+
+  for (const chain of Object.values(controllerArea.upgradeChains)) {
+    chain.forEach((tile: RoomCoordinate) => {
+      blockedMap[toRoomIndex(tile.x, tile.y)] = 1;
+    });
+  }
+
+  blockedMap[toRoomIndex(corePlan.firstSpawn.x, corePlan.firstSpawn.y)] = 1;
+  blockedMap[toRoomIndex(corePlan.terminal.x, corePlan.terminal.y)] = 1;
+  blockedMap[toRoomIndex(corePlan.link.x, corePlan.link.y)] = 1;
+  blockedMap[toRoomIndex(corePlan.manager.x, corePlan.manager.y)] = 1;
+
+  for (const resource of [...sources, ...minerals]) {
+    blockedMap[toRoomIndex(resource.pos.x, resource.pos.y)] = 1;
+  }
+
+  return blockedMap;
+}
+
+function selectResourceContainers(
+  terrain: RoomTerrain,
+  targets: ResourceTarget[],
+  blockedMap: Uint8Array,
+  coreRoadMask: Uint8Array,
+  coreRoads: readonly RoomCoordinate[],
+): SelectedResourceTarget[] | undefined {
+  const selectedTargets: SelectedResourceTarget[] = [];
+  const remainingTargets = [...targets];
+
+  while (remainingTargets.length > 0) {
+    const distanceMap = buildResourceDistanceMap(
+      terrain,
+      blockedMap,
+      coreRoads,
+    );
+
+    let selectedIndex = -1;
+    let selectedCandidates: RoomCoordinate[] = [];
+    let selectedDistance = Infinity;
+
+    for (let index = 0; index < remainingTargets.length; index++) {
+      const target = remainingTargets[index];
+      const candidates = findReachableContainerCandidates(
+        target.coordinate,
+        distanceMap,
+        coreRoadMask,
+      );
+      const minDistance = getMinimumDistance(candidates, distanceMap);
+
+      if (minDistance < selectedDistance) {
+        selectedIndex = index;
+        selectedCandidates = candidates;
+        selectedDistance = minDistance;
+      }
+    }
+
+    if (selectedIndex < 0 || selectedCandidates.length === 0) {
+      return;
+    }
+
+    const currentTarget = remainingTargets[selectedIndex];
+    const otherDagMask = buildOtherTargetDagMask(
+      terrain,
+      remainingTargets,
+      selectedIndex,
+      distanceMap,
+      coreRoadMask,
+    );
+
+    if (!otherDagMask) {
+      return;
+    }
+
+    const container = chooseContainer(
+      selectedCandidates,
+      distanceMap,
+      otherDagMask,
+    );
+
+    if (!container) {
+      return;
+    }
+
+    selectedTargets.push({
+      ...currentTarget,
+      container,
+    });
+
+    blockedMap[toRoomIndex(container.x, container.y)] = 1;
+    remainingTargets.splice(selectedIndex, 1);
+  }
+
+  return selectedTargets;
+}
+
+function buildOtherTargetDagMask(
+  terrain: RoomTerrain,
+  targets: ResourceTarget[],
+  excludedTargetIndex: number,
+  distanceMap: Int32Array,
+  coreRoadMask: Uint8Array,
+): Uint8Array | undefined {
+  const combinedMask = new Uint8Array(ROOM_AREA);
+
+  for (let index = 0; index < targets.length; index++) {
+    if (index === excludedTargetIndex) {
+      continue;
+    }
+
+    const target = targets[index];
+    const candidates = findReachableContainerCandidates(
+      target.coordinate,
+      distanceMap,
+      coreRoadMask,
+    );
+    const closestCandidates = findClosestCoordinates(candidates, distanceMap);
+
+    if (closestCandidates.length === 0) {
+      return;
+    }
+
+    const pathMask = buildShortestPathMask(
+      closestCandidates,
+      terrain,
+      distanceMap,
+      getRoadCost,
+    );
+
+    for (let tileIndex = 0; tileIndex < ROOM_AREA; tileIndex++) {
+      if (pathMask[tileIndex]) {
+        combinedMask[tileIndex] = 1;
+      }
+    }
+  }
+
+  return combinedMask;
+}
+
+function findReachableContainerCandidates(
+  center: RoomCoordinate,
+  distanceMap: Int32Array,
+  coreRoadMask: Uint8Array,
+): RoomCoordinate[] {
+  const candidates: RoomCoordinate[] = [];
+
+  forEachCoordinateAtRange(center, 1, (x, y) => {
+    const index = toRoomIndex(x, y);
+
+    if (distanceMap[index] < 0 || coreRoadMask[index]) {
+      return;
+    }
+
+    candidates.push({ x, y });
+  });
+
+  return candidates;
+}
+
+function findClosestReachableAdjacentCoordinates(
+  center: RoomCoordinate,
+  distanceMap: Int32Array,
+): RoomCoordinate[] {
+  const candidates: RoomCoordinate[] = [];
+
+  forEachCoordinateAtRange(center, 1, (x, y) => {
+    if (distanceMap[toRoomIndex(x, y)] >= 0) {
+      candidates.push({ x, y });
+    }
+  });
+
+  return findClosestCoordinates(candidates, distanceMap);
+}
+
+function findClosestCoordinates(
+  candidates: readonly RoomCoordinate[],
+  distanceMap: Int32Array,
+): RoomCoordinate[] {
+  const closest: RoomCoordinate[] = [];
+  let minDistance = Infinity;
+
+  for (const coordinate of candidates) {
+    const distance = distanceMap[toRoomIndex(coordinate.x, coordinate.y)];
+
+    if (distance < minDistance) {
+      minDistance = distance;
+      closest.length = 0;
+      closest.push(coordinate);
+    } else if (distance === minDistance) {
+      closest.push(coordinate);
+    }
+  }
+
+  return closest;
+}
+
+function getMinimumDistance(
+  candidates: readonly RoomCoordinate[],
+  distanceMap: Int32Array,
+): number {
+  let minDistance = Infinity;
+
+  for (const coordinate of candidates) {
+    minDistance = Math.min(
+      minDistance,
+      distanceMap[toRoomIndex(coordinate.x, coordinate.y)],
+    );
+  }
+
+  return minDistance;
+}
+
+function chooseContainer(
+  candidates: readonly RoomCoordinate[],
+  distanceMap: Int32Array,
+  otherDagMask: Uint8Array,
+): RoomCoordinate | undefined {
+  let bestSafe: RoomCoordinate | undefined;
+  let bestSafeDistance = Infinity;
+  let bestFallback: RoomCoordinate | undefined;
+  let bestFallbackDistance = Infinity;
+
+  for (const coordinate of candidates) {
+    const index = toRoomIndex(coordinate.x, coordinate.y);
+    const distance = distanceMap[index];
+
+    if (distance < bestFallbackDistance) {
+      bestFallback = coordinate;
+      bestFallbackDistance = distance;
+    }
+
+    if (!otherDagMask[index] && distance < bestSafeDistance) {
+      bestSafe = coordinate;
+      bestSafeDistance = distance;
+    }
+  }
+
+  return bestSafe ?? bestFallback;
+}
+
+function buildResourceDistanceMap(
+  terrain: RoomTerrain,
+  blockedMap: Uint8Array,
+  coreRoads: readonly RoomCoordinate[],
+): Int32Array {
+  return dijkstraMap(
+    terrain,
+    coreRoads,
+    getRoadCost,
+    (x, y) => blockedMap[toRoomIndex(x, y)] === 0,
+  );
+}
+
+function traceResourceTree(
+  fullMask: number,
+  maskCount: number,
+  distanceMap: Int32Array,
+  decisionType: Uint8Array,
+  decisionValue: Int16Array,
+  rootDecisionType: Uint8Array,
+  rootDecisionValue: Int16Array,
+): Uint8Array {
   const roadMask = new Uint8Array(ROOM_AREA);
   const traceStack: { index: number; mask: number }[] = [
     { index: -1, mask: fullMask },
@@ -330,19 +675,70 @@ export function planResourceTree(
     }
   }
 
-  const roads: RoomCoordinate[] = [];
+  return roadMask;
+}
 
-  for (let index = 0; index < ROOM_AREA; index++) {
-    if (!roadMask[index]) {
+function traceResourceBranch(
+  targetBit: number,
+  fullMask: number,
+  maskCount: number,
+  distanceMap: Int32Array,
+  decisionType: Uint8Array,
+  decisionValue: Int16Array,
+  rootDecisionType: Uint8Array,
+  rootDecisionValue: Int16Array,
+): number[] {
+  const roadIndices: number[] = [];
+  let index = -1;
+  let mask = fullMask;
+
+  while (true) {
+    if (index === -1) {
+      const type = rootDecisionType[mask];
+      const value = rootDecisionValue[mask];
+
+      if (type === DECISION_CONTINUE) {
+        index = value;
+        continue;
+      }
+
+      if (type === DECISION_SPLIT) {
+        mask = value & targetBit ? value : mask ^ value;
+        continue;
+      }
+
+      break;
+    }
+
+    if (
+      distanceMap[index] > 0 &&
+      roadIndices[roadIndices.length - 1] !== index
+    ) {
+      roadIndices.push(index);
+    }
+
+    const key = index * maskCount + mask;
+    const type = decisionType[key];
+    const value = decisionValue[key];
+
+    if (type === DECISION_TARGET) {
+      break;
+    }
+
+    if (type === DECISION_CONTINUE) {
+      index = value;
       continue;
     }
 
-    const coordinate = fromRoomIndex(index);
-    roads.push(coordinate);
-    visual.structure(coordinate.x, coordinate.y, STRUCTURE_ROAD);
+    if (type === DECISION_SPLIT) {
+      mask = value & targetBit ? value : mask ^ value;
+      continue;
+    }
+
+    break;
   }
 
-  return { roads };
+  return roadIndices;
 }
 
 function buildShortestPathMask(
