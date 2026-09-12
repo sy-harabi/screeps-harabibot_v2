@@ -136,6 +136,8 @@ export function planBase(
   const boundaryRoadPlan = planRegionBoundaryRoads(
     terrain,
     boundaryComponents,
+    selectedRegionIds,
+    regionByTile,
     bestCorePlan,
     resourceTree,
     visual,

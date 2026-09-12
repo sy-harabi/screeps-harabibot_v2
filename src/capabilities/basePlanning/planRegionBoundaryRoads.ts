@@ -1,3 +1,4 @@
+import { dijkstraMap } from "../../world/map/dijkstraMap";
 import type { RoomCoordinate } from "../../world/map/roomCoordinate";
 import {
   fromRoomIndex,
@@ -17,6 +18,8 @@ export interface RegionBoundaryRoadPlan {
 export function planRegionBoundaryRoads(
   terrain: RoomTerrain,
   components: readonly RegionBoundaryComponent[],
+  selectedRegionIds: ReadonlySet<number>,
+  regionByTile: Int16Array,
   corePlan: CorePlan,
   resourceTree: ResourceTreePlan,
   visual: RoomVisual,
@@ -27,13 +30,27 @@ export function planRegionBoundaryRoads(
     roadMask[toRoomIndex(x, y)] = 1;
   }
 
+  const selectedRegionDistanceMap = dijkstraMap(
+    terrain,
+    corePlan.roads,
+    (_x, _y, terrainType) => getRoadCost(terrainType),
+    (x, y) => {
+      const index = toRoomIndex(x, y);
+
+      return (
+        selectedRegionIds.has(regionByTile[index]) &&
+        resourceTree.coreDistanceMap[index] >= 0
+      );
+    },
+  );
+
   const roads: RoomCoordinate[] = [];
 
   for (const component of components) {
     const path = tracePathToExistingRoad(
       terrain,
       component.representativeTile,
-      resourceTree.coreDistanceMap,
+      selectedRegionDistanceMap,
       roadMask,
     );
 
@@ -60,12 +77,12 @@ export function planRegionBoundaryRoads(
 function tracePathToExistingRoad(
   terrain: RoomTerrain,
   start: RoomCoordinate,
-  coreDistanceMap: Int32Array,
+  distanceMap: Int32Array,
   roadMask: Uint8Array,
 ): RoomCoordinate[] | undefined {
   let currentIndex = toRoomIndex(start.x, start.y);
 
-  if (coreDistanceMap[currentIndex] < 0) {
+  if (distanceMap[currentIndex] < 0) {
     return;
   }
 
@@ -73,7 +90,7 @@ function tracePathToExistingRoad(
 
   while (!roadMask[currentIndex]) {
     const current = fromRoomIndex(currentIndex);
-    const currentDistance = coreDistanceMap[currentIndex];
+    const currentDistance = distanceMap[currentIndex];
 
     if (currentDistance <= 0) {
       return;
@@ -94,7 +111,7 @@ function tracePathToExistingRoad(
       }
 
       const neighborIndex = toRoomIndex(x, y);
-      const neighborDistance = coreDistanceMap[neighborIndex];
+      const neighborDistance = distanceMap[neighborIndex];
 
       if (
         neighborDistance < 0 ||
