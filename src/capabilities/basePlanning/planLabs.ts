@@ -243,27 +243,7 @@ function findLabPlanWithBranch(
       continue;
     }
 
-    const serviceCoordinate = fromRoomIndex(serviceIndex);
-    let adjacentServiceRoadCount = 0;
-
-    for (const offset of NEIGHBOR_OFFSETS) {
-      const x = serviceCoordinate.x + offset.x;
-      const y = serviceCoordinate.y + offset.y;
-
-      if (!isInsideRoom(x, y)) {
-        continue;
-      }
-
-      if (baseServiceDistanceMap[toRoomIndex(x, y)] >= 0) {
-        adjacentServiceRoadCount++;
-      }
-    }
-
-    if (adjacentServiceRoadCount <= 1) {
-      continue;
-    }
-
-    const plan = searchBranch(serviceCoordinate, branchLength);
+    const plan = searchBranch(fromRoomIndex(serviceIndex), branchLength);
 
     if (plan) {
       return plan;
