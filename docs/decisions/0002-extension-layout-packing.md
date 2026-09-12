@@ -1,54 +1,73 @@
 # Extension layout packing
 
-Status: proposed
+Status: proposed; not yet implemented
 Date: 2026-09-11
+Updated: 2026-09-12
 
 ## Context
 
-The core-layout decision in `0001-base-planner-core-layout.md` establishes the controller area, core, resource roads, and dynamic labs. Extension placement should build on that geometry rather than introduce a separate stamp or an unrelated road system.
+Extension placement should build on the geometry already established by the controller area, core, resource tree, dynamic labs, and later rampart-access planning rather than introduce a separate large stamp or unrelated road system.
 
-The main goals are:
+The current code no longer contains the old explicit logistics tile `A`. The implemented core exposes `corePlan.roads` as a multi-tile frontier, and `planResourceTree()` grows the merged resource network from that frontier.
 
-- keep extensions spatially compact around the logistics root `A`;
-- reuse source, mineral, core, lab, and future rampart-access roads whenever useful;
-- reserve defender/repairer access to the expected defensive perimeter before filling the interior with extensions;
+Therefore references in the earlier prototype to "distance/radius from A" must not be treated as current implementation truth.
+
+The main extension goals remain:
+
+- keep extensions spatially compact around the useful core area;
+- reuse core, resource, lab, and future rampart-access roads whenever useful;
+- reserve defender/repairer access to the expected defensive perimeter before filling the interior;
 - add as little extension-specific road as possible;
 - allow irregular terrain to deform the layout naturally;
 - avoid encoding observed good spacing as a large collection of special-case heuristics.
 
-The design should optimize the gameplay property directly: fit all 60 extensions into the smallest useful area around `A`, using as few new road tiles as possible inside that area.
+## Current implementation boundary
+
+Extension packing is not yet implemented.
+
+The current implemented planner reaches:
+
+```text
+selected regions
+    -> controller area / upgrade chains
+    -> core
+    -> merged resource tree
+```
+
+Dynamic labs are the next planned stage. Expected rampart access and extension packing remain downstream design work.
 
 ## Terminology
 
+- **core road frontier**: `corePlan.roads`, the current multi-tile road root used by the resource planner.
+- **growth root / growth metric**: the yet-to-be-finalized reference used to define how spatially close an extension layout is to the core. The old prototype used a single tile `A`; the current implementation does not have one.
 - **expected rampart boundary**: an early approximation of the future defensive perimeter derived from the selected base region. This is planning geometry, not necessarily the final min-cut result.
 - **rampart segment**: one contiguous portion of the expected rampart boundary, separated from other portions by walls or disconnected terrain.
 - **segment lane**: an internal road connection from the existing road network to one rampart segment so defenders and repairers can reach it.
-- **mandatory roads**: roads already justified by another subsystem, including core access roads, resource lanes, lab service roads, and rampart segment lanes.
-- **growth radius**: Screeps range from `A`. A candidate extension layout only uses service roads and extension slots inside the current radius.
+- **mandatory roads**: roads already justified by another subsystem, including core roads, resource roads, lab service roads, and rampart segment lanes.
 - **service road**: any road tile whose adjacent buildable tiles may serve as extension positions.
 - **extension branch**: extension-specific road geometry added only when mandatory roads do not provide enough extension capacity.
 - **extension capacity**: the number of unique valid extension tiles adjacent to the service-road set.
 
 ## Decision
 
-### 1. Estimate the defensive perimeter before extension placement
+### 1. Estimate defensive access before final extension packing
 
-After selected regions and the core/resource/lab geometry are known, derive an expected rampart boundary from the selected base area.
+After selected regions and core/resource/lab geometry are known, derive an expected rampart boundary from the selected base area.
 
 The purpose is not to finalize defense before the rest of the planner exists. The purpose is to reserve the movement skeleton that future defense will need so extension placement does not block it.
 
 Split the expected boundary into contiguous rampart segments.
 
-For each segment, connect the existing internal road network to the segment with an internal lane. New segment lanes may reuse roads created for previous segments. Independent lanes should not be generated and unioned afterward if an equally short merged connection is available.
+For each segment, connect the existing internal road network to the segment with an internal lane. New segment lanes may reuse roads created for previous segments. Independent lanes should not simply be generated and unioned afterward if an equally short merged connection is available.
 
-The resulting road skeleton is conceptually:
+Conceptually, the mandatory movement skeleton is:
 
 ```text
-A / core
-   |
+core road frontier
    +-- source 1
    +-- source 2
    +-- mineral
+   +-- lab service branch(es)
    +-- rampart segment 1
    +-- rampart segment 2
    +-- rampart segment 3
@@ -56,31 +75,40 @@ A / core
 
 The final rampart/min-cut algorithm may later replace the expected boundary, but extension placement should already respect perimeter-access lanes.
 
-### 2. Extension growth is rooted at A
+### 2. Compact growth remains the primary objective, but the exact root is unresolved
 
-Extensions are not filled around every road in the room at once.
+The earlier prototype expanded Screeps-range boxes around a single `A` tile.
 
-`A` is the root of the extension-growth area. The planner examines increasingly large Screeps-range boxes around `A`:
+That exact rule is no longer valid because current V2 has no explicit `A`.
+
+Before production extension implementation, choose an explicit current-core growth metric. Plausible options include:
+
+- range from a stable core structure such as storage;
+- minimum range from the core road frontier;
+- graph/service distance from the core road frontier;
+- another simple core-derived metric justified by actual planner output.
+
+This decision should be made separately rather than silently reintroducing `A`.
+
+Regardless of the exact metric, the intended behavior remains:
 
 ```text
-radius r
-    -> consider only service roads inside range r of A
-    -> calculate extension capacity inside range r
+small growth extent
+    -> use mandatory roads in that extent
+    -> calculate extension capacity
     -> add extension-specific branches only if necessary
-    -> stop at the first radius that can support 60 extensions
+    -> expand the extent only when 60 extensions cannot fit
 ```
 
-A mandatory road may extend far beyond the current growth radius toward a source or rampart. Its distant part does not cause distant extensions to be selected early. Only the portion reached by the current growth radius participates in packing.
-
-This preserves the desired "plant growth" behavior: leaves appear near the root first, even when long mandatory trunks already exist.
+A mandatory road may extend far toward a source or rampart. Its distant part should not cause distant extensions to be selected early merely because the road already exists.
 
 ### 3. Reuse mandatory roads as free extension service roads
 
-Inside the current growth radius, all suitable mandatory roads may serve extensions.
+Inside the active growth area, all suitable mandatory roads may serve extensions.
 
 This includes:
 
-- core access roads;
+- core roads;
 - resource roads;
 - rampart segment lanes;
 - lab service roads when their geometry permits it.
@@ -91,9 +119,9 @@ Extension capacity is always calculated using unique tiles. If multiple roads ca
 
 ### 4. Add short diagonal branches only when necessary
 
-If mandatory roads inside the current growth radius cannot support 60 extensions, generate extension-specific branch candidates.
+If mandatory roads inside the current growth area cannot support 60 extensions, generate extension-specific branch candidates.
 
-The default branch primitive is a three-tile diagonal road segment:
+The default prototype branch primitive is a three-tile diagonal road segment:
 
 ```text
 R
@@ -105,11 +133,11 @@ R
 
 All four diagonal directions are allowed. Branches may grow on either side of existing roads.
 
-The three-tile diagonal shape is not justified by a fixed stamp. Empirically it exposes a large number of extension-adjacent tiles for a small road cost, commonly on the order of 15-17 useful extension positions in open geometry before overlaps and reservations are considered.
+The three-tile diagonal shape is not a fixed stamp. Prototype experiments found that it often exposes many extension-adjacent tiles for a small road cost.
 
 A branch may overlap or reuse existing road tiles when geometry permits. Its cost is therefore the number of **unique new road tiles**, not `3 * branchCount`.
 
-Loops are allowed. The planner should not reject a compact branch merely because it touches multiple existing roads or closes a road loop. Such loops may also improve filler and defender mobility.
+Loops are allowed. The planner should not reject compact geometry merely because a branch touches multiple existing roads or closes a road loop.
 
 ### 5. Do not encode 2.5-tile branch spacing as a hard rule
 
@@ -123,38 +151,36 @@ The planner should not contain a rule such as:
 nextBranchSpacing = 2.5
 ```
 
-or a transformed-coordinate equivalent.
+Instead, evaluate the actual extension capacity created by candidate road combinations.
 
-Instead, evaluate the actual extension capacity created by candidate road combinations. Branches that are too close waste capacity through overlapping extension neighborhoods. Branches that are too far apart require a larger growth radius. Compact packing should therefore emerge from the optimization objective itself.
+Branches that are too close waste capacity through overlapping extension neighborhoods. Branches that are too far apart require a larger growth extent. Efficient spacing should emerge from the actual compactness/capacity objective.
 
-### 6. Select layouts lexicographically by compactness and road cost
+### 6. Select layouts lexicographically by compactness and new-road cost
 
-The extension layout objective is intentionally small and explicit.
+Once the current-core growth metric is fixed, the objective should remain intentionally small and explicit.
 
 Primary objective:
 
 ```text
-minimize growth radius from A that can support at least 60 extensions
+minimize the growth extent needed to support at least 60 extensions
 ```
 
-Secondary objective within the same radius:
+Secondary objective within the same growth extent:
 
 ```text
 minimize the number of unique extension-specific road tiles
 ```
 
-Remaining ties should preserve stable deterministic iteration order unless later evidence justifies another explicit rule.
+Remaining ties preserve stable deterministic iteration order unless later evidence justifies another explicit rule.
 
-Do not add weighted terms for branch spacing, branch direction, distance transform, average extension distance, branch count, or visual symmetry unless a separate design decision establishes a gameplay reason for them.
-
-This means a candidate at radius 7 with 12 new road tiles beats a candidate at radius 8 with 5 new road tiles. Compact area is the primary goal; road economy is secondary within that compact area.
+Do not add weighted terms for branch spacing, branch direction, distance transform, average extension distance, branch count, or visual symmetry without a gameplay reason.
 
 ### 7. Capacity is measured from the final service-road set
 
 For each candidate road combination:
 
 ```text
-serviceRoads = mandatoryRoadsInsideRadius
+serviceRoads = mandatoryRoadsInsideGrowthArea
              + uniqueExtensionBranchRoads
 
 extensionSlots = unique valid buildable tiles
@@ -169,28 +195,26 @@ A candidate succeeds when:
 extensionSlots >= 60
 ```
 
-The planner should calculate this directly. It should not estimate one branch as a fixed number of extensions because overlap with other roads, terrain, labs, upgrade chains, and ramparts changes the actual capacity.
+The planner should calculate this directly. It should not estimate one branch as a fixed number of extensions because overlap with terrain, labs, upgrade chains, roads, and ramparts changes the actual capacity.
 
-If a candidate exposes more than 60 extension slots, the final 60 may be chosen in A-near order for construction/RCL sequencing. Packing feasibility itself depends only on having at least 60 valid slots.
+If a candidate exposes more than 60 extension slots, the final 60 may later be ordered by the chosen core-growth metric for construction/RCL sequencing. Packing feasibility itself depends only on having at least 60 valid slots.
 
 ## Intended planning pipeline
 
-The current design direction is:
+The current implementation/design sequence is:
 
 ```text
-terrain regions
-    -> selected regions
-    -> controller area / upgrade chains
-    -> core around storage and manager
-    -> A logistics root
-    -> merged resource roads
-    -> dynamic labs near A
-    -> expected rampart boundary
-    -> rampart segments
-    -> merged segment-access lanes
-    -> compact extension packing around A
-         -> mandatory roads inside radius
-         -> optional 3-tile diagonal branches
+terrain regions                         implemented
+    -> selected regions                 implemented
+    -> controller area / upgrade chains implemented
+    -> core                             implemented
+    -> merged resource roads             implemented
+    -> dynamic labs                      proposed next stage
+    -> expected rampart boundary         proposed
+    -> rampart segments/access lanes     proposed
+    -> compact extension packing         proposed
+         -> mandatory roads in growth area
+         -> optional diagonal branches
          -> 60 extension leaves
 ```
 
@@ -198,9 +222,9 @@ Extension packing therefore happens after the main movement skeleton is known. E
 
 ## Prototype evidence
 
-The compact-packing prototype was tested on saved `shardSeason` room layouts produced by the earlier core/resource/lab experiments.
+The compact-packing prototype was tested on saved `shardSeason` room layouts produced by an earlier planner version that still used a single `A` growth root.
 
-Representative successful results included:
+Representative prototype results included:
 
 - `W21N52`: minimum radius 8, 8 unique new road tiles, 3 diagonal branch templates;
 - `E3N36`: minimum radius 6, 10 unique new road tiles, 4 branch templates;
@@ -209,50 +233,55 @@ Representative successful results included:
 
 Some branch templates reused existing roads or overlapped one another, so branch count and road cost were intentionally different quantities.
 
-The prototype also found rooms where 60 extensions could not fit under the current selected-area and reserved-geometry assumptions. Those failures should not be hidden by allowing extensions to spill arbitrarily outside the selected region. They are evidence that selected-region size/connectivity and final defensive geometry must be validated as part of the full planner.
+These numbers remain useful prototype evidence for branch-packing behavior, but their reported `radius from A` is **not directly the current V2 metric** and must be remeasured after the growth root/metric is finalized.
 
-These numbers are experimental evidence only. They are not fixed thresholds for production selection.
+The prototype also found rooms where 60 extensions could not fit under the selected-area and reserved-geometry assumptions. Those failures should not be hidden by allowing extensions to spill arbitrarily outside the selected region. They are evidence that selected-region size/connectivity and defensive geometry must be validated as part of the full planner.
 
 ## Reasons
 
-This approach keeps extension planning aligned with the rest of the V2 planner:
+This approach keeps extension planning aligned with the current V2 planner:
 
-- the controller/core design establishes `A` as the logistics root;
-- resource and rampart roads create useful mandatory trunks;
+- the core exposes a small deterministic local geometry and a multi-tile road frontier;
+- the resource tree creates reusable mandatory trunks;
 - labs reuse and locally extend those trunks;
+- rampart access adds defense-required lanes;
 - extensions then occupy the remaining interior efficiently instead of forcing a separate global road pattern.
 
-The lexicographic objective also captures the observed good branch spacing without explicitly encoding it. Tight branches overlap too much and gain little capacity; overly separated branches force a larger radius. Efficient spacing emerges because the planner is solving the actual packing problem.
+The lexicographic objective should capture useful branch spacing without explicitly encoding it. Tight branches overlap too much and gain little capacity; overly separated branches require a larger growth extent.
 
 The model remains flexible in irregular terrain. A wall, lab cluster, rampart lane, or other reserved structure may deform branch placement without requiring a special exception for a preferred geometric pattern.
 
 ## Consequences
 
-- Extension search is more expensive than applying a fixed stamp, but base planning is not a per-tick hot path and the search space can be bounded by growth radius and compact branch primitives.
+- Extension search is more expensive than applying a fixed stamp, but base planning is not a per-tick hot path and the search space can be bounded.
 - Mandatory roads must remain available as explicit path/tile sets so extension packing can reuse them.
-- Expected rampart geometry must be available before final extension placement.
-- The planner needs a deterministic method to enumerate compact three-tile diagonal branch candidates and combinations.
-- Search implementation should prune combinations that cannot beat the current best unique-road count or cannot reach 60 extension capacity.
-- Final extension RCL assignment can naturally follow A-near growth order once the 60 positions are selected.
-- Rooms whose selected region is too small or disconnected must fail clearly and trigger an earlier planner fallback rather than silently violating the intended defensive area.
+- Expected rampart geometry should be available before final extension placement.
+- The planner needs a deterministic method to enumerate compact diagonal branch candidates and combinations.
+- Final extension RCL assignment can follow a core-near ordering once the growth metric is defined.
+- Rooms whose selected region is too small or disconnected should fail clearly or trigger an earlier planner fallback rather than silently violating the intended defensive area.
+- The old explicit `A` abstraction must not be reintroduced accidentally through documentation or code comments.
 
 ## Alternatives considered
 
+### Keep using the old A-based radius unchanged
+
+Rejected as documentation of current V2. The implemented core no longer exposes `A`, so using it would make the extension design depend on a nonexistent planner object.
+
 ### Fill every existing road first
 
-Rejected. A long source or rampart road would cause distant extensions to appear simply because the road already exists. Extension growth should remain rooted near `A`.
+Rejected. A long source or rampart road would cause distant extensions to appear simply because the road already exists. Extension growth should remain core-local first.
 
 ### One branch per road depth
 
-Tested as an early-growth throttle. It created an arbitrary relationship between road graph depth and extension geometry and could either create too many branches or still produce poor packing. The compact-packing objective makes this rule unnecessary.
+Tested as an early-growth throttle. It created an arbitrary relationship between road graph depth and extension geometry and could either create too many branches or still produce poor packing.
 
 ### Add one road tile only when immediate leaf capacity increases
 
-Tested as a local greedy growth rule. It generated many small branches and made the layout depend heavily on local iteration order. Three-tile diagonal branch primitives produce a cleaner search space and better reflect observed efficient extension geometry.
+Tested as a local greedy growth rule. It generated many small branches and made the layout depend heavily on local iteration order. Three-tile diagonal branch primitives produced a cleaner prototype search space.
 
 ### Hard 2.5-tile branch spacing
 
-Rejected. Roughly 2.5-tile perpendicular spacing is often efficient in open terrain, but terrain and reserved structures can make approximately 3 tiles better. Actual extension capacity and minimum growth radius already express the reason that spacing works.
+Rejected. Roughly 2.5-tile perpendicular spacing is often efficient in open terrain, but terrain and reserved structures can make approximately 3 tiles better. Actual capacity and compactness should express the reason that spacing works.
 
 ### Require extension branches to remain a tree
 
@@ -260,12 +289,13 @@ Rejected. Preventing a branch from touching multiple roads unnecessarily exclude
 
 ### Ignore mandatory roads when generating extensions
 
-Rejected. Resource, rampart, core, and lab roads are already paid for and should contribute extension service capacity when they pass through the active growth area.
+Rejected. Core, resource, rampart, and lab roads are already paid for and should contribute extension service capacity when they pass through the active growth area.
 
 ## Open questions
 
 The following are not settled by this record:
 
+- the exact extension growth root/metric for the current no-`A` core;
 - the final algorithm for deriving the expected rampart boundary and how it transitions to the real min-cut/rampart planner;
 - how many access points a very long rampart segment should receive;
 - the exact production search/pruning strategy for branch combinations;
@@ -275,4 +305,4 @@ The following are not settled by this record:
 - final RCL ordering of the chosen 60 extensions;
 - whether later mobility analysis should add roads after extension packing.
 
-These should be resolved from planner output and measured gameplay behavior rather than by adding speculative weights to the packing objective.
+These should be resolved from current V2 planner output and measured behavior rather than by adding speculative weights.
