@@ -1,6 +1,6 @@
 # Base planner controller area and core layout
 
-Status: implemented through core selection; resource-tree handoff implemented
+Status: implemented through resource-tree selection
 Date: 2026-09-11
 Updated: 2026-09-12
 
@@ -32,11 +32,11 @@ The planner uses hard validity rules first and a short lexicographic preference 
 - **core stamp**: a small local-coordinate template containing terminal, manager tile, first spawn, link, and core roads around storage.
 - **manager tile**: the stationary logistics-creep position; it is not a structure.
 - **mirror**: reflection of the core stamp across its forward axis before converting local coordinates to room coordinates.
-- **core road frontier**: the tiles in `corePlan.roads`. The implemented resource planner uses all of these as Dijkstra roots. There is no explicit single logistics tile `A` in the current core implementation.
+- **core road frontier**: the tiles in `corePlan.roads`. The resource planner uses all of them as Dijkstra roots. There is no explicit single logistics tile `A` in the current implementation.
+- **resource container**: the final range-1 tile selected for a source or mineral. It is blocked from later Dijkstra searches and is not part of the road tree.
+- **resource branch**: the ordered road path from the core frontier to one resource container. Shared trunk roads may appear in several branch arrays.
 
 ## Current implemented pipeline
-
-The implemented base-planning pipeline currently reaches the resource tree:
 
 ```text
 terrain
@@ -56,10 +56,11 @@ terrain
     -> choose best controller/core pair by
          1. upgrade-capacity tier
          2. first-spawn range to selected center
-    -> merged source/mineral resource tree rooted at corePlan.roads
+    -> choose source/mineral containers
+    -> recompute final Dijkstra map with containers blocked
+    -> build per-resource shortest-path DAGs
+    -> merge them with bitmask DP
 ```
-
-A downstream core failure rejects only that controller-area/core candidate. The planner may continue with another storage candidate or mirror.
 
 `planBase()` currently calls `planResourceTree()` after the core is chosen. Dynamic lab placement is the next unimplemented planning stage.
 
@@ -80,9 +81,7 @@ A storage candidate is accepted only when it has three adjacent tiles that are:
 
 These three tiles become `left`, `middle`, and `right` upgrade roots.
 
-The roots are found while evaluating the storage candidate and are carried directly into upgrade-chain generation. The planner does not count adjacent tiles first and rediscover the same roots later.
-
-Requiring three roots also gives the core a stable middle root and therefore a well-defined forward direction.
+Requiring three roots gives the core a stable middle root and therefore a well-defined forward direction.
 
 ### Upgrade chains
 
@@ -96,18 +95,6 @@ The current chain search:
 - extends shorter outer chains when useful after the middle path is found;
 - retries completed outer chains with the opposite wall-following hand to compact them when chain length is not reduced.
 
-All three chains are represented explicitly as:
-
-```ts
-interface UpgradeChains {
-  left: RoomCoordinate[];
-  middle: RoomCoordinate[];
-  right: RoomCoordinate[];
-}
-```
-
-### Upgrade-capacity tiers
-
 Controller-area quality is classified by total upgrade-chain tiles:
 
 - tier 1: at least 16 tiles;
@@ -117,10 +104,6 @@ Controller-area quality is classified by total upgrade-chain tiles:
 Tier is the primary preference for final controller-area/core selection.
 
 ## Core stamp
-
-### Small stamp, not a large bunker
-
-After upgrade chains are known, the remaining tightly coupled local structures use a small fixed stamp.
 
 The canonical local-coordinate stamp is currently:
 
@@ -142,88 +125,15 @@ export const CORE_STAMP = {
 };
 ```
 
-Storage is the local origin and is already supplied by the controller-area candidate.
-
-The previously tested protruding road at `(-2, 0)` was removed rather than given a road fallback. The previous road at `(2, 0)` is also not part of the fixed road list because that tile is reserved as the link fallback.
-
-### Orientation comes from the middle root
-
-The stamp does not search arbitrary rotations.
-
-Its forward direction is always:
+Storage is the local origin. The forward direction is always:
 
 ```text
 storage -> middleRoot
 ```
 
-For valid controller-area candidates this direction is cardinal, so no 45-degree stamp rotation is required.
+The planner tries the same oriented stamp in normal and mirrored form. The link is the only current flexible stamp element: the primary position is `(2, -1)` and the fallback is `(2, 0)`.
 
-The canonical stamp is defined once. Room coordinates are produced from a local `forward` vector and its corresponding `right` vector.
-
-Because Screeps screen coordinates have increasing `y` downward, the transform is expressed in terms of `forward` and `right` rather than clockwise/counterclockwise terminology.
-
-### Mirror search
-
-For each controller-area candidate, the planner tries both reflections of the same oriented stamp:
-
-```text
-forward fixed by middle root
-    -> mirrored = true
-    -> mirrored = false
-```
-
-The stamp does not freely rotate after the controller area has been chosen. Controller geometry determines forward; mirror is the remaining local degree of freedom.
-
-## Core construction and validity
-
-`findCorePlans()` calls `tryCoreStamp()` for the two mirror states.
-
-`tryCoreStamp()` constructs the core while validating it. Returning a `CorePlan` means the stamp is valid; returning `undefined` means the candidate failed.
-
-The order is intentionally simple:
-
-```text
-manager
-    -> invalid: fail
-terminal
-    -> invalid: fail
-first spawn
-    -> invalid: fail
-primary link
-    -> invalid: try link fallback
-    -> fallback invalid: fail
-core roads
-    -> any invalid: fail
-return CorePlan
-```
-
-A coordinate is invalid when:
-
-- it lies outside the room;
-- it is outside the selected regions; or
-- it overlaps an upgrade-chain tile.
-
-Upgrade-chain tiles are reserved working positions. Core roads are not allowed to overlap them even though Screeps mechanically permits a creep to stand on a road.
-
-### Link fallback
-
-The link is the only current flexible stamp element.
-
-Primary position:
-
-```text
-(2, -1)
-```
-
-Fallback position:
-
-```text
-(2, 0)
-```
-
-The fallback is attempted only when the primary link coordinate is invalid. If the fallback is also invalid, the stamp fails.
-
-There is currently no road fallback. The stamp road footprint was reduced instead of adding road-specific deformation rules.
+A core coordinate is invalid when it is outside the room, outside the selected regions, or overlaps an upgrade-chain tile.
 
 ## Final core selection
 
@@ -235,88 +145,146 @@ The preference is lexicographic:
 2. smaller Screeps range from `firstSpawn` to `selectedCenter`;
 3. stable iteration order for remaining ties.
 
-In other words:
+No extra score is currently applied for storage openness, distance transform, link position, terminal position, symmetry, or visual appearance.
 
-```text
-controller upgrade quality
-    > core facing the useful interior of the base
-```
+## Implemented resource tree
 
-The first spawn is used as the base-facing representative point of the small core. No extra score is currently applied for storage openness, distance transform, link position, terminal position, symmetry, or visual appearance.
+### Dijkstra roots and costs
 
-## Implemented resource-tree handoff
+All `corePlan.roads` are passed to `dijkstraMap()` as start coordinates.
 
-The old version of this record described the resource tree as the next unresolved stage. That is no longer accurate.
-
-`planResourceTree.ts` is implemented and currently behaves as follows.
-
-### Roots
-
-All `corePlan.roads` are passed to `dijkstraMap()` as start coordinates. They form a multi-tile road frontier rather than a single `A` tile.
-
-### Blocked geometry
-
-The resource planner blocks:
-
-- storage;
-- all upgrade-chain tiles;
-- first spawn;
-- terminal;
-- core link;
-- manager tile.
-
-### Terrain costs
-
-The current road-planning cost is:
+The current permanent-road cost is:
 
 ```text
 plain = 5
 swamp = 6
 ```
 
-This intentionally makes swamps only slightly more expensive than plains for permanent-road planning.
+`dijkstraMap.ts` itself is unchanged by the resource-container logic.
 
-### Resource work-tile targets
+### Blocked geometry
 
-For each source and mineral, the planner examines range-1 tiles and keeps all tiles tied for minimum Dijkstra distance from the core road frontier.
+Before resource planning, the planner blocks:
 
-It then constructs the union of shortest-path possibilities for each resource.
+- storage;
+- all upgrade-chain tiles;
+- first spawn;
+- terminal;
+- core link;
+- manager tile;
+- source tiles themselves;
+- mineral tiles themselves.
+
+Core road tiles remain Dijkstra roots and are not eligible resource-container positions.
+
+### Container selection
+
+Resource containers are selected before the final DAG/DP merge.
+
+The procedure is iterative:
+
+```text
+while an unassigned resource remains:
+    run Dijkstra with already selected containers blocked
+
+    choose the currently nearest unassigned resource
+
+    build shortest-path DAG masks for the other remaining resources
+
+    inspect every reachable range-1 container candidate
+
+    prefer a candidate that is not inside any other target DAG
+        -> among those, choose minimum Dijkstra distance
+
+    if every candidate overlaps another target DAG
+        -> choose the minimum-distance candidate anyway
+
+    reserve that tile as the resource container
+    mark it blocked
+    repeat
+```
+
+This gives inner/near resources first choice of a container while trying not to consume tiles that current shortest paths to farther resources depend on.
+
+The planner intentionally recomputes Dijkstra after every selected container. There are only the room's source/mineral targets, so the simpler recomputation is preferred over maintaining an incremental distance map.
+
+### Containers are blocked, not terminal Dijkstra nodes
+
+A selected container is simply added to `blockedMap`.
+
+The generic Dijkstra implementation does not need a special `canExpand` or terminal-node concept.
+
+After all containers are selected, the final road target for each resource becomes the set of minimum-distance reachable tiles adjacent to its blocked container:
+
+```text
+resource
+   C     <- blocked container
+   R     <- final road endpoint candidate
+   R
+   R
+core road frontier
+```
+
+The container itself is not a road.
+
+### Final shortest-path DAGs
+
+With all containers blocked, the planner runs Dijkstra again and builds one shortest-path DAG mask per resource from the minimum-distance tiles adjacent to that resource's container back toward the core road frontier.
+
+These DAGs are combined into the existing per-tile resource bitmask search space.
 
 ### Merged-tree selection
 
-A bitmask DP selects a merged tree across source/mineral paths.
+A bitmask DP selects the minimum number of unique non-root road tiles inside the combined shortest-path DAGs.
 
-Resource endpoint tiles are restricted so they terminate only the matching single-resource path and are not used as transit/shared branch points for unrelated resources.
+The old implementation treated every resource endpoint tile as a dedicated terminal tile that unrelated paths could not traverse. That restriction has been removed.
 
-The result minimizes unique non-root road tiles within the shortest-path search space while allowing equivalent routes to merge naturally.
+The actual reserved endpoint is now the blocked container, so a road tile adjacent to a container may still be shared by or traversed by another resource branch. A DP state may terminate one resource at that road tile while another resource continues through it.
+
+This permits natural shared trunks and shared endpoint-road geometry without allowing any path to pass through the container itself.
 
 ### Return value
 
-`ResourceTreePlan` currently exposes:
+The resource tree now exposes both the unique road union and target-specific branches:
 
 ```ts
+export interface ResourceBranchPlan {
+  readonly targetId: Id<Source> | Id<Mineral>;
+  readonly container: RoomCoordinate;
+  readonly roads: RoomCoordinate[];
+}
+
 export interface ResourceTreePlan {
-  roads: RoomCoordinate[];
+  readonly roads: RoomCoordinate[];
+  readonly branches: ResourceBranchPlan[];
 }
 ```
 
-The returned `roads` contain the added resource-tree road tiles. Core root roads are not duplicated in that list.
+`ResourceTreePlan.roads` contains each added resource-tree road tile once. Core root roads are not duplicated there.
 
-Downstream planners that need the full existing road/service network must therefore explicitly combine:
+Each branch contains:
+
+- the source/mineral ID;
+- its selected container coordinate;
+- the ordered road path chosen by the final merged DP from the core frontier toward that container.
+
+Shared trunk roads intentionally appear in more than one branch's `roads` array. This makes later code able to ask either for the whole resource road network or for the route associated with one resource.
+
+The current planner visualization draws the unique road union as roads and draws each selected final resource tile as a container.
+
+Downstream planners that need the full walkable road network should combine:
 
 ```text
 corePlan.roads + resourceTree.roads
 ```
 
-This is now the baseline for dynamic lab placement.
+Resource containers are reserved structures, not service-road tiles.
 
 ## Region policy
 
 The planner currently does not modify terrain-region generation to rescue controller areas assigned to the outside region.
 
-Some unusual rooms may therefore be unsupported even when a hand-designed base could fit there. This remains intentional for now: the planner prefers a simple, reliable rule set over adding region exceptions for rare room geometry.
-
-If real room samples later show that this rejects too many valuable rooms, the region policy can be revisited as a separate design decision.
+Some unusual rooms may therefore be unsupported even when a hand-designed base could fit there. This remains intentional for now.
 
 ## Upgrade-chain lifecycle
 
@@ -328,42 +296,22 @@ The long-term direction remains:
 
 The exact per-tile RCL availability representation is not yet implemented.
 
-## Why this design
-
-The current design deliberately combines dynamic geometry with one very small stamp.
-
-Dynamic controller analysis solves the part where terrain matters most: storage location and upgrade capacity. The small stamp then locks together structures whose relative positions matter operationally: storage, terminal, manager, link, spawn, and a few local roads.
-
-The resource planner then treats the resulting core roads as a frontier and grows a merged shortest-path network outward rather than depending on an additional synthetic access tile.
-
-This avoids both extremes:
-
-- a large fixed bunker that rejects irregular but usable terrain;
-- a fully dynamic local brute-force search with many arbitrary tie-breakers.
-
 ## Consequences
 
 - Controller quality is preserved before core compactness is considered.
 - The core has deterministic structure and predictable manager logistics.
 - Core roads and structures never consume planned upgrader tiles.
-- The link can adapt by one tile without turning the whole stamp into a generic deformation system.
-- The implemented resource tree has an explicit multi-tile root/frontier that downstream planners can reuse.
-- There is no current explicit `A` tile; later design records should not assume one exists.
-- Some unusual rooms are deliberately unsupported rather than forcing special-case region behavior.
+- The resource tree uses a multi-tile core frontier rather than an artificial single `A` tile.
+- Resource containers cannot be used as transit tiles by another resource path.
+- Resource endpoint roads remain shareable because only the container itself is reserved.
+- Target-specific ordered branches are preserved for later source/mineral logic and visualization.
+- Downstream lab planning can reuse `corePlan.roads + resourceTree.roads` while reserving the returned containers.
 
 ## Next step: dynamic labs
 
 The next unimplemented planner stage is dynamic lab placement, documented in `0003-dynamic-lab-placement.md`.
 
-It should consume:
-
-```text
-corePlan.roads
-+ resourceTree.roads
-+ fixed reserved geometry
-```
-
-and produce a reaction-valid 2-input / 8-output lab layout plus any short additional lab-service roads required.
+It should consume the current core/resource geometry and produce a reaction-valid 2-input / 8-output lab layout plus any short additional lab-service roads required.
 
 ## Open questions
 
@@ -375,5 +323,3 @@ The following are intentionally left for later stages:
 - final RCL ordering and reclamation of upgrade tiles;
 - later spawns, factory, power spawn, towers, and other late structures;
 - final min-cut/rampart integration.
-
-These should be decided from actual planner output rather than by adding speculative weights.
