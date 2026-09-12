@@ -81,8 +81,6 @@ export function planBase(
     return;
   }
 
-  Game.map.visual.text("SUCCESS", new RoomPosition(25, 25, roomName));
-
   visual.structure(
     bestControllerArea.storage.x,
     bestControllerArea.storage.y,
@@ -135,6 +133,12 @@ export function planBase(
     resourceTree,
     visual,
   );
+
+  if (!labPlan) {
+    return;
+  }
+
+  Game.map.visual.text("SUCCESS", new RoomPosition(25, 25, roomName));
 
   visual.connectRoads();
 
