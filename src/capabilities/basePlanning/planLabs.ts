@@ -12,6 +12,8 @@ import { ControllerAreaCandidate } from "./findControllerAreaCandidates";
 import { CorePlan } from "./findCorePlans";
 import { ResourceTreePlan } from "./planResourceTree";
 
+const MAX_SERVICE_DISTANCE = 20;
+
 interface LabLayout {
   readonly inputLabs: [RoomCoordinate, RoomCoordinate];
   readonly outputLabs: RoomCoordinate[];
@@ -51,19 +53,26 @@ export function planLabs(
 
   const serviceRoads = [...corePlan.roads, ...resourceTree.roads];
 
+  const serviceMask = new Uint8Array(ROOM_AREA);
+
+  for (const { x, y } of serviceRoads) {
+    serviceMask[toRoomIndex(x, y)] = 1;
+  }
+
   const serviceDistanceMap = buildServiceDistanceMap(
     terrain,
-    serviceRoads,
+    serviceMask,
     corePlan.roads,
   );
 
   for (
     let maxServiceDistance = 0;
-    maxServiceDistance < 20;
+    maxServiceDistance < MAX_SERVICE_DISTANCE;
     maxServiceDistance++
   ) {
     const candidates = collectLabCandidates(
       terrain,
+      serviceMask,
       serviceDistanceMap,
       maxServiceDistance,
       reservedMask,
@@ -71,25 +80,29 @@ export function planLabs(
       regionByTile,
     );
 
-    const layout = findLabLayout(candidates, visual);
+    const layout = findLabLayout(candidates);
 
     if (layout) {
       layout.inputLabs.forEach((coordinate) =>
-        visual.text("I", coordinate.x, coordinate.y),
+        visual.structure(coordinate.x, coordinate.y, STRUCTURE_LAB),
       );
 
       layout.outputLabs.forEach((coordinate) =>
-        visual.text("O", coordinate.x, coordinate.y),
+        visual.structure(coordinate.x, coordinate.y, STRUCTURE_LAB),
       );
 
-      return;
+      return {
+        ...layout,
+        serviceRoads: [],
+      };
     }
   }
+
+  return;
 }
 
 function findLabLayout(
   candidates: readonly LabCandidate[],
-  visual: RoomVisual,
 ): LabLayout | undefined {
   for (let firstIndex = 0; firstIndex < candidates.length - 1; firstIndex++) {
     const firstInput = candidates[firstIndex];
@@ -161,6 +174,7 @@ function canSupportEightOutputs(
 
 function collectLabCandidates(
   terrain: RoomTerrain,
+  serviceMask: Uint8Array,
   serviceDistanceMap: Int32Array,
   maxServiceDistance: number,
   reservedMask: Uint8Array,
@@ -201,7 +215,7 @@ function collectLabCandidates(
         continue;
       }
 
-      if (serviceDistanceMap[candidateIndex] >= 0) {
+      if (serviceMask[candidateIndex]) {
         continue;
       }
 
@@ -240,15 +254,9 @@ function collectLabCandidates(
 
 function buildServiceDistanceMap(
   terrain: RoomTerrain,
-  serviceRoads: readonly RoomCoordinate[],
+  serviceMask: Uint8Array,
   roots: readonly RoomCoordinate[],
 ): Int32Array {
-  const serviceMask = new Uint8Array(ROOM_AREA);
-
-  for (const { x, y } of serviceRoads) {
-    serviceMask[toRoomIndex(x, y)] = 1;
-  }
-
   return dijkstraMap(
     terrain,
     roots,
