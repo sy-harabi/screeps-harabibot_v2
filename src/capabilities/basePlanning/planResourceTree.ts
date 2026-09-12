@@ -37,6 +37,7 @@ export interface ResourceBranchPlan {
 export interface ResourceTreePlan {
   readonly roads: RoomCoordinate[];
   readonly branches: ResourceBranchPlan[];
+  readonly coreDistanceMap: Int32Array;
 }
 
 export function planResourceTree(
@@ -56,7 +57,22 @@ export function planResourceTree(
   );
 
   if (targets.length === 0) {
-    return { roads: [], branches: [] };
+    const blockedMap = buildBlockedMap(
+      sources,
+      minerals,
+      controllerArea,
+      corePlan,
+    );
+
+    return {
+      roads: [],
+      branches: [],
+      coreDistanceMap: buildResourceDistanceMap(
+        terrain,
+        blockedMap,
+        corePlan.roads,
+      ),
+    };
   }
 
   const blockedMap = buildBlockedMap(
@@ -356,7 +372,7 @@ export function planResourceTree(
     );
   }
 
-  return { roads, branches };
+  return { roads, branches, coreDistanceMap: distanceMap };
 }
 
 function buildBlockedMap(
