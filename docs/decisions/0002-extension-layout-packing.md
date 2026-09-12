@@ -10,12 +10,30 @@ Extension placement should build on the geometry already established by the cont
 
 The current code no longer contains the old explicit logistics tile `A`. The implemented core exposes `corePlan.roads` as a multi-tile frontier, and `planResourceTree()` grows the merged resource network from that frontier.
 
+The current resource planner also returns explicit per-target branch metadata:
+
+```ts
+export interface ResourceBranchPlan {
+  readonly targetId: Id<Source> | Id<Mineral>;
+  readonly container: RoomCoordinate;
+  readonly roads: RoomCoordinate[];
+}
+
+export interface ResourceTreePlan {
+  readonly roads: RoomCoordinate[];
+  readonly branches: ResourceBranchPlan[];
+}
+```
+
+`resourceTree.roads` is road geometry that later planners may reuse. `resourceTree.branches[].container` is occupied structure geometry and must remain reserved.
+
 Therefore references in the earlier prototype to "distance/radius from A" must not be treated as current implementation truth.
 
 The main extension goals remain:
 
 - keep extensions spatially compact around the useful core area;
 - reuse core, resource, lab, and future rampart-access roads whenever useful;
+- reserve resource containers and other fixed structures before packing extensions;
 - reserve defender/repairer access to the expected defensive perimeter before filling the interior;
 - add as little extension-specific road as possible;
 - allow irregular terrain to deform the layout naturally;
@@ -31,7 +49,7 @@ The current implemented planner reaches:
 selected regions
     -> controller area / upgrade chains
     -> core
-    -> merged resource tree
+    -> merged resource tree + per-target containers
 ```
 
 Dynamic labs are the next planned stage. Expected rampart access and extension packing remain downstream design work.
@@ -39,11 +57,14 @@ Dynamic labs are the next planned stage. Expected rampart access and extension p
 ## Terminology
 
 - **core road frontier**: `corePlan.roads`, the current multi-tile road root used by the resource planner.
+- **resource roads**: `resourceTree.roads`, the unique union of resource-road tiles available for downstream reuse.
+- **resource container**: `resourceTree.branches[].container`, an occupied structure tile adjacent to one source/mineral. It is not a road/service tile.
 - **growth root / growth metric**: the yet-to-be-finalized reference used to define how spatially close an extension layout is to the core. The old prototype used a single tile `A`; the current implementation does not have one.
 - **expected rampart boundary**: an early approximation of the future defensive perimeter derived from the selected base region. This is planning geometry, not necessarily the final min-cut result.
 - **rampart segment**: one contiguous portion of the expected rampart boundary, separated from other portions by walls or disconnected terrain.
 - **segment lane**: an internal road connection from the existing road network to one rampart segment so defenders and repairers can reach it.
 - **mandatory roads**: roads already justified by another subsystem, including core roads, resource roads, lab service roads, and rampart segment lanes.
+- **reserved structures**: already committed non-road tiles including core structures, resource containers, labs, controller/resource objects, and other fixed planner geometry.
 - **service road**: any road tile whose adjacent buildable tiles may serve as extension positions.
 - **extension branch**: extension-specific road geometry added only when mandatory roads do not provide enough extension capacity.
 - **extension capacity**: the number of unique valid extension tiles adjacent to the service-road set.
@@ -64,14 +85,16 @@ Conceptually, the mandatory movement skeleton is:
 
 ```text
 core road frontier
-   +-- source 1
-   +-- source 2
-   +-- mineral
+   +-- source 1 branch -> container
+   +-- source 2 branch -> container
+   +-- mineral branch  -> container
    +-- lab service branch(es)
    +-- rampart segment 1
    +-- rampart segment 2
    +-- rampart segment 3
 ```
+
+The branch roads are part of the reusable movement skeleton. The containers at their ends are not: they remain occupied reserved tiles.
 
 The final rampart/min-cut algorithm may later replace the expected boundary, but extension placement should already respect perimeter-access lanes.
 
@@ -108,16 +131,36 @@ Inside the active growth area, all suitable mandatory roads may serve extensions
 
 This includes:
 
-- core roads;
-- resource roads;
+- `corePlan.roads`;
+- `resourceTree.roads`;
 - rampart segment lanes;
 - lab service roads when their geometry permits it.
 
 Extension placement does not need a separate road network when existing roads already expose useful buildable tiles.
 
+`resourceTree.branches` does not add extra road tiles beyond `resourceTree.roads`; it only preserves target-specific path identity and resource-container positions. The container positions are reserved structures, not service roads.
+
 Extension capacity is always calculated using unique tiles. If multiple roads can service the same extension tile, that tile counts once.
 
-### 4. Add short diagonal branches only when necessary
+### 4. Reserve occupied structures before extension capacity is measured
+
+Before counting extension slots or generating extension-specific branches, reserve all fixed occupied/protected geometry.
+
+At minimum this includes:
+
+- storage, terminal, spawn, link, manager reservation, and other fixed core geometry;
+- controller and resource objects;
+- all `resourceTree.branches[].container` tiles;
+- planned labs;
+- upgrade-chain tiles that remain reserved at the relevant stage;
+- rampart/perimeter geometry that must not be consumed;
+- any other committed planner structure tile.
+
+A resource container must never become an extension tile or an extension-specific road tile.
+
+The final road tile immediately before a container remains ordinary road geometry and may still service nearby extensions if it lies inside the active growth area.
+
+### 5. Add short diagonal branches only when necessary
 
 If mandatory roads inside the current growth area cannot support 60 extensions, generate extension-specific branch candidates.
 
@@ -139,7 +182,7 @@ A branch may overlap or reuse existing road tiles when geometry permits. Its cos
 
 Loops are allowed. The planner should not reject compact geometry merely because a branch touches multiple existing roads or closes a road loop.
 
-### 5. Do not encode 2.5-tile branch spacing as a hard rule
+### 6. Do not encode 2.5-tile branch spacing as a hard rule
 
 Open-terrain experiments showed that parallel diagonal branches often pack extensions efficiently when their effective perpendicular spacing is roughly 2.5 tiles. Terrain or reserved structures may naturally push a useful branch closer to about 3 tiles.
 
@@ -155,7 +198,7 @@ Instead, evaluate the actual extension capacity created by candidate road combin
 
 Branches that are too close waste capacity through overlapping extension neighborhoods. Branches that are too far apart require a larger growth extent. Efficient spacing should emerge from the actual compactness/capacity objective.
 
-### 6. Select layouts lexicographically by compactness and new-road cost
+### 7. Select layouts lexicographically by compactness and new-road cost
 
 Once the current-core growth metric is fixed, the objective should remain intentionally small and explicit.
 
@@ -175,7 +218,7 @@ Remaining ties preserve stable deterministic iteration order unless later eviden
 
 Do not add weighted terms for branch spacing, branch direction, distance transform, average extension distance, branch count, or visual symmetry without a gameplay reason.
 
-### 7. Capacity is measured from the final service-road set
+### 8. Capacity is measured from the final service-road set
 
 For each candidate road combination:
 
@@ -186,8 +229,10 @@ serviceRoads = mandatoryRoadsInsideGrowthArea
 extensionSlots = unique valid buildable tiles
                  adjacent to serviceRoads
                  inside the current growth area
-                 excluding reserved tiles
+                 excluding reserved structures
 ```
+
+Reserved structures explicitly include resource containers.
 
 A candidate succeeds when:
 
@@ -195,7 +240,7 @@ A candidate succeeds when:
 extensionSlots >= 60
 ```
 
-The planner should calculate this directly. It should not estimate one branch as a fixed number of extensions because overlap with terrain, labs, upgrade chains, roads, and ramparts changes the actual capacity.
+The planner should calculate this directly. It should not estimate one branch as a fixed number of extensions because overlap with terrain, labs, upgrade chains, resource containers, roads, and ramparts changes the actual capacity.
 
 If a candidate exposes more than 60 extension slots, the final 60 may later be ordered by the chosen core-growth metric for construction/RCL sequencing. Packing feasibility itself depends only on having at least 60 valid slots.
 
@@ -208,12 +253,13 @@ terrain regions                         implemented
     -> selected regions                 implemented
     -> controller area / upgrade chains implemented
     -> core                             implemented
-    -> merged resource roads             implemented
+    -> merged resource tree + containers implemented
     -> dynamic labs                      proposed next stage
     -> expected rampart boundary         proposed
     -> rampart segments/access lanes     proposed
     -> compact extension packing         proposed
          -> mandatory roads in growth area
+         -> reserve fixed structures/containers
          -> optional diagonal branches
          -> 60 extension leaves
 ```
@@ -229,32 +275,34 @@ Representative prototype results included:
 - `W21N52`: minimum radius 8, 8 unique new road tiles, 3 diagonal branch templates;
 - `E3N36`: minimum radius 6, 10 unique new road tiles, 4 branch templates;
 - `E29N53`: minimum radius 8, 13 unique new road tiles, 6 branch templates;
-- `E24N19`: minimum radius 7, 7 unique new road tiles, 3 branch templates.
+- `E24N19`: minimum radius 7, 7 unique new road tiles, 3 diagonal branch templates.
 
 Some branch templates reused existing roads or overlapped one another, so branch count and road cost were intentionally different quantities.
 
 These numbers remain useful prototype evidence for branch-packing behavior, but their reported `radius from A` is **not directly the current V2 metric** and must be remeasured after the growth root/metric is finalized.
 
-The prototype also found rooms where 60 extensions could not fit under the selected-area and reserved-geometry assumptions. Those failures should not be hidden by allowing extensions to spill arbitrarily outside the selected region. They are evidence that selected-region size/connectivity and defensive geometry must be validated as part of the full planner.
+The prototype also found rooms where 60 extensions could not fit under the selected-area and reserved-geometry assumptions. Those failures should not be hidden by allowing extensions to spill arbitrarily outside the selected region.
 
 ## Reasons
 
 This approach keeps extension planning aligned with the current V2 planner:
 
 - the core exposes a small deterministic local geometry and a multi-tile road frontier;
-- the resource tree creates reusable mandatory trunks;
-- labs reuse and locally extend those trunks;
+- the resource tree creates reusable mandatory trunks and explicit resource containers;
+- labs reuse and locally extend those trunks while respecting the containers;
 - rampart access adds defense-required lanes;
 - extensions then occupy the remaining interior efficiently instead of forcing a separate global road pattern.
 
 The lexicographic objective should capture useful branch spacing without explicitly encoding it. Tight branches overlap too much and gain little capacity; overly separated branches require a larger growth extent.
 
-The model remains flexible in irregular terrain. A wall, lab cluster, rampart lane, or other reserved structure may deform branch placement without requiring a special exception for a preferred geometric pattern.
+The model remains flexible in irregular terrain. A wall, lab cluster, resource container, rampart lane, or other reserved structure may deform branch placement without requiring a special exception for a preferred geometric pattern.
 
 ## Consequences
 
 - Extension search is more expensive than applying a fixed stamp, but base planning is not a per-tick hot path and the search space can be bounded.
 - Mandatory roads must remain available as explicit path/tile sets so extension packing can reuse them.
+- Resource containers remain explicit reserved structure tiles and are never counted as service roads.
+- `resourceTree.branches` remains useful for target-specific visualization/debugging even though capacity uses the unique road union.
 - Expected rampart geometry should be available before final extension placement.
 - The planner needs a deterministic method to enumerate compact diagonal branch candidates and combinations.
 - Final extension RCL assignment can follow a core-near ordering once the growth metric is defined.
@@ -265,7 +313,11 @@ The model remains flexible in irregular terrain. A wall, lab cluster, rampart la
 
 ### Keep using the old A-based radius unchanged
 
-Rejected as documentation of current V2. The implemented core no longer exposes `A`, so using it would make the extension design depend on a nonexistent planner object.
+Rejected as documentation of current V2. The implemented core no longer exposes `A`.
+
+### Treat resource containers as resource roads
+
+Rejected. The resource planner deliberately separates the final container structure tile from `resourceTree.roads`.
 
 ### Fill every existing road first
 
