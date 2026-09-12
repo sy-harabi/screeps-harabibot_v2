@@ -11,6 +11,10 @@ import {
   findControllerAreaCandidates,
 } from "./findControllerAreaCandidates";
 import { CorePlan, findCorePlans } from "./findCorePlans";
+import {
+  findRegionBoundaryComponents,
+  RegionBoundaryComponent,
+} from "./findRegionBoundaryComponents";
 import { planLabs } from "./planLabs";
 import { planResourceTree } from "./planResourceTree";
 import { selectBaseRegions } from "./selectBaseRegions";
@@ -38,6 +42,13 @@ export function planBase(
   );
 
   visualizeSelectedRegions(selectedRegionIds, regions, visual);
+
+  const boundaryComponents = findRegionBoundaryComponents(
+    selectedRegionIds,
+    regionByTile,
+  );
+
+  visualizeRegionBoundaryComponents(boundaryComponents, visual);
 
   const selectedCenter = getSelectedRegionCenter(selectedRegionIds, regions);
 
@@ -167,6 +178,41 @@ function visualizeSelectedRegions(
       });
     }
   }
+}
+
+function visualizeRegionBoundaryComponents(
+  components: readonly RegionBoundaryComponent[],
+  visual: RoomVisual,
+): void {
+  components.forEach((component, index) => {
+    const color = getRegionColor(index, components.length);
+
+    for (const tileIndex of component.tileIndices) {
+      const { x, y } = fromRoomIndex(tileIndex);
+      visual.circle(x, y, {
+        radius: 0.18,
+        fill: color,
+        opacity: 0.9,
+        stroke: "transparent",
+      });
+    }
+
+    const { x, y } = component.representativeTile;
+
+    visual.circle(x, y, {
+      radius: 0.38,
+      fill: "transparent",
+      stroke: "#ffffff",
+      strokeWidth: 0.08,
+      opacity: 1,
+    });
+
+    visual.text(`B${index}`, x, y - 0.45, {
+      color: "#ffffff",
+      font: 0.35,
+      stroke: "black",
+    });
+  });
 }
 
 function getSelectedRegionCenter(
