@@ -15,7 +15,26 @@ The current planner already implements:
 - `corePlan.roads` as the road frontier of that core;
 - a merged source/mineral resource tree returned by `planResourceTree()`.
 
-There is no longer an explicit logistics tile named `A` in the implemented core. The current resource planner starts its Dijkstra map from every tile in `corePlan.roads`, and `ResourceTreePlan.roads` contains only the additional resource roads beyond those roots.
+There is no explicit logistics tile named `A` in the implemented core. The resource planner starts Dijkstra from every tile in `corePlan.roads`.
+
+The current resource-tree result is:
+
+```ts
+export interface ResourceBranchPlan {
+  readonly targetId: Id<Source> | Id<Mineral>;
+  readonly container: RoomCoordinate;
+  readonly roads: RoomCoordinate[];
+}
+
+export interface ResourceTreePlan {
+  readonly roads: RoomCoordinate[];
+  readonly branches: ResourceBranchPlan[];
+}
+```
+
+`resourceTree.roads` is the unique union of added resource-road tiles. `resourceTree.branches` preserves which path belongs to each source/mineral and the selected container tile at its end.
+
+The container is not part of the road/service network. It is occupied structure geometry and must remain reserved.
 
 Therefore lab planning should be based on the actual implemented road geometry rather than reintroducing the old `A` abstraction.
 
@@ -25,7 +44,7 @@ The important lab properties are:
 - short service-network distance from the core road frontier;
 - explicit creep reachability;
 - minimal additional lab-only service roads;
-- compatibility with upgrade chains, resource roads, later rampart access, and extension packing.
+- compatibility with upgrade chains, resource roads, resource containers, later rampart access, and extension packing.
 
 Do not add a weighted lab-layout score unless a separate design decision justifies it.
 
@@ -37,11 +56,13 @@ This record therefore describes the next implementation stage. Statements below 
 
 ## Terminology
 
-- **core road frontier**: the tiles in `corePlan.roads`. These are the current roots of the resource-road planner and will also be distance-zero roots for lab service distance.
-- **resource tree**: `resourceTree.roads`, the additional merged roads connecting the core road frontier to source/mineral work tiles.
+- **core road frontier**: the tiles in `corePlan.roads`. These are the roots of the resource-road planner and distance-zero roots for lab service distance.
+- **resource tree**: `resourceTree.roads`, the unique union of added resource-road tiles.
+- **resource branch**: one `resourceTree.branches` entry containing a `targetId`, ordered branch roads, and one selected resource container.
+- **resource container**: `branch.container`. This is occupied structure geometry adjacent to the target resource. It is not a service-road tile.
 - **base service network**: `corePlan.roads + resourceTree.roads`.
 - **service network variant**: the base service network plus zero or more proposed lab-service-branch tiles.
-- **lab service branch**: a short connected set of additional walkable/road tiles grown from the current service network only to make a better lab layout possible.
+- **lab service branch**: a short connected set of additional road/service tiles grown from the current service network only to make a better lab layout possible.
 - **input labs**: the two reagent labs.
 - **output labs**: the eight reaction labs.
 - **service distance**: the shortest number of service-network steps from any core-road-frontier tile to a service tile. This is not the terrain-weighted `5/6` cost used by `planResourceTree()`.
@@ -61,7 +82,11 @@ corePlan.roads
 
 `ResourceTreePlan.roads` does not replace the core roads; both sets are required.
 
-For lab logistics, build a unit-cost distance map restricted to this service network:
+`resourceTree.branches[].container` is deliberately excluded. A container is a structure tile at the end of a resource branch, not a walkable service-road tile.
+
+The branch metadata is still useful for debugging and visualization because it identifies which road path and container belong to each source/mineral, but lab service-distance calculation only needs the road union.
+
+For lab logistics, build a unit-cost distance map restricted to the service network:
 
 ```text
 all corePlan.roads = distance 0
@@ -72,7 +97,7 @@ next service tile = distance 2
 
 A multi-source BFS or `dijkstraMap()` with cost `1` and `canVisit = serviceMask` is sufficient.
 
-This distance is deliberately different from resource-road planning cost. Resource planning currently uses plain `5` and swamp `6` to choose roads. Lab service distance measures creep travel along the road/service graph after that geometry has already been chosen.
+This distance is deliberately different from resource-road planning cost. Resource planning uses plain `5` and swamp `6` to choose roads. Lab service distance measures creep travel along the chosen road/service graph.
 
 ### 2. Reserve occupied and protected geometry before collecting lab candidates
 
@@ -90,11 +115,14 @@ At minimum, labs and new lab-service roads must respect:
 - controller;
 - sources;
 - mineral;
+- every `resourceTree.branches[].container` tile;
 - other already committed planner geometry.
+
+Resource containers are hard reservations. Neither a lab nor a lab-service road may occupy them.
 
 Lab structures should also remain inside the selected base regions. The planner should fail or revisit an earlier candidate rather than silently place labs outside the selected area.
 
-Service-network tiles are always reserved as walkable and may never become lab tiles.
+Service-network tiles are reserved as walkable and may never become lab tiles.
 
 ### 3. Collect lab candidates from the current reachable service network
 
@@ -161,13 +189,11 @@ inputPenalty = inputRange <= 2 ? 2 : 0
 maxGeometricOutputs = intersection - inputPenalty
 ```
 
-An input pair can be rejected immediately when:
+Reject an input pair immediately when:
 
 ```text
 maxGeometricOutputs < 8
 ```
-
-This gives a stronger and correct condition than merely checking whether the two range-2 squares intersect.
 
 In particular, the maximum possible Screeps range between the two input labs is **3**.
 
@@ -177,7 +203,7 @@ At range 3, only near-axis offsets can support eight outputs in open geometry:
 (3, 0), (0, 3), (3, 1), (1, 3)
 ```
 
-For example:
+Examples:
 
 ```text
 (3, 0): (5 - 3) * (5 - 0) = 10 possible output tiles
@@ -186,7 +212,7 @@ For example:
 (3, 3): (5 - 3) * (5 - 3) = 4 -> impossible
 ```
 
-A useful non-obvious case is `(2, 2)`: the raw intersection is `9`, but both input tiles lie in that intersection, leaving only `7` possible output positions, so the pair is impossible even before terrain/reservations are considered.
+A non-obvious case is `(2, 2)`: the raw intersection is `9`, but both input tiles lie in that intersection, leaving only `7` possible output positions, so the pair is impossible even before terrain/reservations are considered.
 
 This mathematical test is only an early rejection test. Actual output candidates must still be checked against terrain, reservations, and service reachability.
 
@@ -234,7 +260,7 @@ The construction order should make the earlier prototype failure impossible:
 6. validate all ten labs again before accepting
 ```
 
-A lab may never occupy a branch tile. This prevents a lab from blocking the service path to downstream labs.
+A lab may never occupy a service-branch tile or a resource-container tile.
 
 ### 8. Service branches are searched before final lab positions are committed
 
@@ -275,7 +301,7 @@ A proposed new branch tile must at least be:
 - inside the room;
 - inside the selected regions;
 - non-wall terrain;
-- not occupied/reserved by fixed planner geometry;
+- not occupied/reserved by fixed planner geometry, including resource containers;
 - not a lab tile, because labs have not been selected yet;
 - connected to the existing service network or the preceding tile of the same branch.
 
@@ -363,27 +389,28 @@ min maxServiceDistance
 -> stable order
 ```
 
-It also gives a useful manual interpretation of the algorithm:
+Manual interpretation:
 
-> Starting from the core roads, grow the usable service distance outward one layer at a time. At each layer, ask whether ten reaction-valid labs fit with zero extra road, then one extra branch tile, then two, and so on.
+> Starting from the core roads, grow usable service distance outward one layer at a time. At each layer, ask whether ten reaction-valid labs fit with zero extra road, then one extra branch tile, then two, and so on.
 
-The implementation does not have to use this exact loop structure if another implementation produces the same ordering, but this is the clearest reference model.
+The implementation does not have to use this exact loop structure if another implementation produces the same ordering.
 
 ## Hand-reproducible procedure
 
 For debugging one room manually:
 
 1. Draw `corePlan.roads` and label them service distance `0`.
-2. Draw the connected resource roads and label their shortest service distances `1, 2, 3, ...` from the core-road frontier.
-3. Choose a current maximum service distance `D`.
-4. Mark every valid buildable tile adjacent to reachable service tiles at distance `<= D`.
-5. Number those lab candidates.
-6. Try unordered input pairs.
-7. Reject a pair immediately if its theoretical `maxGeometricOutputs < 8`.
-8. For surviving pairs, count actual candidates within range 2 of both inputs.
-9. If at least eight exist, select the eight with the smallest service distances.
-10. If no layout exists, try short branch variants and repeat candidate/input/output search from the beginning.
-11. Increase `D` only after all cheaper branch counts at the current distance have failed.
+2. Draw `resourceTree.roads` and label their shortest service distances `1, 2, 3, ...` from the core-road frontier.
+3. Draw every `resourceTree.branches[].container` as an occupied container tile, not as a road.
+4. Choose a current maximum service distance `D`.
+5. Mark every valid buildable tile adjacent to reachable service tiles at distance `<= D`, excluding all reserved geometry including resource containers.
+6. Number those lab candidates.
+7. Try unordered input pairs.
+8. Reject a pair immediately if its theoretical `maxGeometricOutputs < 8`.
+9. For surviving pairs, count actual candidates within range 2 of both inputs.
+10. If at least eight exist, select the eight with the smallest service distances.
+11. If no layout exists, try short branch variants and repeat candidate/input/output search from the beginning.
+12. Increase `D` only after all cheaper branch counts at the current distance have failed.
 
 This manual procedure should produce the same preference order as the implementation.
 
@@ -428,6 +455,15 @@ corePlan.roads
 + labPlan.serviceRoads
 ```
 
+Downstream reserved structure geometry must separately include:
+
+```text
+resourceTree.branches[].container
++ labPlan.inputLabs
++ labPlan.outputLabs
++ other fixed structures
+```
+
 ## Relationship to the rest of the base planner
 
 The current implemented and intended sequence is:
@@ -436,13 +472,13 @@ The current implemented and intended sequence is:
 selected regions                         implemented
     -> controller area / upgrade chains implemented
     -> core                              implemented
-    -> merged resource tree              implemented
+    -> merged resource tree + containers implemented
     -> dynamic labs                      next stage
     -> expected rampart access           proposed
     -> extension packing                 proposed
 ```
 
-Labs should be placed before extension packing so extensions treat lab structures and lab service roads as reserved/mandatory geometry.
+Labs should be placed before extension packing so extensions treat lab structures and lab service roads as reserved/mandatory geometry. Resource containers are already reserved before lab planning begins.
 
 ## Experimental observations
 
@@ -453,13 +489,17 @@ Earlier prototype testing on saved `shardSeason` room geometry suggested:
 - explicit reachability checks catch geometrically valid but operationally blocked layouts;
 - short branch lengths around `0-3` tiles were sufficient in representative successful cases.
 
-These observations came from prototype geometry and are not proof that the current core/resource implementation will have identical distributions. They should guide the first implementation, then be remeasured on current planner output.
+These observations came from prototype geometry and should be remeasured on current planner output.
 
 ## Alternatives considered
 
 ### Reintroduce a single explicit `A` tile
 
-Rejected for the current implementation. The core and resource planner already use `corePlan.roads` as a multi-tile frontier. Adding a synthetic single root would make the documentation diverge from the implemented geometry again.
+Rejected. The core and resource planner already use `corePlan.roads` as a multi-tile frontier.
+
+### Treat resource containers as part of the service network
+
+Rejected. Containers are occupied structure tiles and the resource planner deliberately returns them separately from road geometry.
 
 ### Fixed lab stamp
 
@@ -491,13 +531,14 @@ Not adopted. The lexicographic priorities directly encode the desired gameplay p
 
 ## Consequences
 
-- Lab geometry adapts to walls, core placement, upgrade reservations, and resource-road shape.
+- Lab geometry adapts to walls, core placement, upgrade reservations, resource-road shape, and resource-container locations.
 - The lab worker always has an explicit reachable service network.
+- Resource containers remain reserved structure tiles rather than accidentally becoming road/lab-service geometry.
 - Labs remain close to the core even when a small dedicated branch is worthwhile.
 - Service roads remain available as explicit geometry for later extension/rampart planning.
 - Input-pair search is small enough to brute-force after strong mathematical pruning.
 - Output selection does not require combinatorial subset search under the current objective.
-- Planner visualization should distinguish core/resource roads, lab-service branches, input labs, and output labs clearly by tile.
+- Planner visualization should distinguish core/resource roads, resource containers, lab-service branches, input labs, and output labs clearly by tile.
 
 ## Open questions
 
