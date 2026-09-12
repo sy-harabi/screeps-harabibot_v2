@@ -11,6 +11,7 @@ import {
   findControllerAreaCandidates,
 } from "./findControllerAreaCandidates";
 import { CorePlan, findCorePlans } from "./findCorePlans";
+import { planLabs } from "./planLabs";
 import { planResourceTree } from "./planResourceTree";
 import { selectBaseRegions } from "./selectBaseRegions";
 
@@ -115,6 +116,23 @@ export function planBase(
     minerals,
     bestControllerArea,
     bestCorePlan,
+    visual,
+  );
+
+  if (resourceTree === undefined) {
+    return;
+  }
+
+  const labPlan = planLabs(
+    terrain,
+    controller,
+    sources,
+    minerals,
+    selectedRegionIds,
+    regionByTile,
+    bestControllerArea,
+    bestCorePlan,
+    resourceTree,
     visual,
   );
 
