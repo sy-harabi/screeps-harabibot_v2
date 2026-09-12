@@ -1,187 +1,137 @@
 # Dynamic lab placement
 
-Status: proposed; not yet implemented
-Date: 2026-09-12
+Status: implemented; initial bounded-search version
+Date: 2026-09-13
 
 ## Context
 
-The old fixed lab stamp is no longer the target for V2.
-
-The current planner already implements:
+V2 does not use the old fixed lab stamp. Lab placement is built on top of the geometry already selected by the base planner:
 
 - selected terrain regions;
 - controller-area selection and upgrade chains;
-- the small core around storage;
-- `corePlan.roads` as the road frontier of that core;
-- a merged source/mineral resource tree returned by `planResourceTree()`.
+- the compact storage/core layout;
+- `corePlan.roads` as the core road frontier;
+- the merged source/mineral resource tree from `planResourceTree()`.
 
-There is no explicit logistics tile named `A` in the implemented core. The resource planner starts Dijkstra from every tile in `corePlan.roads`.
-
-The current resource-tree result is:
-
-```ts
-export interface ResourceBranchPlan {
-  readonly targetId: Id<Source> | Id<Mineral>;
-  readonly container: RoomCoordinate;
-  readonly roads: RoomCoordinate[];
-}
-
-export interface ResourceTreePlan {
-  readonly roads: RoomCoordinate[];
-  readonly branches: ResourceBranchPlan[];
-}
-```
-
-`resourceTree.roads` is the unique union of added resource-road tiles. `resourceTree.branches` preserves which path belongs to each source/mineral and the selected container tile at its end.
-
-The container is not part of the road/service network. It is occupied structure geometry and must remain reserved.
-
-Therefore lab planning should be based on the actual implemented road geometry rather than reintroducing the old `A` abstraction.
-
-The important lab properties are:
-
-- valid 2-input / 8-output reaction geometry;
-- short service-network distance from the core road frontier;
-- explicit creep reachability;
-- minimal additional lab-only service roads;
-- compatibility with upgrade chains, resource roads, resource containers, later rampart access, and extension packing.
-
-Do not add a weighted lab-layout score unless a separate design decision justifies it.
-
-## Current implementation boundary
-
-As of this decision update, there is no `planLabs.ts` in `src/capabilities/basePlanning/` and `planBase()` stops after calling `planResourceTree()`.
-
-This record therefore describes the next implementation stage. Statements below are intended design, except where they explicitly describe already implemented core/resource behavior.
-
-## Terminology
-
-- **core road frontier**: the tiles in `corePlan.roads`. These are the roots of the resource-road planner and distance-zero roots for lab service distance.
-- **resource tree**: `resourceTree.roads`, the unique union of added resource-road tiles.
-- **resource branch**: one `resourceTree.branches` entry containing a `targetId`, ordered branch roads, and one selected resource container.
-- **resource container**: `branch.container`. This is occupied structure geometry adjacent to the target resource. It is not a service-road tile.
-- **base service network**: `corePlan.roads + resourceTree.roads`.
-- **service network variant**: the base service network plus zero or more proposed lab-service-branch tiles.
-- **lab service branch**: a short connected set of additional road/service tiles grown from the current service network only to make a better lab layout possible.
-- **input labs**: the two reagent labs.
-- **output labs**: the eight reaction labs.
-- **service distance**: the shortest number of service-network steps from any core-road-frontier tile to a service tile. This is not the terrain-weighted `5/6` cost used by `planResourceTree()`.
-- **lab service distance**: the minimum service distance among reachable service tiles adjacent to that lab.
-- **max service distance**: the maximum lab service distance among all ten labs in one complete layout.
-
-## Decision
-
-### 1. Start from the implemented road network
-
-The initial lab service network is:
+The base service network is:
 
 ```text
 corePlan.roads
-    + resourceTree.roads
++ resourceTree.roads
 ```
 
-`ResourceTreePlan.roads` does not replace the core roads; both sets are required.
+Resource containers are deliberately excluded. They are occupied structure tiles, not walkable service-road tiles.
 
-`resourceTree.branches[].container` is deliberately excluded. A container is a structure tile at the end of a resource branch, not a walkable service-road tile.
+The planner should find a reaction-valid 2-input / 8-output lab layout that is close to the core, explicitly serviceable by creeps, and compatible with already committed geometry.
 
-The branch metadata is still useful for debugging and visualization because it identifies which road path and container belong to each source/mineral, but lab service-distance calculation only needs the road union.
+The current implementation intentionally avoids weighted scoring and broad branch-network optimization. The search order itself encodes the preference.
 
-For lab logistics, build a unit-cost distance map restricted to the service network:
+## Terminology
+
+- **core road frontier**: every tile in `corePlan.roads`; these are service-distance roots.
+- **base service network**: `corePlan.roads + resourceTree.roads`.
+- **service distance**: shortest unit-cost distance along the current service network from any core-road-frontier tile.
+- **lab service distance**: minimum service distance among reachable service tiles adjacent to a lab.
+- **max service distance**: maximum lab service distance among all ten labs.
+- **lab service branch**: one simple connected path of `1-3` new service-road tiles grown from an existing reachable service tile.
+- **service-network variant**: the base service network plus zero or one lab service branch.
+
+## Decision
+
+### 1. Use the implemented road network directly
+
+The service network starts from:
 
 ```text
-all corePlan.roads = distance 0
-adjacent service tile = distance 1
-next service tile = distance 2
+corePlan.roads
++ resourceTree.roads
+```
+
+Service distance is computed with unit cost, not the `5/6` terrain costs used when constructing the resource tree.
+
+```text
+all corePlan.roads = 0
+next connected service tile = 1
+next = 2
 ...
 ```
 
-A multi-source BFS or `dijkstraMap()` with cost `1` and `canVisit = serviceMask` is sufficient.
+`dijkstraMap()` with cost `1` and traversal restricted to the service mask is sufficient.
 
-This distance is deliberately different from resource-road planning cost. Resource planning uses plain `5` and swamp `6` to choose roads. Lab service distance measures creep travel along the chosen road/service graph.
+### 2. Reserve committed geometry before lab search
 
-### 2. Reserve occupied and protected geometry before collecting lab candidates
+The lab planner builds a reservation mask for tiles that may not become a lab or a new lab-service road.
 
-Build a reservation mask before lab search.
+Current reservations include:
 
-At minimum, labs and new lab-service roads must respect:
-
-- terrain walls;
+- controller;
 - storage;
-- terminal;
+- all reserved upgrade-chain tiles;
 - manager tile;
 - first spawn;
 - core link;
-- all upgrade-chain tiles that are still reserved;
-- controller;
-- sources;
-- mineral;
-- every `resourceTree.branches[].container` tile;
-- other already committed planner geometry.
+- sources and mineral;
+- every resource container;
+- the terminal and every tile at range `1` from the terminal.
 
-Resource containers are hard reservations. Neither a lab nor a lab-service road may occupy them.
+The terminal range-1 area is intentionally kept free as an idle-creep parking zone.
 
-Lab structures should also remain inside the selected base regions. The planner should fail or revisit an earlier candidate rather than silently place labs outside the selected area.
+Terrain walls and tiles outside the selected base regions are also invalid for new labs/branch roads, but are treated as terrain/planning-area validity rather than as fixed reserved structures.
 
-Service-network tiles are reserved as walkable and may never become lab tiles.
+Existing service roads remain walkable and may not become lab structures.
 
-### 3. Collect lab candidates from the current reachable service network
+### 3. Collect lab candidates from reachable service tiles
 
-A lab candidate is a buildable, unreserved tile at Screeps range 1 from at least one reachable service-network tile.
-
-For each unique candidate record at least:
+A lab candidate is a buildable, unreserved tile at range `1` from at least one reachable service tile whose service distance is within the current cap `D`.
 
 ```ts
 interface LabCandidate {
-  index: number;
-  coordinate: RoomCoordinate;
-  serviceDistance: number;
+  readonly coordinate: RoomCoordinate;
+  readonly serviceDistance: number;
 }
 ```
 
-where `serviceDistance` is the minimum distance of its adjacent reachable service tiles.
+If a candidate touches several service tiles, keep its minimum adjacent service distance.
 
-A tile adjacent to several service tiles is still one candidate.
-
-For deterministic and search-friendly iteration, candidates may be ordered by:
+Candidates are ordered deterministically by:
 
 1. smaller `serviceDistance`;
 2. stable room index.
 
-This ordering is an iteration rule, not an additional layout objective.
+This is iteration order, not a separate weighted objective.
 
-### 4. Input labs are unordered pairs of lab candidates
+### 4. Input labs are unordered candidate pairs
 
-Enumerate each unordered pair exactly once:
+Enumerate each pair once:
 
 ```ts
 for (let i = 0; i < candidates.length - 1; i++) {
   for (let j = i + 1; j < candidates.length; j++) {
-    const inputA = candidates[i];
-    const inputB = candidates[j];
+    // input pair
   }
 }
 ```
 
-Do not add aesthetic input rules such as requiring the two inputs to be adjacent, diagonal, symmetric, or on opposite sides of a road.
+No aesthetic restriction is imposed on input orientation or symmetry.
 
-The pair is useful only if it can geometrically support eight distinct output labs.
+### 5. Prune geometrically impossible input pairs
 
-### 5. Mathematical pruning for input pairs
-
-Screeps range is Chebyshev distance. For two input labs with
+For two input labs:
 
 ```text
 dx = abs(inputA.x - inputB.x)
 dy = abs(inputA.y - inputB.y)
 ```
 
-each input has a `5 x 5` range-2 square. If `dx <= 4` and `dy <= 4`, the number of tiles in the intersection of those two squares is:
+Their range-2 squares overlap in:
 
 ```text
 intersection = (5 - dx) * (5 - dy)
 ```
 
-When the two inputs are within range 2 of each other, both input tiles themselves lie inside that intersection but cannot be output labs. Therefore the theoretical maximum number of distinct output positions is:
+when `dx <= 4` and `dy <= 4`.
+
+If the inputs are themselves within range `2`, both input tiles occupy positions in that intersection and cannot be outputs:
 
 ```text
 inputRange = max(dx, dy)
@@ -189,265 +139,149 @@ inputPenalty = inputRange <= 2 ? 2 : 0
 maxGeometricOutputs = intersection - inputPenalty
 ```
 
-Reject an input pair immediately when:
+Reject the pair when:
 
 ```text
 maxGeometricOutputs < 8
 ```
 
-In particular, the maximum possible Screeps range between the two input labs is **3**.
+Consequences:
 
-At range 3, only near-axis offsets can support eight outputs in open geometry:
+- maximum possible input-lab range is `3`;
+- `(3, 0)`, `(0, 3)`, `(3, 1)`, `(1, 3)` can still support eight outputs in open geometry;
+- `(3, 2)` and `(3, 3)` cannot;
+- `(2, 2)` has raw overlap `9`, but only `7` output positions remain after excluding both input tiles.
 
-```text
-(3, 0), (0, 3), (3, 1), (1, 3)
-```
+### 6. Output labs are the first eight common candidates
 
-Examples:
-
-```text
-(3, 0): (5 - 3) * (5 - 0) = 10 possible output tiles
-(3, 1): (5 - 3) * (5 - 1) = 8 possible output tiles
-(3, 2): (5 - 3) * (5 - 2) = 6 -> impossible
-(3, 3): (5 - 3) * (5 - 3) = 4 -> impossible
-```
-
-A non-obvious case is `(2, 2)`: the raw intersection is `9`, but both input tiles lie in that intersection, leaving only `7` possible output positions, so the pair is impossible even before terrain/reservations are considered.
-
-This mathematical test is only an early rejection test. Actual output candidates must still be checked against terrain, reservations, and service reachability.
-
-### 6. Output candidates are the common range-2 lab candidates
-
-For a surviving input pair, an output candidate must satisfy:
+For a surviving input pair, an output candidate must:
 
 ```text
 candidate != inputA
 candidate != inputB
-getRange(candidate, inputA) <= 2
-getRange(candidate, inputB) <= 2
+range(candidate, inputA) <= 2
+range(candidate, inputB) <= 2
 ```
 
-and it must already be a valid lab candidate for the current service-network variant.
+and already be a valid candidate for the current service-network variant and service-distance cap.
 
-A complete layout requires at least eight such candidates.
+Candidates are already ordered by service distance and stable room index, so the first eight common candidates are used. No `C(n, 8)` subset search or compactness score is used.
 
-Because the objective for a fixed service-network variant is to minimize the worst lab service distance, there is no need to enumerate every `C(n, 8)` output subset.
+### 7. Branches are committed before lab candidates are evaluated
 
-For one input pair:
+Do not select ten labs first and connect them afterward.
 
-1. collect all valid common output candidates;
-2. order them by `serviceDistance`, preserving stable order for ties;
-3. take the first eight.
-
-Those eight minimize the output contribution to `maxServiceDistance` for that input pair.
-
-No output-shape compactness score is currently justified.
-
-### 7. Reachability is a hard constraint
-
-Reaction geometry alone is not enough.
-
-The service network must contain a connected reachable component from the core road frontier, and every accepted lab must be adjacent to that reachable component.
-
-The construction order should make the earlier prototype failure impossible:
+For every branch proposal:
 
 ```text
-1. build service-network variant
-2. mark every service tile as reserved/walkable
-3. compute reachable service distances
-4. collect lab candidates only beside reachable service tiles
-5. choose inputs/outputs
-6. validate all ten labs again before accepting
+base service mask
++ branch tiles
+-> recompute service distance map
+-> collect candidates again
+-> search input pairs
+-> search outputs
 ```
 
-A lab may never occupy a service-branch tile or a resource-container tile.
+Because branch tiles are already part of the service mask, labs cannot occupy them. This makes the service road explicitly reachable before the lab layout is accepted and avoids layouts that later block their own access road.
 
-### 8. Service branches are searched before final lab positions are committed
+### 8. A branch is one simple path of 1-3 new road tiles
 
-Do not choose ten lab positions first and then attempt to connect them with a branch.
-
-A branch changes:
-
-- which lab tiles are serviceable;
-- each candidate's service distance;
-- which input pairs are possible;
-- which outputs are reachable.
-
-Therefore each branch proposal creates a new service-network variant, and the full lab search is rerun against that variant:
+The current implementation searches exactly one branch at a time.
 
 ```text
-base service network
-    -> collect candidates
-    -> input-pair search
-    -> output search
-
-base + branch variant 1
-    -> collect candidates again
-    -> input-pair search again
-    -> output search again
-
-base + branch variant 2
-    -> ...
+length 1: R-B
+length 2: R-B-B
+length 3: R-B-B-B
 ```
 
-The branch is part of the search space; it is not post-processing for an already selected lab cluster.
+`R` is an existing reachable service tile and each `B` is a new service-road tile.
 
-### 9. Branch generation uses hard validity, not directional heuristics
-
-The initial implementation should generate short connected branch candidates from reachable service tiles.
-
-A proposed new branch tile must at least be:
+A branch tile must be:
 
 - inside the room;
-- inside the selected regions;
+- inside a selected base region;
 - non-wall terrain;
-- not occupied/reserved by fixed planner geometry, including resource containers;
-- not a lab tile, because labs have not been selected yet;
-- connected to the existing service network or the preceding tile of the same branch.
+- not fixed/reserved geometry;
+- not an existing service tile;
+- not already used earlier in the same branch path.
 
-All eight Screeps movement directions may be considered.
+All eight Screeps movement directions are allowed. No directional, symmetry, straight-line, or open-space heuristic is applied.
 
-Do not initially encode preferences such as:
+A branch may incidentally touch or reconnect to another existing service road. Variants that contain the same set of new road tiles are evaluated once.
 
-- diagonal branches are better;
-- north/east/etc. is preferred;
-- the branch should point toward open space;
-- a specific visual shape is preferred.
+### 9. Service-distance cap applies to the actual variant
 
-The lab result should determine whether a branch direction is useful.
+Branch length and service distance are different quantities.
 
-A branch may touch or reconnect to an existing service road. Loops are not inherently invalid. Branch cost is the number of **unique new service-road tiles**.
-
-Prototype work suggests a small search depth around `0-3` new tiles is usually enough. A first implementation may use `3` as a bounded experimental cap, but the production maximum remains an empirical tuning question rather than a permanent geometric rule.
-
-### 10. Layout selection is lexicographic
-
-The primary objective is:
+A three-tile branch can, for example, run alongside existing roads and have all three new tiles at small service distance. Therefore the planner does not assume:
 
 ```text
-minimize maxServiceDistance
+branch end distance = root distance + branch length
 ```
 
-The secondary objective is:
+Instead it builds the complete service-network variant, recomputes the unit-cost service distance map, and rejects the branch if any of its new road tiles has:
 
 ```text
-minimize unique added lab-service-branch tiles
+serviceDistance > D
 ```
 
-Remaining ties preserve stable deterministic iteration order.
+Lab candidates are also restricted to adjacent service tiles with distance `<= D`.
 
-Thus:
+### 10. Search order defines the objective
+
+The planner searches distance layers from small to large.
+
+For each service-distance cap `D`, it tries:
 
 ```text
-branch 0, max distance 4
+0 new branch tiles
+1 new branch tile
+2 new branch tiles
+3 new branch tiles
 ```
 
-loses to:
+Within each branch length, variants are generated deterministically from room-index order and `NEIGHBOR_OFFSETS` order.
 
-```text
-branch 1, max distance 2
-```
-
-while:
-
-```text
-branch 1, max distance 2
-```
-
-beats:
-
-```text
-branch 2, max distance 2
-```
-
-Do not add a weighted score for compactness, symmetry, average distance, branch direction, or branch shape.
-
-### 11. The search can be organized by distance layers
-
-The lexicographic objective can be made explicit in the search order.
+The first complete reaction-valid layout is returned immediately.
 
 Conceptually:
 
 ```text
-for maxDistance D from small to large:
-    for addedBranchTileCount K from small to large:
-        enumerate deterministic service-network variants
-            with K unique new branch tiles
-            that can matter within distance D
+for D = 0 .. MAX_SERVICE_DISTANCE:
+    try base service network
+    if success: return
 
-        search all valid input pairs and outputs
-
-        if any complete layout exists:
-            return the first stable result
+    for branchLength = 1 .. 3:
+        enumerate valid single-path branches
+        for each branch:
+            require every branch tile serviceDistance <= D
+            search lab layout
+            if success: return
 ```
 
-This is equivalent to selecting by:
+This gives the preference order:
 
 ```text
-min maxServiceDistance
--> min addedBranchTileCount
--> stable order
+1. smaller max service distance
+2. at the same distance, fewer added branch-road tiles
+3. stable deterministic iteration order
 ```
 
-Manual interpretation:
+No weighted score is used for compactness, symmetry, branch shape, average distance, or orientation.
 
-> Starting from the core roads, grow usable service distance outward one layer at a time. At each layer, ask whether ten reaction-valid labs fit with zero extra road, then one extra branch tile, then two, and so on.
-
-The implementation does not have to use this exact loop structure if another implementation produces the same ordering.
-
-## Hand-reproducible procedure
-
-For debugging one room manually:
-
-1. Draw `corePlan.roads` and label them service distance `0`.
-2. Draw `resourceTree.roads` and label their shortest service distances `1, 2, 3, ...` from the core-road frontier.
-3. Draw every `resourceTree.branches[].container` as an occupied container tile, not as a road.
-4. Choose a current maximum service distance `D`.
-5. Mark every valid buildable tile adjacent to reachable service tiles at distance `<= D`, excluding all reserved geometry including resource containers.
-6. Number those lab candidates.
-7. Try unordered input pairs.
-8. Reject a pair immediately if its theoretical `maxGeometricOutputs < 8`.
-9. For surviving pairs, count actual candidates within range 2 of both inputs.
-10. If at least eight exist, select the eight with the smallest service distances.
-11. If no layout exists, try short branch variants and repeat candidate/input/output search from the beginning.
-12. Increase `D` only after all cheaper branch counts at the current distance have failed.
-
-This manual procedure should produce the same preference order as the implementation.
-
-## Suggested implementation shape
-
-Keep the first implementation in one file rather than introducing abstractions before they are needed:
-
-```text
-src/capabilities/basePlanning/planLabs.ts
-```
-
-Suggested public result:
+### 11. Result shape
 
 ```ts
 export interface LabPlan {
-  inputLabs: [RoomCoordinate, RoomCoordinate];
-  outputLabs: RoomCoordinate[];
-  serviceRoads: RoomCoordinate[]; // only new lab-specific roads
+  readonly inputLabs: [RoomCoordinate, RoomCoordinate];
+  readonly outputLabs: RoomCoordinate[];
+  readonly serviceRoads: RoomCoordinate[];
 }
 ```
 
-Suggested internal responsibilities:
+`serviceRoads` contains only the new lab-specific branch roads. It is empty when the base service network already supports a complete layout.
 
-```text
-planLabs(...)
-buildReservedMask(...)
-buildServiceMask(...)
-buildServiceDistanceMap(...)
-collectLabCandidates(...)
-findBestLabLayout(...)
-generateServiceBranches(...)
-chooseBetterLabLayout(...)
-```
-
-Do not split these into additional utility modules until reuse or complexity justifies it.
-
-Downstream mandatory roads can then be composed explicitly as:
+Downstream mandatory roads are therefore:
 
 ```text
 corePlan.roads
@@ -455,100 +289,115 @@ corePlan.roads
 + labPlan.serviceRoads
 ```
 
-Downstream reserved structure geometry must separately include:
+Downstream reserved structure geometry must include:
 
 ```text
 resourceTree.branches[].container
 + labPlan.inputLabs
 + labPlan.outputLabs
-+ other fixed structures
++ other committed structures
 ```
 
-## Relationship to the rest of the base planner
+## Current implementation shape
 
-The current implemented and intended sequence is:
+The first implementation remains in one file:
+
+```text
+src/capabilities/basePlanning/planLabs.ts
+```
+
+The main responsibilities currently map to:
+
+```text
+planLabs(...)
+findLabPlanWithBranch(...)
+tryLabLayout(...)
+findLabLayout(...)
+canSupportEightOutputs(...)
+collectLabCandidates(...)
+buildServiceDistanceMap(...)
+buildReservedMask(...)
+```
+
+The base service mask is short enough to build inline in `planLabs()` rather than through a separate helper.
+
+Branch DFS generates a branch variant and evaluates it immediately instead of materializing every possible branch in an array. This allows the search to stop at the first success.
+
+## Hand-reproducible search
+
+For one room:
+
+1. Draw `corePlan.roads` and label them distance `0`.
+2. Draw `resourceTree.roads` and label shortest service distances from the core roads.
+3. Mark resource containers and all other reserved geometry.
+4. Mark the terminal range-1 parking zone as unavailable for new labs/branch roads.
+5. Choose the current distance cap `D`.
+6. Search the base service network for ten reaction-valid labs.
+7. If it fails, try every valid single-path branch of length `1`.
+8. Then try length `2`.
+9. Then try length `3`.
+10. For every branch, recompute actual service distances and reject it if any branch tile exceeds `D`.
+11. For every surviving service-network variant, recollect candidates and rerun the input/output search.
+12. Return the first success; only then increase `D` if all branch lengths failed.
+
+## Relationship to the rest of the base planner
 
 ```text
 selected regions                         implemented
     -> controller area / upgrade chains implemented
     -> core                              implemented
     -> merged resource tree + containers implemented
-    -> dynamic labs                      next stage
+    -> dynamic labs                      implemented
     -> expected rampart access           proposed
     -> extension packing                 proposed
 ```
 
-Labs should be placed before extension packing so extensions treat lab structures and lab service roads as reserved/mandatory geometry. Resource containers are already reserved before lab planning begins.
-
-## Experimental observations
-
-Earlier prototype testing on saved `shardSeason` room geometry suggested:
-
-- forcing labs to use only existing resource roads is unnecessarily restrictive;
-- a short one- or two-tile branch can move a complete cluster materially closer to the core;
-- explicit reachability checks catch geometrically valid but operationally blocked layouts;
-- short branch lengths around `0-3` tiles were sufficient in representative successful cases.
-
-These observations came from prototype geometry and should be remeasured on current planner output.
+Labs remain before extension packing so extensions can treat lab structures and lab service roads as already committed geometry.
 
 ## Alternatives considered
 
-### Reintroduce a single explicit `A` tile
-
-Rejected. The core and resource planner already use `corePlan.roads` as a multi-tile frontier.
-
-### Treat resource containers as part of the service network
-
-Rejected. Containers are occupied structure tiles and the resource planner deliberately returns them separately from road geometry.
-
 ### Fixed lab stamp
 
-Rejected. It wastes usable irregular terrain and can force roads or structures into poor positions when a reaction-valid dynamic shape exists nearby.
+Rejected. It wastes usable irregular terrain and can force the whole base to conform to lab geometry.
 
-### Labs only adjacent to existing resource roads
+### Labs only beside existing roads
 
-Rejected. A short lab-service branch can create a significantly closer complete cluster.
+Rejected. A short dedicated branch can produce a materially closer or otherwise feasible complete cluster.
 
-### Choose labs first, connect afterward
+### Choose labs first and connect afterward
 
-Rejected. Service geometry determines candidate validity and distance, so the branch must be part of the search state before labs are committed.
+Rejected. The service road must already exist in the search state so labs cannot block the route needed to service them.
 
-### Minimize branch length first
+### Enumerate arbitrary multi-branch networks
 
-Rejected. It can prefer a zero-branch layout far down a resource road over a much closer layout requiring one short branch.
+Not used in the initial implementation. It greatly enlarges the state space and complicates reachability/optimization for limited practical benefit. The bounded single-path branch is deliberately simpler and can be expanded later only if room testing shows a real need.
 
-### Enumerate all output subsets
+### Potential-service expansion map followed by road reconstruction
 
-Rejected as unnecessary for the current objective. For a fixed input pair and service network, selecting the eight common output candidates with the smallest service distances already minimizes the worst output service distance.
+Not used. Lab structures and potential service roads interact: a geometrically valid lab cluster can occupy tiles needed to realize its later service route. Committing the short branch first keeps the invariant simple.
 
-### Optimize a full lab-worker tour
+### Minimize branch length before service distance
 
-Not adopted. The service-network abstraction already provides explicit movement geometry, and minimizing worst service distance is simpler to inspect and reproduce.
+Rejected. A far zero-branch layout should lose to a much closer layout requiring a short branch. Distance layer `D` is therefore the outer search loop.
 
-### Weighted compactness / distance score
+### Weighted scoring
 
-Not adopted. The lexicographic priorities directly encode the desired gameplay properties without arbitrary coefficients.
+Not adopted. The explicit search order is easier to inspect, reproduce, and tune.
 
 ## Consequences
 
-- Lab geometry adapts to walls, core placement, upgrade reservations, resource-road shape, and resource-container locations.
-- The lab worker always has an explicit reachable service network.
-- Resource containers remain reserved structure tiles rather than accidentally becoming road/lab-service geometry.
-- Labs remain close to the core even when a small dedicated branch is worthwhile.
-- Service roads remain available as explicit geometry for later extension/rampart planning.
-- Input-pair search is small enough to brute-force after strong mathematical pruning.
-- Output selection does not require combinatorial subset search under the current objective.
-- Planner visualization should distinguish core/resource roads, resource containers, lab-service branches, input labs, and output labs clearly by tile.
+- Every accepted lab is adjacent to an explicitly reachable committed service network.
+- Lab branch roads cannot later be occupied by labs.
+- Search behavior is deterministic and easy to reproduce manually.
+- Branch complexity is bounded: zero or one simple branch, with at most three new tiles.
+- The first implementation may miss a room where the only good solution requires two separate branches or a more complex service-road tree.
+- Such additional complexity should be added only if empirical room testing demonstrates the need.
 
 ## Open questions
 
-The following remain intentionally unresolved:
-
-- whether current-room testing justifies a production branch-depth cap other than the prototype value around `3`;
-- whether eight output labs eventually need a tie-break beyond stable order;
-- whether boost/unboost traffic should alter the objective in special room types;
-- whether RCL-aware partial lab layouts should be derived from the final ten-lab plan or planned separately;
-- how factory, power spawn, later spawns, and towers should compete for the remaining core neighborhood;
-- whether later measured CPU requires additional pruning beyond the simple bounded search.
-
-These should be resolved from current V2 planner output and measured behavior rather than by adding speculative weights.
+- Is `MAX_BRANCH_LENGTH = 3` sufficient across representative rooms?
+- Is the current `MAX_SERVICE_DISTANCE` cap appropriate?
+- Does measured planner CPU require additional branch pruning?
+- Do output labs eventually need a tie-break beyond service distance and stable index?
+- Should special room types use different lab objectives for boost/unboost traffic?
+- How should factory, power spawn, later spawns, and towers compete for the remaining core neighborhood?
