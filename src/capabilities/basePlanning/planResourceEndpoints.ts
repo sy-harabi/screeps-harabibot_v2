@@ -28,7 +28,7 @@ export interface ResourceEndpointPlan extends ResourceTarget {
 
 export interface ResourceEndpointPlanResult {
   readonly endpoints: ResourceEndpointPlan[];
-  readonly blockedMap: Uint8Array;
+  readonly resourceRoadBlockedMask: Uint8Array;
 }
 
 export function planResourceEndpoints(
@@ -39,7 +39,7 @@ export function planResourceEndpoints(
   corePlan: CorePlan,
 ): ResourceEndpointPlanResult | undefined {
   const targets = buildResourceTargets(sources, minerals);
-  const blockedMap = buildInitialBlockedMap(
+  const resourceRoadBlockedMask = buildResourceRoadBlockedMask(
     sources,
     minerals,
     controllerArea,
@@ -50,7 +50,7 @@ export function planResourceEndpoints(
     terrain,
     targets,
     [],
-    blockedMap,
+    resourceRoadBlockedMask,
     coreRoadMask,
     corePlan.roads,
   );
@@ -59,7 +59,7 @@ export function planResourceEndpoints(
     return;
   }
 
-  return { endpoints, blockedMap };
+  return { endpoints, resourceRoadBlockedMask };
 }
 
 function buildResourceTargets(
@@ -82,15 +82,15 @@ function buildResourceTargets(
   ];
 }
 
-function buildInitialBlockedMap(
+function buildResourceRoadBlockedMask(
   sources: readonly Source[],
   minerals: readonly Mineral[],
   controllerArea: ControllerAreaCandidate,
   corePlan: CorePlan,
 ): Uint8Array {
-  const blockedMap = new Uint8Array(ROOM_AREA);
+  const resourceRoadBlockedMask = new Uint8Array(ROOM_AREA);
   const block = ({ x, y }: RoomCoordinate): void => {
-    blockedMap[toRoomIndex(x, y)] = 1;
+    resourceRoadBlockedMask[toRoomIndex(x, y)] = 1;
   };
 
   block(controllerArea.storage);
@@ -103,12 +103,13 @@ function buildInitialBlockedMap(
   block(corePlan.terminal);
   block(corePlan.link);
   block(corePlan.manager);
+  corePlan.parking.forEach(block);
 
   for (const resource of [...sources, ...minerals]) {
     block(resource.pos);
   }
 
-  return blockedMap;
+  return resourceRoadBlockedMask;
 }
 
 function buildCoordinateMask(
@@ -127,13 +128,13 @@ function findResourceEndpointPlan(
   terrain: RoomTerrain,
   remainingTargets: readonly ResourceTarget[],
   plannedEndpoints: readonly ResourceEndpointPlan[],
-  blockedMap: Uint8Array,
+  resourceRoadBlockedMask: Uint8Array,
   coreRoadMask: Uint8Array,
   coreRoads: readonly RoomCoordinate[],
 ): ResourceEndpointPlan[] | undefined {
   const distanceMap = buildResourceDistanceMap(
     terrain,
-    blockedMap,
+    resourceRoadBlockedMask,
     coreRoads,
   );
 
@@ -154,7 +155,7 @@ function findResourceEndpointPlan(
     const candidates = collectEndpointCandidates(
       terrain,
       target,
-      blockedMap,
+      resourceRoadBlockedMask,
       distanceMap,
       coreRoadMask,
     );
@@ -188,13 +189,13 @@ function findResourceEndpointPlan(
       link: candidate.link,
     };
 
-    reserveEndpoint(candidate, blockedMap);
+    reserveEndpoint(candidate, resourceRoadBlockedMask);
 
     const result = findResourceEndpointPlan(
       terrain,
       nextTargets,
       [...plannedEndpoints, endpoint],
-      blockedMap,
+      resourceRoadBlockedMask,
       coreRoadMask,
       coreRoads,
     );
@@ -203,7 +204,7 @@ function findResourceEndpointPlan(
       return result;
     }
 
-    releaseEndpoint(candidate, blockedMap);
+    releaseEndpoint(candidate, resourceRoadBlockedMask);
   }
 
   return;
@@ -212,7 +213,7 @@ function findResourceEndpointPlan(
 function collectEndpointCandidates(
   terrain: RoomTerrain,
   target: ResourceTarget,
-  blockedMap: Uint8Array,
+  resourceRoadBlockedMask: Uint8Array,
   distanceMap: Int32Array,
   coreRoadMask: Uint8Array,
 ): ResourceEndpointCandidate[] {
@@ -236,7 +237,7 @@ function collectEndpointCandidates(
     const linkCandidates = collectSourceLinkCandidates(
       terrain,
       container,
-      blockedMap,
+      resourceRoadBlockedMask,
       coreRoadMask,
     );
 
@@ -252,7 +253,7 @@ function collectEndpointCandidates(
 function collectSourceLinkCandidates(
   terrain: RoomTerrain,
   container: RoomCoordinate,
-  blockedMap: Uint8Array,
+  resourceRoadBlockedMask: Uint8Array,
   coreRoadMask: Uint8Array,
 ): RoomCoordinate[] {
   const candidates: RoomCoordinate[] = [];
@@ -262,7 +263,7 @@ function collectSourceLinkCandidates(
 
     if (
       terrain.get(x, y) === TERRAIN_MASK_WALL ||
-      blockedMap[index] ||
+      resourceRoadBlockedMask[index] ||
       coreRoadMask[index]
     ) {
       return;
@@ -326,22 +327,26 @@ function compareEndpointCandidates(
 
 function reserveEndpoint(
   endpoint: ResourceEndpointCandidate,
-  blockedMap: Uint8Array,
+  resourceRoadBlockedMask: Uint8Array,
 ): void {
-  blockedMap[toRoomIndex(endpoint.container.x, endpoint.container.y)] = 1;
+  resourceRoadBlockedMask[
+    toRoomIndex(endpoint.container.x, endpoint.container.y)
+  ] = 1;
 
   if (endpoint.link) {
-    blockedMap[toRoomIndex(endpoint.link.x, endpoint.link.y)] = 1;
+    resourceRoadBlockedMask[toRoomIndex(endpoint.link.x, endpoint.link.y)] = 1;
   }
 }
 
 function releaseEndpoint(
   endpoint: ResourceEndpointCandidate,
-  blockedMap: Uint8Array,
+  resourceRoadBlockedMask: Uint8Array,
 ): void {
-  blockedMap[toRoomIndex(endpoint.container.x, endpoint.container.y)] = 0;
+  resourceRoadBlockedMask[
+    toRoomIndex(endpoint.container.x, endpoint.container.y)
+  ] = 0;
 
   if (endpoint.link) {
-    blockedMap[toRoomIndex(endpoint.link.x, endpoint.link.y)] = 0;
+    resourceRoadBlockedMask[toRoomIndex(endpoint.link.x, endpoint.link.y)] = 0;
   }
 }
