@@ -56,7 +56,7 @@ export function planBase(
     return;
   }
 
-  classifyDefensiveTiles(outerRampartPlan, visual);
+  const defensiveTiles = classifyDefensiveTiles(outerRampartPlan, visual);
 
   const planningRegionByTile = restrictRegionsToInterior(
     regionByTile,
@@ -69,6 +69,7 @@ export function planBase(
     controller,
     selectedRegionIds,
     planningRegionByTile,
+    defensiveTiles,
   );
 
   let bestTier = Infinity;
@@ -85,6 +86,7 @@ export function planBase(
       controllerAreaCandidate,
       selectedRegionIds,
       planningRegionByTile,
+      defensiveTiles,
     );
 
     for (const corePlan of corePlans) {
@@ -182,6 +184,7 @@ export function planBase(
     bestCorePlan,
     resourceTree,
     rampartRoadPlan,
+    defensiveTiles,
     visual,
   );
 
@@ -201,6 +204,7 @@ export function planBase(
     resourceTree,
     rampartRoadPlan,
     labPlan,
+    defensiveTiles,
     visual,
   );
 
