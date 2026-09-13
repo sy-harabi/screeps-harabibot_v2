@@ -15,6 +15,8 @@ import { RegionBoundaryRoadPlan } from "./planRegionBoundaryRoads";
 import { ResourceTreePlan } from "./planResourceTree";
 
 const REQUIRED_STRUCTURE_SLOTS = 70;
+const MAX_BRANCH_LENGTH = 3;
+const SERVICE_DISTANCE_STEP = MAX_BRANCH_LENGTH;
 const MAX_SERVICE_DISTANCE = ROOM_SIZE;
 
 interface BranchCandidate {
@@ -88,14 +90,15 @@ function findGreedySlotPlan(
   let slots: StructureSlot[] = [];
 
   // Grow one persistent road network while the allowed road distance expands.
-  // Branches chosen at a short distance remain in the network when the
-  // wavefront moves outward, so a later search cannot replace them with a
-  // longer N -> E -> S style detour that only looks spatially close to core.
+  // Each wave covers roughly one full branch length so nearby alternatives can
+  // compete without making the expansion as strict as a one-tile wavefront.
   for (
-    let maxServiceDistance = 0;
-    maxServiceDistance <= MAX_SERVICE_DISTANCE;
-    maxServiceDistance++
+    let distanceLimit = SERVICE_DISTANCE_STEP;
+    distanceLimit <= MAX_SERVICE_DISTANCE + SERVICE_DISTANCE_STEP - 1;
+    distanceLimit += SERVICE_DISTANCE_STEP
   ) {
+    const maxServiceDistance = Math.min(distanceLimit, MAX_SERVICE_DISTANCE);
+
     slots = collectStructureSlots(
       terrain,
       serviceRoadMask,
@@ -233,7 +236,7 @@ function generateBranchCandidates(
       const newRoadDistances: number[] = [];
       let currentDistance = rootDistance;
 
-      for (let step = 1; step <= 3; step++) {
+      for (let step = 1; step <= MAX_BRANCH_LENGTH; step++) {
         const x = root.x + direction.x * step;
         const y = root.y + direction.y * step;
 
