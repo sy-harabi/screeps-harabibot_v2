@@ -138,6 +138,7 @@ export function planBase(
     boundaryComponents,
     selectedRegionIds,
     regionByTile,
+    bestControllerArea,
     bestCorePlan,
     resourceTree,
     visual,

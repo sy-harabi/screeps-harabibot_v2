@@ -7,6 +7,7 @@ import {
   ROOM_AREA,
   toRoomIndex,
 } from "../../world/map/roomGrid";
+import type { ControllerAreaCandidate } from "./findControllerAreaCandidates";
 import type { CorePlan } from "./findCorePlans";
 import type { RegionBoundaryComponent } from "./findRegionBoundaryComponents";
 import type { ResourceTreePlan } from "./planResourceTree";
@@ -20,6 +21,7 @@ export function planRegionBoundaryRoads(
   components: readonly RegionBoundaryComponent[],
   selectedRegionIds: ReadonlySet<number>,
   regionByTile: Int16Array,
+  controllerArea: ControllerAreaCandidate,
   corePlan: CorePlan,
   resourceTree: ResourceTreePlan,
   visual: RoomVisual,
@@ -30,16 +32,27 @@ export function planRegionBoundaryRoads(
     roadMask[toRoomIndex(x, y)] = 1;
   }
 
+  const upgradeChainCostMap = buildUpgradeChainCostMap(controllerArea);
+
   const selectedRegionDistanceMap = dijkstraMap(
     terrain,
     corePlan.roads,
-    (_x, _y, terrainType) => getRoadCost(terrainType),
+    (x, y, terrainType) =>
+      getBoundaryRoadCost(
+        toRoomIndex(x, y),
+        terrainType,
+        upgradeChainCostMap,
+      ),
     (x, y) => {
       const index = toRoomIndex(x, y);
 
+      if (!selectedRegionIds.has(regionByTile[index])) {
+        return false;
+      }
+
       return (
-        selectedRegionIds.has(regionByTile[index]) &&
-        resourceTree.coreDistanceMap[index] >= 0
+        resourceTree.coreDistanceMap[index] >= 0 ||
+        upgradeChainCostMap[index] >= 0
       );
     },
   );
@@ -51,6 +64,7 @@ export function planRegionBoundaryRoads(
       terrain,
       component.representativeTile,
       selectedRegionDistanceMap,
+      upgradeChainCostMap,
       roadMask,
     );
 
@@ -74,10 +88,26 @@ export function planRegionBoundaryRoads(
   return { roads };
 }
 
+function buildUpgradeChainCostMap(
+  controllerArea: ControllerAreaCandidate,
+): Int16Array {
+  const costMap = new Int16Array(ROOM_AREA);
+  costMap.fill(-1);
+
+  for (const chain of Object.values(controllerArea.upgradeChains)) {
+    chain.forEach(({ x, y }, chainIndex) => {
+      costMap[toRoomIndex(x, y)] = 50 - chainIndex * 5;
+    });
+  }
+
+  return costMap;
+}
+
 function tracePathToExistingRoad(
   terrain: RoomTerrain,
   start: RoomCoordinate,
   distanceMap: Int32Array,
+  upgradeChainCostMap: Int16Array,
   roadMask: Uint8Array,
 ): RoomCoordinate[] | undefined {
   let currentIndex = toRoomIndex(start.x, start.y);
@@ -98,7 +128,11 @@ function tracePathToExistingRoad(
 
     path.push(current);
 
-    const currentCost = getRoadCost(terrain.get(current.x, current.y));
+    const currentCost = getBoundaryRoadCost(
+      currentIndex,
+      terrain.get(current.x, current.y),
+      upgradeChainCostMap,
+    );
     let bestRoadIndex = -1;
     let bestIndex = -1;
 
@@ -144,6 +178,16 @@ function tracePathToExistingRoad(
   return path;
 }
 
-function getRoadCost(terrainType: number): number {
+function getBoundaryRoadCost(
+  index: number,
+  terrainType: number,
+  upgradeChainCostMap: Int16Array,
+): number {
+  const upgradeChainCost = upgradeChainCostMap[index];
+
+  if (upgradeChainCost >= 0) {
+    return upgradeChainCost;
+  }
+
   return terrainType === TERRAIN_MASK_SWAMP ? 6 : 5;
 }
