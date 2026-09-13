@@ -16,6 +16,9 @@ export interface DefensiveTileClassification {
   /** Interior tiles that can be hit by a ranged attacker standing outside. */
   readonly dangerousMask: Uint8Array;
 
+  /** Interior tiles reserved as potential standing positions for rampart repair. */
+  readonly repairMask: Uint8Array;
+
   /** Safe interior tiles that can repair at least one outer rampart. */
   readonly safeRepairCandidateMask: Uint8Array;
 
@@ -40,6 +43,7 @@ export function classifyDefensiveTiles(
 ): DefensiveTileClassification {
   const dangerousMask = buildDangerousMask(outerRampartPlan);
   const repairRangeMask = buildRepairRangeMask(outerRampartPlan);
+  const repairMask = new Uint8Array(ROOM_AREA);
   const safeRepairCandidateMask = new Uint8Array(ROOM_AREA);
   const rampartRequiredRepairCandidateMask = new Uint8Array(ROOM_AREA);
 
@@ -47,6 +51,8 @@ export function classifyDefensiveTiles(
     if (!repairRangeMask[index]) {
       continue;
     }
+
+    repairMask[index] = 1;
 
     if (dangerousMask[index]) {
       rampartRequiredRepairCandidateMask[index] = 1;
@@ -67,6 +73,7 @@ export function classifyDefensiveTiles(
   return {
     outerRampartMask: outerRampartPlan.rampartMask,
     dangerousMask,
+    repairMask,
     safeRepairCandidateMask,
     rampartRequiredRepairCandidateMask,
   };
