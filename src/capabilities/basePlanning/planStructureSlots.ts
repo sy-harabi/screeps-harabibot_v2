@@ -393,16 +393,27 @@ function buildStructureSlotBlockedMask(
 
   block(controllerArea.storage);
 
-  const { left, right, middle } = controllerArea.upgradeChains;
+  const managerStructureIndices = new Set([
+    toRoomIndex(corePlan.factory.x, corePlan.factory.y),
+    toRoomIndex(corePlan.powerSpawn.x, corePlan.powerSpawn.y),
+  ]);
 
-  for (const chain of [left, right, middle]) {
-    chain.forEach(block);
+  for (const chain of Object.values(controllerArea.upgradeChains)) {
+    const isLateStructureChain = chain.some(({ x, y }) =>
+      managerStructureIndices.has(toRoomIndex(x, y)),
+    );
+
+    if (!isLateStructureChain) {
+      chain.forEach(block);
+    }
   }
 
   block(corePlan.manager);
   block(corePlan.firstSpawn);
   block(corePlan.link);
   block(corePlan.terminal);
+  block(corePlan.factory);
+  block(corePlan.powerSpawn);
 
   corePlan.parking.forEach(block);
 
