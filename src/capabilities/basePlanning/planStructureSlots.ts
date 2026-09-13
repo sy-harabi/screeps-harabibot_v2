@@ -5,6 +5,7 @@ import {
   isInsideRoom,
   NEIGHBOR_OFFSETS,
   ROOM_AREA,
+  ROOM_SIZE,
   toRoomIndex,
 } from "../../world/map/roomGrid";
 import { ControllerAreaCandidate } from "./findControllerAreaCandidates";
@@ -14,9 +15,11 @@ import { RegionBoundaryRoadPlan } from "./planRegionBoundaryRoads";
 import { ResourceTreePlan } from "./planResourceTree";
 
 const REQUIRED_STRUCTURE_SLOTS = 70;
+const MAX_SERVICE_DISTANCE = ROOM_SIZE;
 
 interface BranchCandidate {
   readonly newRoadIndices: number[];
+  readonly newRoadDistances: number[];
 }
 
 export interface StructureSlot {
@@ -54,28 +57,23 @@ export function planStructureSlots(
     labPlan,
   );
 
-  const serviceDistanceMap = buildServiceDistanceMap(
-    terrain,
-    planningMask,
-    corePlan,
-    blockedMask,
-  );
-
-  const serviceDistances = collectServiceDistances(serviceDistanceMap);
-
   let plan: StructureSlotPlan | undefined;
 
-  for (const maxServiceDistance of [...serviceDistances]) {
+  for (
+    let maxServiceDistance = 0;
+    maxServiceDistance <= MAX_SERVICE_DISTANCE;
+    maxServiceDistance++
+  ) {
     plan = findGreedySlotPlan(
       terrain,
       mandatoryRoadMask,
       blockedMask,
-      serviceDistanceMap,
       maxServiceDistance,
       planningMask,
+      corePlan,
     );
 
-    if (plan && plan.complete) {
+    if (plan.complete) {
       break;
     }
   }
@@ -93,16 +91,18 @@ function findGreedySlotPlan(
   terrain: RoomTerrain,
   mandatoryRoadMask: Uint8Array,
   blockedMask: Uint8Array,
-  serviceDistanceMap: Int32Array,
   maxServiceDistance: number,
   planningMask: Uint8Array,
-): StructureSlotPlan | undefined {
-  const serviceRoadMask = buildActiveRoadMask(
-    mandatoryRoadMask,
-    serviceDistanceMap,
-    maxServiceDistance,
-  );
+  corePlan: CorePlan,
+): StructureSlotPlan {
+  const serviceRoadMask = mandatoryRoadMask.slice();
   const addedRoadMask = new Uint8Array(ROOM_AREA);
+
+  let serviceDistanceMap = buildServiceDistanceMap(
+    terrain,
+    serviceRoadMask,
+    corePlan,
+  );
 
   let slots = collectStructureSlots(
     terrain,
@@ -111,25 +111,33 @@ function findGreedySlotPlan(
     blockedMask,
     planningMask,
     serviceDistanceMap,
+    maxServiceDistance,
   );
 
   while (slots.length < REQUIRED_STRUCTURE_SLOTS) {
     const candidates = generateBranchCandidates(
+      terrain,
       serviceRoadMask,
       serviceDistanceMap,
       maxServiceDistance,
+      planningMask,
+      blockedMask,
     );
 
     let bestCandidate: BranchCandidate | undefined;
-    let bestSlots: StructureSlot[] | undefined;
     let bestGain = 0;
     let bestCost = Infinity;
 
     for (const candidate of candidates) {
       const candidateRoadMask = serviceRoadMask.slice();
+      const candidateDistanceMap = serviceDistanceMap.slice();
 
-      for (const index of candidate.newRoadIndices) {
+      for (let i = 0; i < candidate.newRoadIndices.length; i++) {
+        const index = candidate.newRoadIndices[i];
+        const distance = candidate.newRoadDistances[i];
+
         candidateRoadMask[index] = 1;
+        candidateDistanceMap[index] = distance;
       }
 
       const candidateSlots = collectStructureSlots(
@@ -138,7 +146,8 @@ function findGreedySlotPlan(
         mandatoryRoadMask,
         blockedMask,
         planningMask,
-        serviceDistanceMap,
+        candidateDistanceMap,
+        maxServiceDistance,
       );
       const gain = candidateSlots.length - slots.length;
       const cost = candidate.newRoadIndices.length;
@@ -157,12 +166,11 @@ function findGreedySlotPlan(
       }
 
       bestCandidate = candidate;
-      bestSlots = candidateSlots;
       bestGain = gain;
       bestCost = cost;
     }
 
-    if (!bestCandidate || !bestSlots) {
+    if (!bestCandidate) {
       break;
     }
 
@@ -171,10 +179,27 @@ function findGreedySlotPlan(
       addedRoadMask[index] = 1;
     }
 
-    slots = bestSlots;
+    // Branches change the actual road-network distance. Recompute after every
+    // accepted branch so later candidates expand from the shortest current
+    // service-road paths instead of a static terrain-distance map.
+    serviceDistanceMap = buildServiceDistanceMap(
+      terrain,
+      serviceRoadMask,
+      corePlan,
+    );
+
+    slots = collectStructureSlots(
+      terrain,
+      serviceRoadMask,
+      mandatoryRoadMask,
+      blockedMask,
+      planningMask,
+      serviceDistanceMap,
+      maxServiceDistance,
+    );
   }
 
-  const complete = slots && slots.length >= REQUIRED_STRUCTURE_SLOTS - 5;
+  const complete = slots.length >= REQUIRED_STRUCTURE_SLOTS - 5;
 
   return {
     slots,
@@ -184,9 +209,12 @@ function findGreedySlotPlan(
 }
 
 function generateBranchCandidates(
+  terrain: RoomTerrain,
   serviceRoadMask: Uint8Array,
   serviceDistanceMap: Int32Array,
   maxServiceDistance: number,
+  planningMask: Uint8Array,
+  blockedMask: Uint8Array,
 ): BranchCandidate[] {
   const candidates: BranchCandidate[] = [];
   const seen = new Set<string>();
@@ -196,10 +224,18 @@ function generateBranchCandidates(
       continue;
     }
 
+    const rootDistance = serviceDistanceMap[rootIndex];
+
+    if (rootDistance < 0 || rootDistance > maxServiceDistance) {
+      continue;
+    }
+
     const root = fromRoomIndex(rootIndex);
 
     for (const direction of NEIGHBOR_OFFSETS) {
       const newRoadIndices: number[] = [];
+      const newRoadDistances: number[] = [];
+      let currentDistance = rootDistance;
 
       for (let step = 1; step <= 3; step++) {
         const x = root.x + direction.x * step;
@@ -209,15 +245,32 @@ function generateBranchCandidates(
           break;
         }
 
-        const index = toRoomIndex(x, y);
-        const serviceDistance = serviceDistanceMap[index];
-
-        if (serviceDistance < 0 || serviceDistance > maxServiceDistance) {
+        if (terrain.get(x, y) === TERRAIN_MASK_WALL) {
           break;
         }
 
+        const index = toRoomIndex(x, y);
+
+        if (!planningMask[index] || blockedMask[index]) {
+          break;
+        }
+
+        let nextDistance = currentDistance + 1;
+        const existingDistance = serviceDistanceMap[index];
+
+        if (serviceRoadMask[index] && existingDistance >= 0) {
+          nextDistance = Math.min(nextDistance, existingDistance);
+        }
+
+        if (nextDistance > maxServiceDistance) {
+          break;
+        }
+
+        currentDistance = nextDistance;
+
         if (!serviceRoadMask[index]) {
           newRoadIndices.push(index);
+          newRoadDistances.push(currentDistance);
         }
       }
 
@@ -225,15 +278,14 @@ function generateBranchCandidates(
         continue;
       }
 
-      newRoadIndices.sort((left, right) => left - right);
-      const key = newRoadIndices.join(",");
+      const key = [...newRoadIndices].sort((left, right) => left - right).join(",");
 
       if (seen.has(key)) {
         continue;
       }
 
       seen.add(key);
-      candidates.push({ newRoadIndices });
+      candidates.push({ newRoadIndices, newRoadDistances });
     }
   }
 
@@ -247,12 +299,19 @@ function collectStructureSlots(
   structureBlockedMask: Uint8Array,
   planningMask: Uint8Array,
   serviceDistanceMap: Int32Array,
+  maxServiceDistance: number,
 ): StructureSlot[] {
-  const slotMask = new Uint8Array(ROOM_AREA);
-  const slots: StructureSlot[] = [];
+  const slotDistanceMap = new Int16Array(ROOM_AREA);
+  slotDistanceMap.fill(-1);
 
   for (let roadIndex = 0; roadIndex < ROOM_AREA; roadIndex++) {
     if (!serviceRoadMask[roadIndex]) {
+      continue;
+    }
+
+    const roadDistance = serviceDistanceMap[roadIndex];
+
+    if (roadDistance < 0 || roadDistance > maxServiceDistance) {
       continue;
     }
 
@@ -267,10 +326,6 @@ function collectStructureSlots(
       }
 
       const index = toRoomIndex(x, y);
-
-      if (slotMask[index]) {
-        continue;
-      }
 
       if (terrain.get(x, y) === TERRAIN_MASK_WALL) {
         continue;
@@ -288,15 +343,28 @@ function collectStructureSlots(
         continue;
       }
 
-      const serviceDistance = serviceDistanceMap[index];
+      const slotDistance = roadDistance + 1;
+      const previousDistance = slotDistanceMap[index];
 
-      if (serviceDistance < 0) {
-        continue;
+      if (previousDistance < 0 || slotDistance < previousDistance) {
+        slotDistanceMap[index] = slotDistance;
       }
-
-      slotMask[index] = 1;
-      slots.push({ coordinate: { x, y }, serviceDistance });
     }
+  }
+
+  const slots: StructureSlot[] = [];
+
+  for (let index = 0; index < ROOM_AREA; index++) {
+    const serviceDistance = slotDistanceMap[index];
+
+    if (serviceDistance < 0) {
+      continue;
+    }
+
+    slots.push({
+      coordinate: fromRoomIndex(index),
+      serviceDistance,
+    });
   }
 
   return slots;
@@ -304,56 +372,15 @@ function collectStructureSlots(
 
 function buildServiceDistanceMap(
   terrain: RoomTerrain,
-  planningMask: Uint8Array,
+  serviceRoadMask: Uint8Array,
   corePlan: CorePlan,
-  blockedMask: Uint8Array,
 ): Int32Array {
   return dijkstraMap(
     terrain,
     corePlan.roads,
-    (_x, _y, terrainType) => (terrainType === TERRAIN_MASK_SWAMP ? 6 : 5),
-    (x, y) => {
-      const index = toRoomIndex(x, y);
-
-      return planningMask[index] === 1 && !blockedMask[index];
-    },
+    () => 1,
+    (x, y) => serviceRoadMask[toRoomIndex(x, y)] === 1,
   );
-}
-
-function collectServiceDistances(serviceDistanceMap: Int32Array): number[] {
-  const distances = new Set<number>();
-
-  for (const distance of serviceDistanceMap) {
-    if (distance >= 0) {
-      distances.add(distance);
-    }
-  }
-
-  return [...distances].sort((left, right) => left - right);
-}
-
-function buildActiveRoadMask(
-  mandatoryRoadMask: Uint8Array,
-  serviceDistanceMap: Int32Array,
-  maxServiceDistance: number,
-): Uint8Array {
-  const activeRoadMask = new Uint8Array(ROOM_AREA);
-
-  for (let index = 0; index < ROOM_AREA; index++) {
-    if (!mandatoryRoadMask[index]) {
-      continue;
-    }
-
-    const serviceDistance = serviceDistanceMap[index];
-
-    if (serviceDistance < 0 || serviceDistance > maxServiceDistance) {
-      continue;
-    }
-
-    activeRoadMask[index] = 1;
-  }
-
-  return activeRoadMask;
 }
 
 function collectCoordinates(mask: Uint8Array): RoomCoordinate[] {
