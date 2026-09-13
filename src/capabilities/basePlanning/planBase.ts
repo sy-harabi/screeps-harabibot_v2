@@ -42,7 +42,7 @@ export function planBase(
     regions,
   );
 
-  visualizeSelectedRegions(selectedRegionIds, regions, visual);
+  // visualizeSelectedRegions(selectedRegionIds, regions, visual);
 
   const outerRampartPlan = planOuterRamparts(
     terrain,

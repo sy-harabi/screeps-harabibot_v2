@@ -2,6 +2,7 @@ import { floodFill } from "../../world/map/floodFill";
 import { findMinimumTileCut } from "../../world/map/minCut";
 import type { RoomCoordinate } from "../../world/map/roomCoordinate";
 import {
+  forEachCoordinateAtRange,
   fromRoomIndex,
   isInsideRoom,
   NEIGHBOR_OFFSETS,
@@ -44,12 +45,7 @@ export function planOuterRamparts(
   const sinkMask = buildExitSinkMask(terrain);
   const tileCosts = buildControllerDistanceCosts(terrain, controller.pos);
 
-  const result = findMinimumTileCut(
-    terrain,
-    sourceMask,
-    sinkMask,
-    tileCosts,
-  );
+  const result = findMinimumTileCut(terrain, sourceMask, sinkMask, tileCosts);
 
   if (!result || result.cuts.length === 0) {
     return;
@@ -185,13 +181,20 @@ function buildControllerDistanceCosts(
   terrain: RoomTerrain,
   controller: RoomCoordinate,
 ): Uint16Array {
-  const { distances } = floodFill(terrain, [controller]);
+  const startCoordinates: RoomCoordinate[] = [];
+
+  forEachCoordinateAtRange(controller, 1, (x, y) => {
+    startCoordinates.push({ x, y });
+  });
+  const { distances } = floodFill(terrain, startCoordinates);
+
   const tileCosts = new Uint16Array(ROOM_AREA);
 
   for (let index = 0; index < ROOM_AREA; index++) {
     const distance = distances[index];
+
     tileCosts[index] =
-      BASE_RAMPART_COST + (distance >= 0 ? distance : ROOM_AREA);
+      BASE_RAMPART_COST + (distance >= 0 ? distance : ROOM_SIZE);
   }
 
   return tileCosts;
