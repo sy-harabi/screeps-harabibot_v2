@@ -109,9 +109,9 @@ export function planBase(
     STRUCTURE_STORAGE,
   );
 
-  for (const chain of Object.values(bestControllerArea.upgradeChains)) {
-    visualizeUpgradePath(visual, chain, "", "#ffd166");
-  }
+  // for (const chain of Object.values(bestControllerArea.upgradeChains)) {
+  //   visualizeUpgradePath(visual, chain, "", "#ffd166");
+  // }
 
   visual.text("M", bestCorePlan.manager.x, bestCorePlan.manager.y);
   visual.structure(
@@ -200,24 +200,7 @@ export function planBase(
     visual,
   );
 
-  if (!slotPlan) {
-    return;
-  }
-
-  if (!slotPlan) {
-    slotPlan = planStructureSlots(
-      terrain,
-      outerRampartPlan.insideMask,
-      bestControllerArea,
-      bestCorePlan,
-      resourceTree,
-      rampartRoadPlan,
-      labPlan,
-      visual,
-    );
-  }
-
-  if (!slotPlan) {
+  if (!slotPlan || !slotPlan.complete) {
     return;
   }
 

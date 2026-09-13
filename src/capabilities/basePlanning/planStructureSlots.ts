@@ -81,11 +81,9 @@ export function planStructureSlots(
       planningMask,
     );
 
-    if (!plan || !plan.complete) {
-      continue;
+    if (plan && plan.complete) {
+      break;
     }
-
-    return plan;
   }
 
   if (!plan) {
@@ -410,7 +408,9 @@ function buildStructureSlotBlockedMask(
     toRoomIndex(corePlan.powerSpawn.x, corePlan.powerSpawn.y),
   ]);
 
-  for (const chain of Object.values(controllerArea.upgradeChains)) {
+  const { left, middle, right } = controllerArea.upgradeChains;
+
+  for (const chain of [left, middle, right]) {
     const isLateStructureChain = chain.some(({ x, y }) =>
       managerStructureIndices.has(toRoomIndex(x, y)),
     );
@@ -447,7 +447,7 @@ function visualizeStructureSlotPlan(
   plan: StructureSlotPlan,
   visual: RoomVisual,
 ): void {
-  visual.text(plan.slots.length.toString(), 25, 10);
+  visual.text(plan.slots.length.toString(), 25, 1);
 
   plan.roads.forEach((road, index) => {
     visual.text(index.toString(), road.x, road.y);

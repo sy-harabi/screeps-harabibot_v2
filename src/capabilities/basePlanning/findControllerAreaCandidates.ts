@@ -1,4 +1,4 @@
-import { getRange, RoomCoordinate } from "../../world/map/roomCoordinate";
+import { RoomCoordinate } from "../../world/map/roomCoordinate";
 import {
   forEachCoordinateAtRange,
   forEachCoordinateInRange,
