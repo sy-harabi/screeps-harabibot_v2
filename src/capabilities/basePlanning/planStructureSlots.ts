@@ -57,30 +57,13 @@ export function planStructureSlots(
     labPlan,
   );
 
-  let plan: StructureSlotPlan | undefined;
-
-  for (
-    let maxServiceDistance = 0;
-    maxServiceDistance <= MAX_SERVICE_DISTANCE;
-    maxServiceDistance++
-  ) {
-    plan = findGreedySlotPlan(
-      terrain,
-      mandatoryRoadMask,
-      blockedMask,
-      maxServiceDistance,
-      planningMask,
-      corePlan,
-    );
-
-    if (plan.complete) {
-      break;
-    }
-  }
-
-  if (!plan) {
-    return;
-  }
+  const plan = findGreedySlotPlan(
+    terrain,
+    mandatoryRoadMask,
+    blockedMask,
+    planningMask,
+    corePlan,
+  );
 
   visualizeStructureSlotPlan(plan, visual);
 
@@ -91,7 +74,6 @@ function findGreedySlotPlan(
   terrain: RoomTerrain,
   mandatoryRoadMask: Uint8Array,
   blockedMask: Uint8Array,
-  maxServiceDistance: number,
   planningMask: Uint8Array,
   corePlan: CorePlan,
 ): StructureSlotPlan {
@@ -103,91 +85,17 @@ function findGreedySlotPlan(
     serviceRoadMask,
     corePlan,
   );
+  let slots: StructureSlot[] = [];
 
-  let slots = collectStructureSlots(
-    terrain,
-    serviceRoadMask,
-    mandatoryRoadMask,
-    blockedMask,
-    planningMask,
-    serviceDistanceMap,
-    maxServiceDistance,
-  );
-
-  while (slots.length < REQUIRED_STRUCTURE_SLOTS) {
-    const candidates = generateBranchCandidates(
-      terrain,
-      serviceRoadMask,
-      serviceDistanceMap,
-      maxServiceDistance,
-      planningMask,
-      blockedMask,
-    );
-
-    let bestCandidate: BranchCandidate | undefined;
-    let bestGain = 0;
-    let bestCost = Infinity;
-
-    for (const candidate of candidates) {
-      const candidateRoadMask = serviceRoadMask.slice();
-      const candidateDistanceMap = serviceDistanceMap.slice();
-
-      for (let i = 0; i < candidate.newRoadIndices.length; i++) {
-        const index = candidate.newRoadIndices[i];
-        const distance = candidate.newRoadDistances[i];
-
-        candidateRoadMask[index] = 1;
-        candidateDistanceMap[index] = distance;
-      }
-
-      const candidateSlots = collectStructureSlots(
-        terrain,
-        candidateRoadMask,
-        mandatoryRoadMask,
-        blockedMask,
-        planningMask,
-        candidateDistanceMap,
-        maxServiceDistance,
-      );
-      const gain = candidateSlots.length - slots.length;
-      const cost = candidate.newRoadIndices.length;
-
-      if (gain <= 0) {
-        continue;
-      }
-
-      if (
-        bestCandidate &&
-        (gain * bestCost < bestGain * cost ||
-          (gain * bestCost === bestGain * cost &&
-            (gain < bestGain || (gain === bestGain && cost >= bestCost))))
-      ) {
-        continue;
-      }
-
-      bestCandidate = candidate;
-      bestGain = gain;
-      bestCost = cost;
-    }
-
-    if (!bestCandidate) {
-      break;
-    }
-
-    for (const index of bestCandidate.newRoadIndices) {
-      serviceRoadMask[index] = 1;
-      addedRoadMask[index] = 1;
-    }
-
-    // Branches change the actual road-network distance. Recompute after every
-    // accepted branch so later candidates expand from the shortest current
-    // service-road paths instead of a static terrain-distance map.
-    serviceDistanceMap = buildServiceDistanceMap(
-      terrain,
-      serviceRoadMask,
-      corePlan,
-    );
-
+  // Grow one persistent road network while the allowed road distance expands.
+  // Branches chosen at a short distance remain in the network when the
+  // wavefront moves outward, so a later search cannot replace them with a
+  // longer N -> E -> S style detour that only looks spatially close to core.
+  for (
+    let maxServiceDistance = 0;
+    maxServiceDistance <= MAX_SERVICE_DISTANCE;
+    maxServiceDistance++
+  ) {
     slots = collectStructureSlots(
       terrain,
       serviceRoadMask,
@@ -197,6 +105,94 @@ function findGreedySlotPlan(
       serviceDistanceMap,
       maxServiceDistance,
     );
+
+    while (slots.length < REQUIRED_STRUCTURE_SLOTS) {
+      const candidates = generateBranchCandidates(
+        terrain,
+        serviceRoadMask,
+        serviceDistanceMap,
+        maxServiceDistance,
+        planningMask,
+        blockedMask,
+      );
+
+      let bestCandidate: BranchCandidate | undefined;
+      let bestGain = 0;
+      let bestCost = Infinity;
+
+      for (const candidate of candidates) {
+        const candidateRoadMask = serviceRoadMask.slice();
+        const candidateDistanceMap = serviceDistanceMap.slice();
+
+        for (let i = 0; i < candidate.newRoadIndices.length; i++) {
+          const index = candidate.newRoadIndices[i];
+          const distance = candidate.newRoadDistances[i];
+
+          candidateRoadMask[index] = 1;
+          candidateDistanceMap[index] = distance;
+        }
+
+        const candidateSlots = collectStructureSlots(
+          terrain,
+          candidateRoadMask,
+          mandatoryRoadMask,
+          blockedMask,
+          planningMask,
+          candidateDistanceMap,
+          maxServiceDistance,
+        );
+        const gain = candidateSlots.length - slots.length;
+        const cost = candidate.newRoadIndices.length;
+
+        if (gain <= 0) {
+          continue;
+        }
+
+        if (
+          bestCandidate &&
+          (gain * bestCost < bestGain * cost ||
+            (gain * bestCost === bestGain * cost &&
+              (gain < bestGain || (gain === bestGain && cost >= bestCost))))
+        ) {
+          continue;
+        }
+
+        bestCandidate = candidate;
+        bestGain = gain;
+        bestCost = cost;
+      }
+
+      if (!bestCandidate) {
+        break;
+      }
+
+      for (const index of bestCandidate.newRoadIndices) {
+        serviceRoadMask[index] = 1;
+        addedRoadMask[index] = 1;
+      }
+
+      // An accepted branch can shorten the path to existing roads as well as
+      // extend the network, so recalculate actual road-network distances.
+      serviceDistanceMap = buildServiceDistanceMap(
+        terrain,
+        serviceRoadMask,
+        corePlan,
+      );
+
+      slots = collectStructureSlots(
+        terrain,
+        serviceRoadMask,
+        mandatoryRoadMask,
+        blockedMask,
+        planningMask,
+        serviceDistanceMap,
+        maxServiceDistance,
+      );
+    }
+
+    if (slots.length >= REQUIRED_STRUCTURE_SLOTS) {
+      break;
+    }
   }
 
   const complete = slots.length >= REQUIRED_STRUCTURE_SLOTS - 5;
@@ -278,7 +274,10 @@ function generateBranchCandidates(
         continue;
       }
 
-      const key = [...newRoadIndices].sort((left, right) => left - right).join(",");
+      const key = newRoadIndices
+        .map((index, i) => `${index}:${newRoadDistances[i]}`)
+        .sort()
+        .join(",");
 
       if (seen.has(key)) {
         continue;
