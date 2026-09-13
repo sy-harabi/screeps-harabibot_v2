@@ -56,7 +56,7 @@ export function planBase(
     return;
   }
 
-  const defensiveTiles = classifyDefensiveTiles(outerRampartPlan);
+  const defensiveTiles = classifyDefensiveTiles(outerRampartPlan, visual);
 
   // Downstream planning uses the actual min-cut interior and deliberately
   // excludes dangerous and repair standing tiles for now.
