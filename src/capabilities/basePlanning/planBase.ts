@@ -7,6 +7,7 @@ import {
   TerrainRegion,
 } from "../../world/map/terrainRegions";
 import type { BasePlan, PlannedStructure } from "./basePlan";
+import { classifyDefensiveTiles } from "./classifyDefensiveTiles";
 import {
   ControllerAreaCandidate,
   findControllerAreaCandidates,
@@ -53,6 +54,8 @@ export function planBase(
   if (!outerRampartPlan) {
     return;
   }
+
+  classifyDefensiveTiles(outerRampartPlan, visual);
 
   const planningRegionByTile = restrictRegionsToInterior(
     regionByTile,
