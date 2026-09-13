@@ -203,9 +203,6 @@ export function planBase(
   // that whole attempt cannot reach the required slot quota.
   let slotPlan = planStructureSlots(
     terrain,
-    controller,
-    sources,
-    minerals,
     selectedRegionIds,
     safePlanningRegionByTile,
     bestControllerArea,
@@ -219,9 +216,6 @@ export function planBase(
   if (!slotPlan) {
     slotPlan = planStructureSlots(
       terrain,
-      controller,
-      sources,
-      minerals,
       selectedRegionIds,
       planningRegionByTile,
       bestControllerArea,

@@ -37,9 +37,6 @@ export interface StructureSlotPlan {
 
 export function planStructureSlots(
   terrain: RoomTerrain,
-  controller: StructureController,
-  sources: readonly Source[],
-  minerals: readonly Mineral[],
   selectedRegionIds: ReadonlySet<number>,
   regionByTile: Int16Array,
   controllerArea: ControllerAreaCandidate,
@@ -211,7 +208,6 @@ function generateBranchCandidates(
         const y = root.y + direction.y * step;
 
         if (!isInsideRoom(x, y)) {
-          valid = false;
           break;
         }
 
@@ -219,7 +215,6 @@ function generateBranchCandidates(
         const serviceDistance = serviceDistanceMap[index];
 
         if (serviceDistance < 0 || serviceDistance > maxServiceDistance) {
-          valid = false;
           break;
         }
 
