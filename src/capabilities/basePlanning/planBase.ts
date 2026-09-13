@@ -11,12 +11,8 @@ import {
   findControllerAreaCandidates,
 } from "./findControllerAreaCandidates";
 import { CorePlan, findCorePlans } from "./findCorePlans";
-import {
-  findRegionBoundaryComponents,
-  RegionBoundaryComponent,
-} from "./findRegionBoundaryComponents";
 import { planLabs } from "./planLabs";
-import { planRegionBoundaryRoads } from "./planRegionBoundaryRoads";
+import { planOuterRamparts } from "./planOuterRamparts";
 import { planResourceTree } from "./planResourceTree";
 import { planStructureSlots } from "./planStructureSlots";
 import { selectBaseRegions } from "./selectBaseRegions";
@@ -45,12 +41,16 @@ export function planBase(
 
   visualizeSelectedRegions(selectedRegionIds, regions, visual);
 
-  const boundaryComponents = findRegionBoundaryComponents(
+  const outerRampartPlan = planOuterRamparts(
+    terrain,
     selectedRegionIds,
     regionByTile,
+    visual,
   );
 
-  visualizeRegionBoundaryComponents(boundaryComponents, visual);
+  if (!outerRampartPlan) {
+    return;
+  }
 
   const selectedCenter = getSelectedRegionCenter(selectedRegionIds, regions);
 
@@ -144,23 +144,10 @@ export function planBase(
     return;
   }
 
-  const boundaryRoadPlan = planRegionBoundaryRoads(
-    terrain,
-    controller,
-    sources,
-    minerals,
-    boundaryComponents,
-    selectedRegionIds,
-    regionByTile,
-    bestControllerArea,
-    bestCorePlan,
-    resourceTree,
-    visual,
-  );
-
-  if (!boundaryRoadPlan) {
-    return;
-  }
+  // Outer-rampart access roads are planned separately after repair positions
+  // are reserved. Until then, downstream service-road planners only reuse the
+  // core/resource network plus their own branches.
+  const boundaryRoadPlan = { roads: [] as RoomCoordinate[] };
 
   const labPlan = planLabs(
     terrain,
@@ -228,41 +215,6 @@ function visualizeSelectedRegions(
       });
     }
   }
-}
-
-function visualizeRegionBoundaryComponents(
-  components: readonly RegionBoundaryComponent[],
-  visual: RoomVisual,
-): void {
-  components.forEach((component, index) => {
-    const color = getRegionColor(index, components.length);
-
-    for (const tileIndex of component.tileIndices) {
-      const { x, y } = fromRoomIndex(tileIndex);
-      visual.circle(x, y, {
-        radius: 0.18,
-        fill: color,
-        opacity: 0.9,
-        stroke: "transparent",
-      });
-    }
-
-    const { x, y } = component.representativeTile;
-
-    visual.circle(x, y, {
-      radius: 0.38,
-      fill: "transparent",
-      stroke: "#ffffff",
-      strokeWidth: 0.08,
-      opacity: 1,
-    });
-
-    visual.text(`B${index}`, x, y - 0.45, {
-      color: "#ffffff",
-      font: 0.35,
-      stroke: "black",
-    });
-  });
 }
 
 function getSelectedRegionCenter(
