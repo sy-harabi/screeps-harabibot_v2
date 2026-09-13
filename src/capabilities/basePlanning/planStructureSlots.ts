@@ -37,8 +37,7 @@ export interface StructureSlotPlan {
 
 export function planStructureSlots(
   terrain: RoomTerrain,
-  selectedRegionIds: ReadonlySet<number>,
-  regionByTile: Int16Array,
+  planningMask: Uint8Array,
   controllerArea: ControllerAreaCandidate,
   corePlan: CorePlan,
   resourceTree: ResourceTreePlan,
@@ -62,8 +61,7 @@ export function planStructureSlots(
 
   const serviceDistanceMap = buildServiceDistanceMap(
     terrain,
-    selectedRegionIds,
-    regionByTile,
+    planningMask,
     corePlan,
     blockedMask,
   );
@@ -77,8 +75,7 @@ export function planStructureSlots(
       blockedMask,
       serviceDistanceMap,
       maxServiceDistance,
-      selectedRegionIds,
-      regionByTile,
+      planningMask,
     );
 
     if (!plan) {
@@ -98,8 +95,7 @@ function findGreedySlotPlan(
   blockedMask: Uint8Array,
   serviceDistanceMap: Int32Array,
   maxServiceDistance: number,
-  selectedRegionIds: ReadonlySet<number>,
-  regionByTile: Int16Array,
+  planningMask: Uint8Array,
 ): StructureSlotPlan | undefined {
   const serviceRoadMask = buildActiveRoadMask(
     mandatoryRoadMask,
@@ -113,8 +109,7 @@ function findGreedySlotPlan(
     serviceRoadMask,
     mandatoryRoadMask,
     blockedMask,
-    selectedRegionIds,
-    regionByTile,
+    planningMask,
   );
 
   while (slots.length < REQUIRED_STRUCTURE_SLOTS) {
@@ -141,8 +136,7 @@ function findGreedySlotPlan(
         candidateRoadMask,
         mandatoryRoadMask,
         blockedMask,
-        selectedRegionIds,
-        regionByTile,
+        planningMask,
       );
       const gain = candidateSlots.length - slots.length;
       const cost = candidate.newRoadIndices.length;
@@ -247,8 +241,7 @@ function collectStructureSlots(
   serviceRoadMask: Uint8Array,
   mandatoryRoadMask: Uint8Array,
   structureBlockedMask: Uint8Array,
-  selectedRegionIds: ReadonlySet<number>,
-  regionByTile: Int16Array,
+  planningMask: Uint8Array,
 ): StructureSlot[] {
   const slotMask = new Uint8Array(ROOM_AREA);
   const slots: StructureSlot[] = [];
@@ -286,7 +279,7 @@ function collectStructureSlots(
         continue;
       }
 
-      if (!selectedRegionIds.has(regionByTile[index])) {
+      if (!planningMask[index]) {
         continue;
       }
 
@@ -300,8 +293,7 @@ function collectStructureSlots(
 
 function buildServiceDistanceMap(
   terrain: RoomTerrain,
-  selectedRegionIds: ReadonlySet<number>,
-  regionByTile: Int16Array,
+  planningMask: Uint8Array,
   corePlan: CorePlan,
   blockedMask: Uint8Array,
 ): Int32Array {
@@ -312,7 +304,7 @@ function buildServiceDistanceMap(
     (x, y) => {
       const index = toRoomIndex(x, y);
 
-      return selectedRegionIds.has(regionByTile[index]) && !blockedMask[index];
+      return planningMask[index] === 1 && !blockedMask[index];
     },
   );
 }

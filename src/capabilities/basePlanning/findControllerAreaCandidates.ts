@@ -38,16 +38,11 @@ interface StorageCandidate {
 
 export function findControllerAreaCandidates(
   controller: StructureController,
-  selectedRegionIds: Set<number>,
-  regionByTile: Int16Array,
+  planningMask: Uint8Array,
 ): ControllerAreaCandidate[] {
   const controllerAreaCandidates: ControllerAreaCandidate[] = [];
 
-  const upgradeTiles = findUpgradeTiles(
-    controller,
-    selectedRegionIds,
-    regionByTile,
-  );
+  const upgradeTiles = findUpgradeTiles(controller, planningMask);
 
   const upgradeTileIndices = new Set(
     upgradeTiles.map(({ x, y }) => toRoomIndex(x, y)),
@@ -55,8 +50,7 @@ export function findControllerAreaCandidates(
 
   const storageCandidates = findStorageCandidates(
     controller,
-    selectedRegionIds,
-    regionByTile,
+    planningMask,
     upgradeTileIndices,
   );
 
@@ -432,15 +426,14 @@ function findUpgradeRoots(
 
 function findUpgradeTiles(
   controller: StructureController,
-  selectedRegionIds: Set<number>,
-  regionByTile: Int16Array,
+  planningMask: Uint8Array,
 ): RoomCoordinate[] {
   const upgradeTiles: RoomCoordinate[] = [];
 
   forEachCoordinateInRange(controller.pos, 3, (x, y) => {
     const index = toRoomIndex(x, y);
 
-    if (selectedRegionIds.has(regionByTile[index])) {
+    if (planningMask[index]) {
       upgradeTiles.push({ x, y });
     }
   });
@@ -450,8 +443,7 @@ function findUpgradeTiles(
 
 function findStorageCandidates(
   controller: StructureController,
-  selectedRegionIds: Set<number>,
-  regionByTile: Int16Array,
+  planningMask: Uint8Array,
   upgradeTileIndices: Set<number>,
 ): StorageCandidate[] {
   let candidates: StorageCandidate[] = [];
@@ -459,7 +451,7 @@ function findStorageCandidates(
   forEachCoordinateAtRange(controller.pos, 4, (x, y) => {
     const index = toRoomIndex(x, y);
 
-    if (!selectedRegionIds.has(regionByTile[index])) {
+    if (!planningMask[index]) {
       return;
     }
 

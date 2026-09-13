@@ -36,8 +36,7 @@ export function planLabs(
   controller: StructureController,
   sources: Source[],
   minerals: Mineral[],
-  selectedRegionIds: Set<number>,
-  regionByTile: Int16Array,
+  planningMask: Uint8Array,
   controllerArea: ControllerAreaCandidate,
   corePlan: CorePlan,
   resourceTree: ResourceTreePlan,
@@ -80,8 +79,7 @@ export function planLabs(
       serviceDistanceMap,
       maxServiceDistance,
       labBlockedMask,
-      selectedRegionIds,
-      regionByTile,
+      planningMask,
     );
 
     if (layout) {
@@ -103,8 +101,7 @@ export function planLabs(
         branchLength,
         maxServiceDistance,
         labBlockedMask,
-        selectedRegionIds,
-        regionByTile,
+        planningMask,
       );
 
       if (plan) {
@@ -125,8 +122,7 @@ function findLabPlanWithBranch(
   branchLength: number,
   maxServiceDistance: number,
   labBlockedMask: Uint8Array,
-  selectedRegionIds: Set<number>,
-  regionByTile: Int16Array,
+  planningMask: Uint8Array,
 ): LabPlan | undefined {
   if (maxServiceDistance === 0) {
     return;
@@ -180,8 +176,7 @@ function findLabPlanWithBranch(
         serviceDistanceMap,
         maxServiceDistance,
         labBlockedMask,
-        selectedRegionIds,
-        regionByTile,
+        planningMask,
       );
 
       if (!layout) {
@@ -216,7 +211,7 @@ function findLabPlanWithBranch(
         continue;
       }
 
-      if (!selectedRegionIds.has(regionByTile[index])) {
+      if (!planningMask[index]) {
         continue;
       }
 
@@ -264,8 +259,7 @@ function tryLabLayout(
   serviceDistanceMap: Int32Array,
   maxServiceDistance: number,
   labBlockedMask: Uint8Array,
-  selectedRegionIds: Set<number>,
-  regionByTile: Int16Array,
+  planningMask: Uint8Array,
 ): LabLayout | undefined {
   const candidates = collectLabCandidates(
     terrain,
@@ -273,8 +267,7 @@ function tryLabLayout(
     serviceDistanceMap,
     maxServiceDistance,
     labBlockedMask,
-    selectedRegionIds,
-    regionByTile,
+    planningMask,
   );
 
   return findLabLayout(candidates);
@@ -357,8 +350,7 @@ function collectLabCandidates(
   serviceDistanceMap: Int32Array,
   maxServiceDistance: number,
   labBlockedMask: Uint8Array,
-  selectedRegionIds: Set<number>,
-  regionByTile: Int16Array,
+  planningMask: Uint8Array,
 ): LabCandidate[] {
   const candidateDistanceMap = new Int16Array(ROOM_AREA);
   candidateDistanceMap.fill(-1);
@@ -390,7 +382,7 @@ function collectLabCandidates(
         continue;
       }
 
-      if (!selectedRegionIds.has(regionByTile[candidateIndex])) {
+      if (!planningMask[candidateIndex]) {
         continue;
       }
 

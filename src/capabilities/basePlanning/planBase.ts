@@ -3,7 +3,6 @@ import { getRange, RoomCoordinate } from "../../world/map/roomCoordinate";
 import { fromRoomIndex, ROOM_AREA } from "../../world/map/roomGrid";
 import {
   findTerrainRegions,
-  OUTSIDE_REGION_ID,
   TerrainRegion,
 } from "../../world/map/terrainRegions";
 import type { BasePlan, PlannedStructure } from "./basePlan";
@@ -58,26 +57,20 @@ export function planBase(
 
   const defensiveTiles = classifyDefensiveTiles(outerRampartPlan, visual);
 
-  // The actual min-cut line is never available for structure placement.
-  const planningRegionByTile = restrictRegionsToInterior(
-    regionByTile,
+  // From this point on, the min-cut result is the source of truth for the
+  // buildable base interior. The original terrain-region selection is only an
+  // input to outer-rampart planning and must not constrain downstream plans.
+  const safePlanningMask = buildSafePlanningMask(
     outerRampartPlan.insideMask,
-  );
-
-  // Safe planning space excludes both exposed tiles and every potential repair
-  // standing tile. Core/controller-area/labs must stay entirely in this space.
-  const safePlanningRegionByTile = restrictRegionsToSafeTiles(
-    planningRegionByTile,
     defensiveTiles.dangerousMask,
     defensiveTiles.repairMask,
   );
 
-  const selectedCenter = getSelectedRegionCenter(selectedRegionIds, regions);
+  const planningCenter = getMaskCenter(outerRampartPlan.insideMask);
 
   const controllerAreaCandidates = findControllerAreaCandidates(
     controller,
-    selectedRegionIds,
-    safePlanningRegionByTile,
+    safePlanningMask,
   );
 
   let bestTier = Infinity;
@@ -90,14 +83,10 @@ export function planBase(
       continue;
     }
 
-    const corePlans = findCorePlans(
-      controllerAreaCandidate,
-      selectedRegionIds,
-      safePlanningRegionByTile,
-    );
+    const corePlans = findCorePlans(controllerAreaCandidate, safePlanningMask);
 
     for (const corePlan of corePlans) {
-      const candidateDistance = getRange(corePlan.firstSpawn, selectedCenter);
+      const candidateDistance = getRange(corePlan.firstSpawn, planningCenter);
       if (
         controllerAreaCandidate.tier < bestTier ||
         candidateDistance < bestDistance
@@ -185,8 +174,7 @@ export function planBase(
     controller,
     sources,
     minerals,
-    selectedRegionIds,
-    safePlanningRegionByTile,
+    safePlanningMask,
     bestControllerArea,
     bestCorePlan,
     resourceTree,
@@ -203,8 +191,7 @@ export function planBase(
   // that whole attempt cannot reach the required slot quota.
   let slotPlan = planStructureSlots(
     terrain,
-    selectedRegionIds,
-    safePlanningRegionByTile,
+    safePlanningMask,
     bestControllerArea,
     bestCorePlan,
     resourceTree,
@@ -216,8 +203,7 @@ export function planBase(
   if (!slotPlan) {
     slotPlan = planStructureSlots(
       terrain,
-      selectedRegionIds,
-      planningRegionByTile,
+      outerRampartPlan.insideMask,
       bestControllerArea,
       bestCorePlan,
       resourceTree,
@@ -241,31 +227,16 @@ export function planBase(
   return { version: 1, roomName, anchor, structures };
 }
 
-function restrictRegionsToInterior(
-  regionByTile: Int16Array,
+function buildSafePlanningMask(
   insideMask: Uint8Array,
-): Int16Array {
-  const result = regionByTile.slice();
-
-  for (let index = 0; index < ROOM_AREA; index++) {
-    if (!insideMask[index]) {
-      result[index] = OUTSIDE_REGION_ID;
-    }
-  }
-
-  return result;
-}
-
-function restrictRegionsToSafeTiles(
-  regionByTile: Int16Array,
   dangerousMask: Uint8Array,
   repairMask: Uint8Array,
-): Int16Array {
-  const result = regionByTile.slice();
+): Uint8Array {
+  const result = insideMask.slice();
 
   for (let index = 0; index < ROOM_AREA; index++) {
     if (dangerousMask[index] || repairMask[index]) {
-      result[index] = OUTSIDE_REGION_ID;
+      result[index] = 0;
     }
   }
 
@@ -293,26 +264,20 @@ function visualizeSelectedRegions(
   }
 }
 
-function getSelectedRegionCenter(
-  selectedRegionIds: Set<number>,
-  regions: readonly TerrainRegion[],
-): RoomCoordinate {
+function getMaskCenter(mask: Uint8Array): RoomCoordinate {
   let sumX = 0;
   let sumY = 0;
   let numTiles = 0;
 
-  for (const region of regions) {
-    if (!selectedRegionIds.has(region.id)) {
+  for (let index = 0; index < ROOM_AREA; index++) {
+    if (!mask[index]) {
       continue;
     }
 
-    for (const index of region.tileIndices) {
-      const { x, y } = fromRoomIndex(index);
-
-      sumX += x;
-      sumY += y;
-      numTiles++;
-    }
+    const { x, y } = fromRoomIndex(index);
+    sumX += x;
+    sumY += y;
+    numTiles++;
   }
 
   return {

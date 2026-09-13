@@ -40,8 +40,7 @@ export interface CorePlan {
 
 export function findCorePlans(
   controllerAreaCandidate: ControllerAreaCandidate,
-  selectedRegionIds: Set<number>,
-  regionByTile: Int16Array,
+  planningMask: Uint8Array,
 ): CorePlan[] {
   const { storage, upgradeChains } = controllerAreaCandidate;
 
@@ -58,8 +57,7 @@ export function findCorePlans(
   for (const mirrored of [true, false]) {
     const corePlan = tryCoreStamp(
       storage,
-      selectedRegionIds,
-      regionByTile,
+      planningMask,
       upgradeTileIndices,
       upgradeChains,
       middleRoot,
@@ -78,8 +76,7 @@ export function findCorePlans(
 
 function isValidCoordinate(
   coordinate: RoomCoordinate,
-  selectedRegionIds: Set<number>,
-  regionByTile: Int16Array,
+  planningMask: Uint8Array,
   upgradeTileIndices: Set<number>,
 ): boolean {
   if (!isInsideRoom(coordinate.x, coordinate.y)) {
@@ -88,7 +85,7 @@ function isValidCoordinate(
 
   const index = toRoomIndex(coordinate.x, coordinate.y);
 
-  if (!selectedRegionIds.has(regionByTile[index])) {
+  if (!planningMask[index]) {
     return false;
   }
 
@@ -101,8 +98,7 @@ function isValidCoordinate(
 
 function tryCoreStamp(
   storage: RoomCoordinate,
-  selectedRegionIds: Set<number>,
-  regionByTile: Int16Array,
+  planningMask: Uint8Array,
   upgradeTileIndices: Set<number>,
   upgradeChains: UpgradeChains,
   middleRoot: RoomCoordinate,
@@ -117,12 +113,7 @@ function tryCoreStamp(
     transformCoreCoordinate(coordinate, storage, forward, mirrored);
 
   const isValid = (coordinate: RoomCoordinate) =>
-    isValidCoordinate(
-      coordinate,
-      selectedRegionIds,
-      regionByTile,
-      upgradeTileIndices,
-    );
+    isValidCoordinate(coordinate, planningMask, upgradeTileIndices);
 
   const manager = transform(CORE_STAMP.manager);
 
