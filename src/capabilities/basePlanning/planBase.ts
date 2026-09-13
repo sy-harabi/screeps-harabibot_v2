@@ -5,12 +5,13 @@ import {
   findTerrainRegions,
   TerrainRegion,
 } from "../../world/map/terrainRegions";
-import type { BasePlan, PlannedStructure } from "./basePlan";
+import type { BasePlan } from "./basePlan";
 import { classifyDefensiveTiles } from "./classifyDefensiveTiles";
 import {
   ControllerAreaCandidate,
   findControllerAreaCandidates,
 } from "./findControllerAreaCandidates";
+import { finalizeBasePlanStructures } from "./finalizeBasePlan";
 import { CorePlan, findCorePlans } from "./findCorePlans";
 import { planLabs } from "./planLabs";
 import { planOuterRampartRoads } from "./planOuterRampartRoads";
@@ -57,9 +58,8 @@ export function planBase(
 
   const defensiveTiles = classifyDefensiveTiles(outerRampartPlan, visual);
 
-  // From this point on, the min-cut result is the source of truth for the
-  // buildable base interior. The original terrain-region selection is only an
-  // input to outer-rampart planning and must not constrain downstream plans.
+  // Downstream planning uses the actual min-cut interior and deliberately
+  // excludes dangerous and repair standing tiles for now.
   const safePlanningMask = buildSafePlanningMask(
     outerRampartPlan.insideMask,
     defensiveTiles.dangerousMask,
@@ -108,10 +108,6 @@ export function planBase(
     bestControllerArea.storage.y,
     STRUCTURE_STORAGE,
   );
-
-  // for (const chain of Object.values(bestControllerArea.upgradeChains)) {
-  //   visualizeUpgradePath(visual, chain, "", "#ffd166");
-  // }
 
   visual.text("M", bestCorePlan.manager.x, bestCorePlan.manager.y);
   visual.structure(
@@ -186,10 +182,7 @@ export function planBase(
     return;
   }
 
-  // Run the complete slot planner, including branch generation, inside the
-  // safe planning space first. Dangerous and repair tiles are relaxed only if
-  // that whole attempt cannot reach the required slot quota.
-  let slotPlan = planStructureSlots(
+  const slotPlan = planStructureSlots(
     terrain,
     safePlanningMask,
     bestControllerArea,
@@ -204,14 +197,33 @@ export function planBase(
     return;
   }
 
+  const structures = finalizeBasePlanStructures(
+    sources,
+    minerals,
+    bestControllerArea,
+    bestCorePlan,
+    resourceTree,
+    outerRampartPlan,
+    rampartRoadPlan,
+    labPlan,
+    slotPlan,
+    visual,
+  );
+
+  if (!structures) {
+    return;
+  }
+
   Game.map.visual.text("SUCCESS", new RoomPosition(25, 25, roomName));
 
   visual.connectRoads();
 
-  const structures: PlannedStructure[] = [];
-  const anchor = { x: 25, y: 25 };
-
-  return { version: 1, roomName, anchor, structures };
+  return {
+    version: 1,
+    roomName,
+    anchor: bestControllerArea.storage,
+    structures,
+  };
 }
 
 function buildSafePlanningMask(
