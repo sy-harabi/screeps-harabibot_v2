@@ -145,6 +145,9 @@ export function planBase(
 
   const boundaryRoadPlan = planRegionBoundaryRoads(
     terrain,
+    controller,
+    sources,
+    minerals,
     boundaryComponents,
     selectedRegionIds,
     regionByTile,
