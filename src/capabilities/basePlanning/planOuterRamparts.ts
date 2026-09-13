@@ -5,8 +5,12 @@ import {
   isInsideRoom,
   NEIGHBOR_OFFSETS,
   ROOM_AREA,
+  ROOM_SIZE,
   toRoomIndex,
 } from "../../world/map/roomGrid";
+
+const BASE_RAMPART_COST = 10;
+const EXIT_SINK_RANGE = 1;
 
 export interface OuterRampartPlan {
   readonly ramparts: RoomCoordinate[];
@@ -18,14 +22,14 @@ export interface OuterRampartPlan {
 /**
  * Converts the selected terrain regions into the actual outer defensive line.
  *
- * The selected area is eroded by one traversable tile and the remaining
- * interior is protected by a minimum tile cut against the walkable fringe
- * immediately outside the selected regions. This keeps the cut near the
- * selected-region boundary while allowing walls and narrow boundary geometry
- * to shorten the rampart line.
+ * The selected area is eroded by one traversable tile and protected from the
+ * room exits. Cut cost increases with 8-directional walk distance from the
+ * controller, preferring ramparts that are faster to reinforce and repair
+ * while still allowing a farther choke when it saves enough rampart tiles.
  */
 export function planOuterRamparts(
   terrain: RoomTerrain,
+  controller: StructureController,
   selectedRegionIds: ReadonlySet<number>,
   regionByTile: Int16Array,
   visual: RoomVisual,
@@ -36,9 +40,15 @@ export function planOuterRamparts(
     regionByTile,
   );
   const sourceMask = shrinkSelectedRegion(terrain, selectedMask);
-  const sinkMask = buildOuterFringeMask(terrain, selectedMask);
+  const sinkMask = buildExitSinkMask(terrain);
+  const tileCosts = buildControllerDistanceCosts(terrain, controller.pos);
 
-  const result = findMinimumTileCut(terrain, sourceMask, sinkMask);
+  const result = findMinimumTileCut(
+    terrain,
+    sourceMask,
+    sinkMask,
+    tileCosts,
+  );
 
   if (!result || result.cuts.length === 0) {
     return;
@@ -126,21 +136,69 @@ function shrinkSelectedRegion(
 }
 
 /**
- * Walkable non-selected tiles touching the selected area are sufficient sinks:
- * every path leaving the selected regions must enter this fringe first.
+ * Treat each walkable room exit and its range-1 interior as sink territory so
+ * the minimum cut cannot settle directly on the room border.
  */
-function buildOuterFringeMask(
-  terrain: RoomTerrain,
-  selectedMask: Uint8Array,
-): Uint8Array {
+function buildExitSinkMask(terrain: RoomTerrain): Uint8Array {
   const sinkMask = new Uint8Array(ROOM_AREA);
 
   for (let index = 0; index < ROOM_AREA; index++) {
-    if (!selectedMask[index]) {
+    const { x, y } = fromRoomIndex(index);
+
+    if (x !== 0 && x !== ROOM_SIZE - 1 && y !== 0 && y !== ROOM_SIZE - 1) {
       continue;
     }
 
+    if (terrain.get(x, y) === TERRAIN_MASK_WALL) {
+      continue;
+    }
+
+    for (let dy = -EXIT_SINK_RANGE; dy <= EXIT_SINK_RANGE; dy++) {
+      for (let dx = -EXIT_SINK_RANGE; dx <= EXIT_SINK_RANGE; dx++) {
+        const sinkX = x + dx;
+        const sinkY = y + dy;
+
+        if (!isInsideRoom(sinkX, sinkY)) {
+          continue;
+        }
+
+        if (terrain.get(sinkX, sinkY) === TERRAIN_MASK_WALL) {
+          continue;
+        }
+
+        sinkMask[toRoomIndex(sinkX, sinkY)] = 1;
+      }
+    }
+  }
+
+  return sinkMask;
+}
+
+/**
+ * Rampart capacity is its base construction/maintenance cost plus the number
+ * of 8-directional walk steps from the controller. Swamps intentionally have
+ * no extra weight: this distance approximates reinforcement travel time rather
+ * than road construction cost.
+ */
+function buildControllerDistanceCosts(
+  terrain: RoomTerrain,
+  controller: RoomCoordinate,
+): Uint16Array {
+  const distanceMap = new Int16Array(ROOM_AREA);
+  distanceMap.fill(-1);
+
+  const queue = new Int16Array(ROOM_AREA);
+  let queueHead = 0;
+  let queueTail = 0;
+
+  const controllerIndex = toRoomIndex(controller.x, controller.y);
+  distanceMap[controllerIndex] = 0;
+  queue[queueTail++] = controllerIndex;
+
+  while (queueHead < queueTail) {
+    const index = queue[queueHead++];
     const coordinate = fromRoomIndex(index);
+    const nextDistance = distanceMap[index] + 1;
 
     for (const offset of NEIGHBOR_OFFSETS) {
       const x = coordinate.x + offset.x;
@@ -156,11 +214,22 @@ function buildOuterFringeMask(
 
       const neighborIndex = toRoomIndex(x, y);
 
-      if (!selectedMask[neighborIndex]) {
-        sinkMask[neighborIndex] = 1;
+      if (distanceMap[neighborIndex] >= 0) {
+        continue;
       }
+
+      distanceMap[neighborIndex] = nextDistance;
+      queue[queueTail++] = neighborIndex;
     }
   }
 
-  return sinkMask;
+  const tileCosts = new Uint16Array(ROOM_AREA);
+
+  for (let index = 0; index < ROOM_AREA; index++) {
+    const distance = distanceMap[index];
+    tileCosts[index] =
+      BASE_RAMPART_COST + (distance >= 0 ? distance : ROOM_AREA);
+  }
+
+  return tileCosts;
 }
