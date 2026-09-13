@@ -11,9 +11,9 @@ import {
   toRoomIndex,
 } from "../../world/map/roomGrid";
 
-const BASE_RAMPART_COST = 10;
+const BASE_RAMPART_COST = 1;
 const EXIT_SINK_RANGE = 1;
-const MAX_RAMPART_DISTANCE = 5;
+const BASE_DISTANCE = 15;
 
 export interface OuterRampartPlan {
   readonly ramparts: RoomCoordinate[];
@@ -45,7 +45,6 @@ export function planOuterRamparts(
   );
   const sourceMask = shrinkSelectedRegion(terrain, selectedMask);
   const sinkMask = buildExitSinkMask(terrain);
-  addRegionDistanceSinks(terrain, selectedMask, sinkMask);
   const tileCosts = buildControllerDistanceCosts(terrain, controller.pos);
 
   const result = findMinimumTileCut(terrain, sourceMask, sinkMask, tileCosts);
@@ -175,33 +174,6 @@ function buildExitSinkMask(terrain: RoomTerrain): Uint8Array {
 }
 
 /**
- * Adds the walkable frontier exactly MAX_RAMPART_DISTANCE flood-fill steps
- * away from the selected regions as sink territory. This constrains the cut to
- * remain within that distance without replacing the existing room-exit sinks.
- */
-function addRegionDistanceSinks(
-  terrain: RoomTerrain,
-  selectedMask: Uint8Array,
-  sinkMask: Uint8Array,
-): void {
-  const startCoordinates: RoomCoordinate[] = [];
-
-  for (let index = 0; index < ROOM_AREA; index++) {
-    if (selectedMask[index]) {
-      startCoordinates.push(fromRoomIndex(index));
-    }
-  }
-
-  const { distances } = floodFill(terrain, startCoordinates);
-
-  for (let index = 0; index < ROOM_AREA; index++) {
-    if (distances[index] === MAX_RAMPART_DISTANCE) {
-      sinkMask[index] = 1;
-    }
-  }
-}
-
-/**
  * Rampart capacity is its base construction/maintenance cost plus the number
  * of 8-directional flood-fill steps from the controller. Swamps intentionally
  * have no extra weight: this distance approximates reinforcement travel time
@@ -216,6 +188,7 @@ function buildControllerDistanceCosts(
   forEachCoordinateAtRange(controller, 1, (x, y) => {
     startCoordinates.push({ x, y });
   });
+
   const { distances } = floodFill(terrain, startCoordinates);
 
   const tileCosts = new Uint16Array(ROOM_AREA);
@@ -223,8 +196,10 @@ function buildControllerDistanceCosts(
   for (let index = 0; index < ROOM_AREA; index++) {
     const distance = distances[index];
 
-    tileCosts[index] =
-      BASE_RAMPART_COST + (distance >= 0 ? distance : ROOM_SIZE);
+    const distanceFactor =
+      distance > BASE_DISTANCE ? distance - BASE_DISTANCE : 0;
+
+    tileCosts[index] = BASE_RAMPART_COST + 2 ** distanceFactor;
   }
 
   return tileCosts;

@@ -42,7 +42,7 @@ export function planBase(
     regions,
   );
 
-  // visualizeSelectedRegions(selectedRegionIds, regions, visual);
+  visualizeSelectedRegions(selectedRegionIds, regions, visual);
 
   const outerRampartPlan = planOuterRamparts(
     terrain,
@@ -56,7 +56,7 @@ export function planBase(
     return;
   }
 
-  const defensiveTiles = classifyDefensiveTiles(outerRampartPlan, visual);
+  const defensiveTiles = classifyDefensiveTiles(outerRampartPlan);
 
   // Downstream planning uses the actual min-cut interior and deliberately
   // excludes dangerous and repair standing tiles for now.
