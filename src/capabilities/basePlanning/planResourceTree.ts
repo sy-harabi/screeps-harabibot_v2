@@ -22,15 +22,23 @@ interface ResourceTarget {
   readonly targetId: Id<Source> | Id<Mineral>;
   readonly coordinate: RoomCoordinate;
   readonly bit: number;
+  readonly kind: "source" | "mineral";
 }
 
 interface SelectedResourceTarget extends ResourceTarget {
   readonly container: RoomCoordinate;
+  readonly link?: RoomCoordinate;
+}
+
+interface ContainerSelection {
+  readonly container: RoomCoordinate;
+  readonly link?: RoomCoordinate;
 }
 
 export interface ResourceBranchPlan {
   readonly targetId: Id<Source> | Id<Mineral>;
   readonly container: RoomCoordinate;
+  readonly link?: RoomCoordinate;
   readonly roads: RoomCoordinate[];
 }
 
@@ -48,13 +56,20 @@ export function planResourceTree(
   corePlan: CorePlan,
   visual: RoomVisual,
 ): ResourceTreePlan | undefined {
-  const targets: ResourceTarget[] = [...sources, ...minerals].map(
-    (object, index) => ({
-      targetId: object.id,
-      coordinate: object.pos,
+  const targets: ResourceTarget[] = [
+    ...sources.map((source, index) => ({
+      targetId: source.id,
+      coordinate: source.pos,
       bit: 1 << index,
-    }),
-  );
+      kind: "source" as const,
+    })),
+    ...minerals.map((mineral, index) => ({
+      targetId: mineral.id,
+      coordinate: mineral.pos,
+      bit: 1 << (sources.length + index),
+      kind: "mineral" as const,
+    })),
+  ];
 
   if (targets.length === 0) {
     const blockedMap = buildBlockedMap(
@@ -362,6 +377,7 @@ export function planResourceTree(
     branches.push({
       targetId: target.targetId,
       container: selectedTarget.container,
+      link: selectedTarget.link,
       roads: branchRoads,
     });
 
@@ -370,6 +386,14 @@ export function planResourceTree(
       selectedTarget.container.y,
       STRUCTURE_CONTAINER,
     );
+
+    if (selectedTarget.link) {
+      visual.structure(
+        selectedTarget.link.x,
+        selectedTarget.link.y,
+        STRUCTURE_LINK,
+      );
+    }
   }
 
   return { roads, branches, coreDistanceMap: distanceMap };
@@ -428,7 +452,7 @@ function selectResourceContainers(
     for (let index = 0; index < remainingTargets.length; index++) {
       const target = remainingTargets[index];
       const candidates = findReachableContainerCandidates(
-        target.coordinate,
+        target,
         distanceMap,
         coreRoadMask,
       );
@@ -458,22 +482,29 @@ function selectResourceContainers(
       return;
     }
 
-    const container = chooseContainer(
+    const selection = chooseContainer(
+      currentTarget,
       selectedCandidates,
       distanceMap,
       otherDagMask,
+      coreRoadMask,
     );
 
-    if (!container) {
+    if (!selection) {
       return;
     }
 
     selectedTargets.push({
       ...currentTarget,
-      container,
+      ...selection,
     });
 
-    blockedMap[toRoomIndex(container.x, container.y)] = 1;
+    blockedMap[toRoomIndex(selection.container.x, selection.container.y)] = 1;
+
+    if (selection.link) {
+      blockedMap[toRoomIndex(selection.link.x, selection.link.y)] = 1;
+    }
+
     remainingTargets.splice(selectedIndex, 1);
   }
 
@@ -496,7 +527,7 @@ function buildOtherTargetDagMask(
 
     const target = targets[index];
     const candidates = findReachableContainerCandidates(
-      target.coordinate,
+      target,
       distanceMap,
       coreRoadMask,
     );
@@ -524,13 +555,58 @@ function buildOtherTargetDagMask(
 }
 
 function findReachableContainerCandidates(
-  center: RoomCoordinate,
+  target: ResourceTarget,
   distanceMap: Int32Array,
   coreRoadMask: Uint8Array,
 ): RoomCoordinate[] {
   const candidates: RoomCoordinate[] = [];
 
-  forEachCoordinateAtRange(center, 1, (x, y) => {
+  forEachCoordinateAtRange(target.coordinate, 1, (x, y) => {
+    const index = toRoomIndex(x, y);
+
+    if (distanceMap[index] < 0 || coreRoadMask[index]) {
+      return;
+    }
+
+    const coordinate = { x, y };
+
+    if (
+      target.kind === "source" &&
+      findSourceLinkCandidates(
+        target.coordinate,
+        coordinate,
+        distanceMap,
+        coreRoadMask,
+      ).length === 0
+    ) {
+      return;
+    }
+
+    candidates.push(coordinate);
+  });
+
+  return candidates;
+}
+
+function findSourceLinkCandidates(
+  source: RoomCoordinate,
+  container: RoomCoordinate,
+  distanceMap: Int32Array,
+  coreRoadMask: Uint8Array,
+): RoomCoordinate[] {
+  const candidates: RoomCoordinate[] = [];
+
+  forEachCoordinateAtRange(source, 1, (x, y) => {
+    if (x === container.x && y === container.y) {
+      return;
+    }
+
+    if (
+      Math.max(Math.abs(x - container.x), Math.abs(y - container.y)) > 1
+    ) {
+      return;
+    }
+
     const index = toRoomIndex(x, y);
 
     if (distanceMap[index] < 0 || coreRoadMask[index]) {
@@ -597,27 +673,77 @@ function getMinimumDistance(
 }
 
 function chooseContainer(
+  target: ResourceTarget,
   candidates: readonly RoomCoordinate[],
   distanceMap: Int32Array,
   otherDagMask: Uint8Array,
-): RoomCoordinate | undefined {
-  let bestSafe: RoomCoordinate | undefined;
+  coreRoadMask: Uint8Array,
+): ContainerSelection | undefined {
+  let bestSafe: ContainerSelection | undefined;
   let bestSafeDistance = Infinity;
-  let bestFallback: RoomCoordinate | undefined;
+  let bestFallback: ContainerSelection | undefined;
   let bestFallbackDistance = Infinity;
 
-  for (const coordinate of candidates) {
-    const index = toRoomIndex(coordinate.x, coordinate.y);
-    const distance = distanceMap[index];
+  for (const container of candidates) {
+    const containerIndex = toRoomIndex(container.x, container.y);
+    const distance = distanceMap[containerIndex];
+    let link: RoomCoordinate | undefined;
+
+    if (target.kind === "source") {
+      const linkCandidates = findSourceLinkCandidates(
+        target.coordinate,
+        container,
+        distanceMap,
+        coreRoadMask,
+      );
+
+      link = chooseSourceLink(linkCandidates, otherDagMask);
+
+      if (!link) {
+        continue;
+      }
+    }
+
+    const selection = { container, link };
 
     if (distance < bestFallbackDistance) {
-      bestFallback = coordinate;
+      bestFallback = selection;
       bestFallbackDistance = distance;
     }
 
-    if (!otherDagMask[index] && distance < bestSafeDistance) {
-      bestSafe = coordinate;
+    const linkIndex = link ? toRoomIndex(link.x, link.y) : -1;
+    const isSafe =
+      !otherDagMask[containerIndex] &&
+      (linkIndex < 0 || !otherDagMask[linkIndex]);
+
+    if (isSafe && distance < bestSafeDistance) {
+      bestSafe = selection;
       bestSafeDistance = distance;
+    }
+  }
+
+  return bestSafe ?? bestFallback;
+}
+
+function chooseSourceLink(
+  candidates: readonly RoomCoordinate[],
+  otherDagMask: Uint8Array,
+): RoomCoordinate | undefined {
+  let bestSafe: RoomCoordinate | undefined;
+  let bestFallback: RoomCoordinate | undefined;
+
+  for (const coordinate of candidates) {
+    const index = toRoomIndex(coordinate.x, coordinate.y);
+
+    if (!bestFallback || index < toRoomIndex(bestFallback.x, bestFallback.y)) {
+      bestFallback = coordinate;
+    }
+
+    if (
+      !otherDagMask[index] &&
+      (!bestSafe || index < toRoomIndex(bestSafe.x, bestSafe.y))
+    ) {
+      bestSafe = coordinate;
     }
   }
 
