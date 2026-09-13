@@ -201,6 +201,10 @@ export function planBase(
   );
 
   if (!slotPlan) {
+    return;
+  }
+
+  if (!slotPlan) {
     slotPlan = planStructureSlots(
       terrain,
       outerRampartPlan.insideMask,

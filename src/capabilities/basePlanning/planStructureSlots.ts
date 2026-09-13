@@ -33,6 +33,7 @@ export interface StructureSlot {
 export interface StructureSlotPlan {
   readonly slots: StructureSlot[];
   readonly roads: RoomCoordinate[];
+  readonly complete: boolean;
 }
 
 export function planStructureSlots(
@@ -68,8 +69,10 @@ export function planStructureSlots(
 
   const serviceDistances = collectServiceDistances(serviceDistanceMap);
 
-  for (const maxServiceDistance of serviceDistances) {
-    const plan = findGreedySlotPlan(
+  let plan: StructureSlotPlan | undefined;
+
+  for (const maxServiceDistance of [...serviceDistances]) {
+    plan = findGreedySlotPlan(
       terrain,
       mandatoryRoadMask,
       blockedMask,
@@ -78,15 +81,20 @@ export function planStructureSlots(
       planningMask,
     );
 
-    if (!plan) {
+    if (!plan || !plan.complete) {
       continue;
     }
 
-    visualizeStructureSlotPlan(plan, visual);
     return plan;
   }
 
-  return;
+  if (!plan) {
+    return;
+  }
+
+  visualizeStructureSlotPlan(plan, visual);
+
+  return plan;
 }
 
 function findGreedySlotPlan(
@@ -111,6 +119,8 @@ function findGreedySlotPlan(
     blockedMask,
     planningMask,
   );
+
+  let complete = true;
 
   while (slots.length < REQUIRED_STRUCTURE_SLOTS) {
     const candidates = generateBranchCandidates(
@@ -161,7 +171,8 @@ function findGreedySlotPlan(
     }
 
     if (!bestCandidate || !bestSlots) {
-      return;
+      complete = false;
+      break;
     }
 
     for (const index of bestCandidate.newRoadIndices) {
@@ -175,6 +186,7 @@ function findGreedySlotPlan(
   return {
     slots,
     roads: collectCoordinates(addedRoadMask),
+    complete,
   };
 }
 
@@ -217,7 +229,7 @@ function generateBranchCandidates(
         }
       }
 
-      if (!valid || newRoadIndices.length === 0) {
+      if (!valid || newRoadIndices.length < 2) {
         continue;
       }
 
@@ -424,9 +436,12 @@ function visualizeStructureSlotPlan(
   plan: StructureSlotPlan,
   visual: RoomVisual,
 ): void {
-  plan.roads.forEach((road) =>
-    visual.structure(road.x, road.y, STRUCTURE_ROAD),
-  );
+  visual.text(plan.slots.length.toString(), 25, 10);
+
+  plan.roads.forEach((road, index) => {
+    visual.text(index.toString(), road.x, road.y);
+    visual.structure(road.x, road.y, STRUCTURE_ROAD);
+  });
 
   plan.slots.forEach((slot) =>
     visual.circle(slot.coordinate.x, slot.coordinate.y, {
