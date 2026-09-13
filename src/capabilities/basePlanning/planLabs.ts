@@ -479,6 +479,10 @@ function buildReservedMask(
 
   for (const branch of resourceTree.branches) {
     reserve(branch.container);
+
+    if (branch.link) {
+      reserve(branch.link);
+    }
   }
 
   return reservedMask;
