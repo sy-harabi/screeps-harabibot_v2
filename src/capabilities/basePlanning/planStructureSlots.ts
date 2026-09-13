@@ -28,6 +28,7 @@ interface BranchCandidate {
 
 export interface StructureSlot {
   readonly coordinate: RoomCoordinate;
+  readonly serviceDistance: number;
 }
 
 export interface StructureSlotPlan {
@@ -116,6 +117,7 @@ function findGreedySlotPlan(
     mandatoryRoadMask,
     blockedMask,
     planningMask,
+    serviceDistanceMap,
   );
 
   let complete = true;
@@ -145,6 +147,7 @@ function findGreedySlotPlan(
         mandatoryRoadMask,
         blockedMask,
         planningMask,
+        serviceDistanceMap,
       );
       const gain = candidateSlots.length - slots.length;
       const cost = candidate.newRoadIndices.length;
@@ -205,7 +208,6 @@ function generateBranchCandidates(
 
     for (const direction of DIAGONAL_DIRECTIONS) {
       const newRoadIndices: number[] = [];
-      let valid = true;
 
       for (let step = 1; step <= 3; step++) {
         const x = root.x + direction.x * step;
@@ -227,7 +229,7 @@ function generateBranchCandidates(
         }
       }
 
-      if (!valid || newRoadIndices.length < 2) {
+      if (newRoadIndices.length < 2) {
         continue;
       }
 
@@ -252,6 +254,7 @@ function collectStructureSlots(
   mandatoryRoadMask: Uint8Array,
   structureBlockedMask: Uint8Array,
   planningMask: Uint8Array,
+  serviceDistanceMap: Int32Array,
 ): StructureSlot[] {
   const slotMask = new Uint8Array(ROOM_AREA);
   const slots: StructureSlot[] = [];
@@ -293,8 +296,14 @@ function collectStructureSlots(
         continue;
       }
 
+      const serviceDistance = serviceDistanceMap[index];
+
+      if (serviceDistance < 0) {
+        continue;
+      }
+
       slotMask[index] = 1;
-      slots.push({ coordinate: { x, y } });
+      slots.push({ coordinate: { x, y }, serviceDistance });
     }
   }
 
