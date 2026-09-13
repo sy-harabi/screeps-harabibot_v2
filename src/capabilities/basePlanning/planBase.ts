@@ -46,6 +46,7 @@ export function planBase(
 
   const outerRampartPlan = planOuterRamparts(
     terrain,
+    controller,
     selectedRegionIds,
     regionByTile,
     visual,
