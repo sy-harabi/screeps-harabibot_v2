@@ -1,3 +1,4 @@
+import { floodFill } from "../../world/map/floodFill";
 import { findMinimumTileCut } from "../../world/map/minCut";
 import type { RoomCoordinate } from "../../world/map/roomCoordinate";
 import {
@@ -176,57 +177,19 @@ function buildExitSinkMask(terrain: RoomTerrain): Uint8Array {
 
 /**
  * Rampart capacity is its base construction/maintenance cost plus the number
- * of 8-directional walk steps from the controller. Swamps intentionally have
- * no extra weight: this distance approximates reinforcement travel time rather
- * than road construction cost.
+ * of 8-directional flood-fill steps from the controller. Swamps intentionally
+ * have no extra weight: this distance approximates reinforcement travel time
+ * rather than road construction cost.
  */
 function buildControllerDistanceCosts(
   terrain: RoomTerrain,
   controller: RoomCoordinate,
 ): Uint16Array {
-  const distanceMap = new Int16Array(ROOM_AREA);
-  distanceMap.fill(-1);
-
-  const queue = new Int16Array(ROOM_AREA);
-  let queueHead = 0;
-  let queueTail = 0;
-
-  const controllerIndex = toRoomIndex(controller.x, controller.y);
-  distanceMap[controllerIndex] = 0;
-  queue[queueTail++] = controllerIndex;
-
-  while (queueHead < queueTail) {
-    const index = queue[queueHead++];
-    const coordinate = fromRoomIndex(index);
-    const nextDistance = distanceMap[index] + 1;
-
-    for (const offset of NEIGHBOR_OFFSETS) {
-      const x = coordinate.x + offset.x;
-      const y = coordinate.y + offset.y;
-
-      if (!isInsideRoom(x, y)) {
-        continue;
-      }
-
-      if (terrain.get(x, y) === TERRAIN_MASK_WALL) {
-        continue;
-      }
-
-      const neighborIndex = toRoomIndex(x, y);
-
-      if (distanceMap[neighborIndex] >= 0) {
-        continue;
-      }
-
-      distanceMap[neighborIndex] = nextDistance;
-      queue[queueTail++] = neighborIndex;
-    }
-  }
-
+  const { distances } = floodFill(terrain, [controller]);
   const tileCosts = new Uint16Array(ROOM_AREA);
 
   for (let index = 0; index < ROOM_AREA; index++) {
-    const distance = distanceMap[index];
+    const distance = distances[index];
     tileCosts[index] =
       BASE_RAMPART_COST + (distance >= 0 ? distance : ROOM_AREA);
   }
