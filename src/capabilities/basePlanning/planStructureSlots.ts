@@ -13,6 +13,8 @@ import { LabPlan } from "./planLabs";
 import { RegionBoundaryRoadPlan } from "./planRegionBoundaryRoads";
 import { ResourceTreePlan } from "./planResourceTree";
 
+const REQUIRED_STRUCTURE_SLOTS = 70;
+
 export interface StructureSlot {
   readonly coordinate: RoomCoordinate;
   readonly growthDistance: number;
@@ -48,7 +50,6 @@ export function planStructureSlots(
     controllerArea,
     corePlan,
     resourceTree,
-    boundaryRoadPlan,
     labPlan,
   );
 
@@ -164,21 +165,16 @@ function buildGrowthDistanceMap(
   roadMask: Uint8Array,
   blockedMask: Uint8Array,
 ) {
-  const getGrowthCost = (x: number, y: number, terrainType: number): number => {
-    const index = toRoomIndex(x, y);
+  return dijkstraMap(
+    terrain,
+    corePlan.roads,
+    (_x, _y) => 1,
+    (x, y) => {
+      const index = toRoomIndex(x, y);
 
-    if (roadMask[index]) {
-      return 4;
-    }
-
-    return terrainType === TERRAIN_MASK_SWAMP ? 6 : 5;
-  };
-
-  return dijkstraMap(terrain, corePlan.roads, getGrowthCost, (x, y) => {
-    const index = toRoomIndex(x, y);
-
-    return selectedRegionIds.has(regionByTile[index]) && !blockedMask[index];
-  });
+      return selectedRegionIds.has(regionByTile[index]) && !blockedMask[index];
+    },
+  );
 }
 
 function buildRoadMask(
@@ -209,7 +205,6 @@ function buildStructureSlotBlockedMask(
   controllerArea: ControllerAreaCandidate,
   corePlan: CorePlan,
   resourceTree: ResourceTreePlan,
-  boundaryRoadPlan: RegionBoundaryRoadPlan,
   labPlan: LabPlan,
 ): Uint8Array {
   const blockedMask = new Uint8Array(ROOM_AREA);
@@ -230,7 +225,6 @@ function buildStructureSlotBlockedMask(
   block(corePlan.manager);
   block(corePlan.firstSpawn);
   block(corePlan.link);
-  block(corePlan.powerSpawn);
   block(corePlan.terminal);
 
   corePlan.parking.forEach(block);
