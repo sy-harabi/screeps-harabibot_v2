@@ -1,4 +1,3 @@
-import { dijkstraMap } from "../../world/map/dijkstraMap";
 import { RoomCoordinate } from "../../world/map/roomCoordinate";
 import {
   forEachCoordinateAtRange,
@@ -7,6 +6,7 @@ import {
 } from "../../world/map/roomGrid";
 import { ControllerAreaCandidate } from "./findControllerAreaCandidates";
 import { CorePlan } from "./findCorePlans";
+import { buildResourceDistanceMap } from "./resourcePlanningUtils";
 
 interface ResourceTarget {
   readonly targetId: Id<Source> | Id<Mineral>;
@@ -26,7 +26,7 @@ export interface ResourceEndpointPlan extends ResourceTarget {
   readonly link?: RoomCoordinate;
 }
 
-export interface ResourceEndpointPlanningResult {
+export interface ResourceEndpointPlanResult {
   readonly endpoints: ResourceEndpointPlan[];
   readonly blockedMap: Uint8Array;
 }
@@ -37,18 +37,19 @@ export function planResourceEndpoints(
   minerals: readonly Mineral[],
   controllerArea: ControllerAreaCandidate,
   corePlan: CorePlan,
-): ResourceEndpointPlanningResult | undefined {
+): ResourceEndpointPlanResult | undefined {
   const targets = buildResourceTargets(sources, minerals);
-  const blockedMap = buildResourceBlockedMap(
+  const blockedMap = buildInitialBlockedMap(
     sources,
     minerals,
     controllerArea,
     corePlan,
   );
   const coreRoadMask = buildCoordinateMask(corePlan.roads);
-  const endpoints = searchResourceEndpoints(
+  const endpoints = findResourceEndpointPlan(
     terrain,
     targets,
+    [],
     blockedMap,
     coreRoadMask,
     corePlan.roads,
@@ -81,7 +82,7 @@ function buildResourceTargets(
   ];
 }
 
-function buildResourceBlockedMap(
+function buildInitialBlockedMap(
   sources: readonly Source[],
   minerals: readonly Mineral[],
   controllerArea: ControllerAreaCandidate,
@@ -122,22 +123,27 @@ function buildCoordinateMask(
   return mask;
 }
 
-function searchResourceEndpoints(
+function findResourceEndpointPlan(
   terrain: RoomTerrain,
   remainingTargets: readonly ResourceTarget[],
+  plannedEndpoints: readonly ResourceEndpointPlan[],
   blockedMap: Uint8Array,
   coreRoadMask: Uint8Array,
   coreRoads: readonly RoomCoordinate[],
 ): ResourceEndpointPlan[] | undefined {
-  if (remainingTargets.length === 0) {
-    return [];
-  }
-
   const distanceMap = buildResourceDistanceMap(
     terrain,
     blockedMap,
     coreRoads,
   );
+
+  if (!areEndpointsReachable(plannedEndpoints, distanceMap)) {
+    return;
+  }
+
+  if (remainingTargets.length === 0) {
+    return [...plannedEndpoints];
+  }
 
   let selectedIndex = -1;
   let selectedCandidates: ResourceEndpointCandidate[] = [];
@@ -145,7 +151,7 @@ function searchResourceEndpoints(
 
   for (let index = 0; index < remainingTargets.length; index++) {
     const target = remainingTargets[index];
-    const candidates = collectResourceEndpointCandidates(
+    const candidates = collectEndpointCandidates(
       target,
       distanceMap,
       coreRoadMask,
@@ -174,25 +180,25 @@ function searchResourceEndpoints(
   );
 
   for (const candidate of selectedCandidates) {
+    const endpoint: ResourceEndpointPlan = {
+      ...target,
+      container: candidate.container,
+      link: candidate.link,
+    };
+
     reserveEndpoint(candidate, blockedMap);
 
-    const rest = searchResourceEndpoints(
+    const result = findResourceEndpointPlan(
       terrain,
       nextTargets,
+      [...plannedEndpoints, endpoint],
       blockedMap,
       coreRoadMask,
       coreRoads,
     );
 
-    if (rest) {
-      return [
-        {
-          ...target,
-          container: candidate.container,
-          link: candidate.link,
-        },
-        ...rest,
-      ];
+    if (result) {
+      return result;
     }
 
     releaseEndpoint(candidate, blockedMap);
@@ -201,7 +207,7 @@ function searchResourceEndpoints(
   return;
 }
 
-function collectResourceEndpointCandidates(
+function collectEndpointCandidates(
   target: ResourceTarget,
   distanceMap: Int32Array,
   coreRoadMask: Uint8Array,
@@ -275,6 +281,30 @@ function collectSourceLinkCandidates(
   return candidates;
 }
 
+function areEndpointsReachable(
+  endpoints: readonly ResourceEndpointPlan[],
+  distanceMap: Int32Array,
+): boolean {
+  return endpoints.every((endpoint) =>
+    hasReachableAdjacentTile(endpoint.container, distanceMap),
+  );
+}
+
+function hasReachableAdjacentTile(
+  coordinate: RoomCoordinate,
+  distanceMap: Int32Array,
+): boolean {
+  let reachable = false;
+
+  forEachCoordinateAtRange(coordinate, 1, (x, y) => {
+    if (distanceMap[toRoomIndex(x, y)] >= 0) {
+      reachable = true;
+    }
+  });
+
+  return reachable;
+}
+
 function compareEndpointCandidates(
   left: ResourceEndpointCandidate,
   right: ResourceEndpointCandidate,
@@ -316,25 +346,4 @@ function releaseEndpoint(
   if (endpoint.link) {
     blockedMap[toRoomIndex(endpoint.link.x, endpoint.link.y)] = 0;
   }
-}
-
-export function buildResourceDistanceMap(
-  terrain: RoomTerrain,
-  blockedMap: Uint8Array,
-  coreRoads: readonly RoomCoordinate[],
-): Int32Array {
-  return dijkstraMap(
-    terrain,
-    coreRoads,
-    getResourceRoadCost,
-    (x, y) => blockedMap[toRoomIndex(x, y)] === 0,
-  );
-}
-
-export function getResourceRoadCost(
-  _x: number,
-  _y: number,
-  terrainType: number,
-): number {
-  return terrainType === TERRAIN_MASK_SWAMP ? 6 : 5;
 }
