@@ -13,6 +13,7 @@ import {
 
 const BASE_RAMPART_COST = 10;
 const EXIT_SINK_RANGE = 1;
+const MAX_RAMPART_DISTANCE = 5;
 
 export interface OuterRampartPlan {
   readonly ramparts: RoomCoordinate[];
@@ -25,9 +26,10 @@ export interface OuterRampartPlan {
  * Converts the selected terrain regions into the actual outer defensive line.
  *
  * The selected area is eroded by one traversable tile and protected from the
- * room exits. Cut cost increases with 8-directional walk distance from the
- * controller, preferring ramparts that are faster to reinforce and repair
- * while still allowing a farther choke when it saves enough rampart tiles.
+ * room exits and a fixed-distance frontier around the selected regions. Cut
+ * cost increases with 8-directional walk distance from the controller,
+ * preferring ramparts that are faster to reinforce and repair within that
+ * maximum distance.
  */
 export function planOuterRamparts(
   terrain: RoomTerrain,
@@ -43,6 +45,7 @@ export function planOuterRamparts(
   );
   const sourceMask = shrinkSelectedRegion(terrain, selectedMask);
   const sinkMask = buildExitSinkMask(terrain);
+  addRegionDistanceSinks(terrain, selectedMask, sinkMask);
   const tileCosts = buildControllerDistanceCosts(terrain, controller.pos);
 
   const result = findMinimumTileCut(terrain, sourceMask, sinkMask, tileCosts);
@@ -169,6 +172,33 @@ function buildExitSinkMask(terrain: RoomTerrain): Uint8Array {
   }
 
   return sinkMask;
+}
+
+/**
+ * Adds the walkable frontier exactly MAX_RAMPART_DISTANCE flood-fill steps
+ * away from the selected regions as sink territory. This constrains the cut to
+ * remain within that distance without replacing the existing room-exit sinks.
+ */
+function addRegionDistanceSinks(
+  terrain: RoomTerrain,
+  selectedMask: Uint8Array,
+  sinkMask: Uint8Array,
+): void {
+  const startCoordinates: RoomCoordinate[] = [];
+
+  for (let index = 0; index < ROOM_AREA; index++) {
+    if (selectedMask[index]) {
+      startCoordinates.push(fromRoomIndex(index));
+    }
+  }
+
+  const { distances } = floodFill(terrain, startCoordinates);
+
+  for (let index = 0; index < ROOM_AREA; index++) {
+    if (distances[index] === MAX_RAMPART_DISTANCE) {
+      sinkMask[index] = 1;
+    }
+  }
 }
 
 /**
