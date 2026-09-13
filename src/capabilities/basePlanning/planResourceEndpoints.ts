@@ -235,7 +235,6 @@ function collectEndpointCandidates(
 
     const linkCandidates = collectSourceLinkCandidates(
       terrain,
-      target.coordinate,
       container,
       blockedMap,
       coreRoadMask,
@@ -252,24 +251,13 @@ function collectEndpointCandidates(
 
 function collectSourceLinkCandidates(
   terrain: RoomTerrain,
-  source: RoomCoordinate,
   container: RoomCoordinate,
   blockedMap: Uint8Array,
   coreRoadMask: Uint8Array,
 ): RoomCoordinate[] {
   const candidates: RoomCoordinate[] = [];
 
-  forEachCoordinateAtRange(source, 1, (x, y) => {
-    if (x === container.x && y === container.y) {
-      return;
-    }
-
-    if (
-      Math.max(Math.abs(x - container.x), Math.abs(y - container.y)) > 1
-    ) {
-      return;
-    }
-
+  forEachCoordinateAtRange(container, 1, (x, y) => {
     const index = toRoomIndex(x, y);
 
     if (
