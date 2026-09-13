@@ -18,6 +18,7 @@ import {
 import { planLabs } from "./planLabs";
 import { planRegionBoundaryRoads } from "./planRegionBoundaryRoads";
 import { planResourceTree } from "./planResourceTree";
+import { planStructureSlots } from "./planStructureSlots";
 import { selectBaseRegions } from "./selectBaseRegions";
 
 /**
@@ -178,6 +179,21 @@ export function planBase(
   if (!labPlan) {
     return;
   }
+
+  const slots = planStructureSlots(
+    terrain,
+    controller,
+    sources,
+    minerals,
+    selectedRegionIds,
+    regionByTile,
+    bestControllerArea,
+    bestCorePlan,
+    resourceTree,
+    boundaryRoadPlan,
+    labPlan,
+    visual,
+  );
 
   Game.map.visual.text("SUCCESS", new RoomPosition(25, 25, roomName));
 
