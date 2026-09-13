@@ -64,11 +64,12 @@ export function planBase(
     outerRampartPlan.insideMask,
   );
 
-  // Core/controller-area/labs are stricter: exposed interior tiles are also
-  // removed from their planning space.
+  // Safe planning space excludes both exposed tiles and every potential repair
+  // standing tile. Core/controller-area/labs must stay entirely in this space.
   const safePlanningRegionByTile = restrictRegionsToSafeTiles(
     planningRegionByTile,
     defensiveTiles.dangerousMask,
+    defensiveTiles.repairMask,
   );
 
   const selectedCenter = getSelectedRegionCenter(selectedRegionIds, regions);
@@ -197,8 +198,9 @@ export function planBase(
     return;
   }
 
-  // Prefer a completely safe generic layout. Dangerous interior tiles become
-  // available only when the full slot planner cannot reach its quota safely.
+  // Run the complete slot planner, including branch generation, inside the
+  // safe planning space first. Dangerous and repair tiles are relaxed only if
+  // that whole attempt cannot reach the required slot quota.
   let slotPlan = planStructureSlots(
     terrain,
     controller,
@@ -263,11 +265,12 @@ function restrictRegionsToInterior(
 function restrictRegionsToSafeTiles(
   regionByTile: Int16Array,
   dangerousMask: Uint8Array,
+  repairMask: Uint8Array,
 ): Int16Array {
   const result = regionByTile.slice();
 
   for (let index = 0; index < ROOM_AREA; index++) {
-    if (dangerousMask[index]) {
+    if (dangerousMask[index] || repairMask[index]) {
       result[index] = OUTSIDE_REGION_ID;
     }
   }
