@@ -180,7 +180,7 @@ export function planBase(
     return;
   }
 
-  const slots = planStructureSlots(
+  const slotPlan = planStructureSlots(
     terrain,
     controller,
     sources,
@@ -194,6 +194,10 @@ export function planBase(
     labPlan,
     visual,
   );
+
+  if (!slotPlan) {
+    return;
+  }
 
   Game.map.visual.text("SUCCESS", new RoomPosition(25, 25, roomName));
 
