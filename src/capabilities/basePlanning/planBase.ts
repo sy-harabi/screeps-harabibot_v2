@@ -58,9 +58,17 @@ export function planBase(
 
   const defensiveTiles = classifyDefensiveTiles(outerRampartPlan, visual);
 
+  // The actual min-cut line is never available for structure placement.
   const planningRegionByTile = restrictRegionsToInterior(
     regionByTile,
     outerRampartPlan.insideMask,
+  );
+
+  // Core/controller-area/labs are stricter: exposed interior tiles are also
+  // removed from their planning space.
+  const safePlanningRegionByTile = restrictRegionsToSafeTiles(
+    planningRegionByTile,
+    defensiveTiles.dangerousMask,
   );
 
   const selectedCenter = getSelectedRegionCenter(selectedRegionIds, regions);
@@ -68,8 +76,7 @@ export function planBase(
   const controllerAreaCandidates = findControllerAreaCandidates(
     controller,
     selectedRegionIds,
-    planningRegionByTile,
-    defensiveTiles,
+    safePlanningRegionByTile,
   );
 
   let bestTier = Infinity;
@@ -85,8 +92,7 @@ export function planBase(
     const corePlans = findCorePlans(
       controllerAreaCandidate,
       selectedRegionIds,
-      planningRegionByTile,
-      defensiveTiles,
+      safePlanningRegionByTile,
     );
 
     for (const corePlan of corePlans) {
@@ -179,12 +185,11 @@ export function planBase(
     sources,
     minerals,
     selectedRegionIds,
-    planningRegionByTile,
+    safePlanningRegionByTile,
     bestControllerArea,
     bestCorePlan,
     resourceTree,
     rampartRoadPlan,
-    defensiveTiles,
     visual,
   );
 
@@ -192,21 +197,39 @@ export function planBase(
     return;
   }
 
-  const slotPlan = planStructureSlots(
+  // Prefer a completely safe generic layout. Dangerous interior tiles become
+  // available only when the full slot planner cannot reach its quota safely.
+  let slotPlan = planStructureSlots(
     terrain,
     controller,
     sources,
     minerals,
     selectedRegionIds,
-    planningRegionByTile,
+    safePlanningRegionByTile,
     bestControllerArea,
     bestCorePlan,
     resourceTree,
     rampartRoadPlan,
     labPlan,
-    defensiveTiles,
     visual,
   );
+
+  if (!slotPlan) {
+    slotPlan = planStructureSlots(
+      terrain,
+      controller,
+      sources,
+      minerals,
+      selectedRegionIds,
+      planningRegionByTile,
+      bestControllerArea,
+      bestCorePlan,
+      resourceTree,
+      rampartRoadPlan,
+      labPlan,
+      visual,
+    );
+  }
 
   if (!slotPlan) {
     return;
@@ -230,6 +253,21 @@ function restrictRegionsToInterior(
 
   for (let index = 0; index < ROOM_AREA; index++) {
     if (!insideMask[index]) {
+      result[index] = OUTSIDE_REGION_ID;
+    }
+  }
+
+  return result;
+}
+
+function restrictRegionsToSafeTiles(
+  regionByTile: Int16Array,
+  dangerousMask: Uint8Array,
+): Int16Array {
+  const result = regionByTile.slice();
+
+  for (let index = 0; index < ROOM_AREA; index++) {
+    if (dangerousMask[index]) {
       result[index] = OUTSIDE_REGION_ID;
     }
   }
