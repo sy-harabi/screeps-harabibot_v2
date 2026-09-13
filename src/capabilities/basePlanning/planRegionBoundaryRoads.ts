@@ -16,6 +16,12 @@ export interface RegionBoundaryRoadPlan {
   readonly roads: RoomCoordinate[];
 }
 
+interface BoundaryTarget {
+  readonly componentIndex: number;
+  readonly coordinate: RoomCoordinate;
+  readonly distance: number;
+}
+
 export function planRegionBoundaryRoads(
   terrain: RoomTerrain,
   components: readonly RegionBoundaryComponent[],
@@ -33,10 +39,73 @@ export function planRegionBoundaryRoads(
   }
 
   const upgradeChainCostMap = buildUpgradeChainCostMap(controllerArea);
+  const remainingComponents = components.map((_, index) => index);
+  const roads: RoomCoordinate[] = [];
 
-  const selectedRegionDistanceMap = dijkstraMap(
+  while (remainingComponents.length > 0) {
+    const distanceMap = buildBoundaryDistanceMap(
+      terrain,
+      selectedRegionIds,
+      regionByTile,
+      corePlan,
+      resourceTree,
+      upgradeChainCostMap,
+      roadMask,
+    );
+
+    const target = findClosestBoundaryTarget(
+      components,
+      remainingComponents,
+      distanceMap,
+    );
+
+    if (!target) {
+      return;
+    }
+
+    const path = tracePathToExistingRoad(
+      terrain,
+      target.coordinate,
+      distanceMap,
+      upgradeChainCostMap,
+      roadMask,
+    );
+
+    if (!path) {
+      return;
+    }
+
+    for (const coordinate of path) {
+      const index = toRoomIndex(coordinate.x, coordinate.y);
+
+      if (roadMask[index]) {
+        continue;
+      }
+
+      roadMask[index] = 1;
+      roads.push(coordinate);
+      visual.structure(coordinate.x, coordinate.y, STRUCTURE_ROAD);
+    }
+
+    const remainingIndex = remainingComponents.indexOf(target.componentIndex);
+    remainingComponents.splice(remainingIndex, 1);
+  }
+
+  return { roads };
+}
+
+function buildBoundaryDistanceMap(
+  terrain: RoomTerrain,
+  selectedRegionIds: ReadonlySet<number>,
+  regionByTile: Int16Array,
+  corePlan: CorePlan,
+  resourceTree: ResourceTreePlan,
+  upgradeChainCostMap: Int16Array,
+  roadMask: Uint8Array,
+): Int32Array {
+  return dijkstraMap(
     terrain,
-    [corePlan.roads[1]],
+    corePlan.roads,
     (x, y, terrainType) =>
       getBoundaryRoadCost(
         toRoomIndex(x, y),
@@ -57,36 +126,49 @@ export function planRegionBoundaryRoads(
       );
     },
   );
+}
 
-  const roads: RoomCoordinate[] = [];
+function findClosestBoundaryTarget(
+  components: readonly RegionBoundaryComponent[],
+  remainingComponents: readonly number[],
+  distanceMap: Int32Array,
+): BoundaryTarget | undefined {
+  let bestTarget: BoundaryTarget | undefined;
 
-  for (const component of components) {
-    const path = tracePathToExistingRoad(
-      terrain,
-      component.representativeTile,
-      selectedRegionDistanceMap,
-      upgradeChainCostMap,
-      roadMask,
-    );
+  for (const componentIndex of remainingComponents) {
+    const component = components[componentIndex];
 
-    if (!path) {
-      return;
-    }
+    for (const tileIndex of component.tileIndices) {
+      const distance = distanceMap[tileIndex];
 
-    for (const coordinate of path) {
-      const index = toRoomIndex(coordinate.x, coordinate.y);
-
-      if (roadMask[index]) {
+      if (distance < 0) {
         continue;
       }
 
-      roadMask[index] = 1;
-      roads.push(coordinate);
-      visual.structure(coordinate.x, coordinate.y, STRUCTURE_ROAD);
+      if (
+        bestTarget &&
+        (distance > bestTarget.distance ||
+          (distance === bestTarget.distance &&
+            (componentIndex > bestTarget.componentIndex ||
+              (componentIndex === bestTarget.componentIndex &&
+                tileIndex >=
+                  toRoomIndex(
+                    bestTarget.coordinate.x,
+                    bestTarget.coordinate.y,
+                  )))))
+      ) {
+        continue;
+      }
+
+      bestTarget = {
+        componentIndex,
+        coordinate: fromRoomIndex(tileIndex),
+        distance,
+      };
     }
   }
 
-  return { roads };
+  return bestTarget;
 }
 
 function buildUpgradeChainCostMap(
