@@ -31,7 +31,6 @@ export interface ResourceBranchPlan {
 export interface ResourceTreePlan {
   readonly roads: RoomCoordinate[];
   readonly branches: ResourceBranchPlan[];
-  readonly coreDistanceMap: Int32Array;
 }
 
 export function planResourceTree(
@@ -59,7 +58,7 @@ export function planResourceTree(
   );
   const distanceMap = buildResourceDistanceMap(
     terrain,
-    endpointPlanningResult.blockedMap,
+    endpointPlanningResult.resourceRoadBlockedMask,
     corePlan.roads,
   );
 
@@ -67,7 +66,6 @@ export function planResourceTree(
     return {
       roads: [],
       branches: [],
-      coreDistanceMap: distanceMap,
     };
   }
 
@@ -331,7 +329,7 @@ export function planResourceTree(
     }
   }
 
-  return { roads, branches, coreDistanceMap: distanceMap };
+  return { roads, branches };
 }
 
 function findClosestReachableAdjacentCoordinates(
