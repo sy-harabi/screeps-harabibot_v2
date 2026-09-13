@@ -13,6 +13,7 @@ import {
 } from "./findControllerAreaCandidates";
 import { CorePlan, findCorePlans } from "./findCorePlans";
 import { planLabs } from "./planLabs";
+import { planOuterRampartRoads } from "./planOuterRampartRoads";
 import { planOuterRamparts } from "./planOuterRamparts";
 import { planResourceTree } from "./planResourceTree";
 import { planStructureSlots } from "./planStructureSlots";
@@ -150,10 +151,21 @@ export function planBase(
     return;
   }
 
-  // Outer-rampart access roads are planned separately after repair positions
-  // are reserved. Until then, downstream service-road planners only reuse the
-  // core/resource network plus their own branches.
-  const boundaryRoadPlan = { roads: [] as RoomCoordinate[] };
+  const rampartRoadPlan = planOuterRampartRoads(
+    terrain,
+    controller,
+    sources,
+    minerals,
+    outerRampartPlan,
+    bestControllerArea,
+    bestCorePlan,
+    resourceTree,
+    visual,
+  );
+
+  if (!rampartRoadPlan) {
+    return;
+  }
 
   const labPlan = planLabs(
     terrain,
@@ -165,7 +177,7 @@ export function planBase(
     bestControllerArea,
     bestCorePlan,
     resourceTree,
-    boundaryRoadPlan,
+    rampartRoadPlan,
     visual,
   );
 
@@ -183,7 +195,7 @@ export function planBase(
     bestControllerArea,
     bestCorePlan,
     resourceTree,
-    boundaryRoadPlan,
+    rampartRoadPlan,
     labPlan,
     visual,
   );
