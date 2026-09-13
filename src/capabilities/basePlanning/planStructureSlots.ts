@@ -477,19 +477,7 @@ function visualizeStructureSlotPlan(
   plan: StructureSlotPlan,
   visual: RoomVisual,
 ): void {
-  visual.text(plan.slots.length.toString(), 25, 1);
-
   plan.roads.forEach((road, index) => {
-    visual.text(index.toString(), road.x, road.y);
     visual.structure(road.x, road.y, STRUCTURE_ROAD);
   });
-
-  plan.slots.forEach((slot) =>
-    visual.circle(slot.coordinate.x, slot.coordinate.y, {
-      radius: 0.15,
-      fill: "#ffffff",
-      opacity: 0.65,
-      stroke: "transparent",
-    }),
-  );
 }
