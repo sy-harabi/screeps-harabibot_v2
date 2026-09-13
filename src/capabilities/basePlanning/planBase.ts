@@ -1,8 +1,9 @@
 import { distanceTransform } from "../../world/map/distanceTransform";
 import { getRange, RoomCoordinate } from "../../world/map/roomCoordinate";
-import { fromRoomIndex } from "../../world/map/roomGrid";
+import { fromRoomIndex, ROOM_AREA } from "../../world/map/roomGrid";
 import {
   findTerrainRegions,
+  OUTSIDE_REGION_ID,
   TerrainRegion,
 } from "../../world/map/terrainRegions";
 import type { BasePlan, PlannedStructure } from "./basePlan";
@@ -52,12 +53,17 @@ export function planBase(
     return;
   }
 
+  const planningRegionByTile = restrictRegionsToInterior(
+    regionByTile,
+    outerRampartPlan.insideMask,
+  );
+
   const selectedCenter = getSelectedRegionCenter(selectedRegionIds, regions);
 
   const controllerAreaCandidates = findControllerAreaCandidates(
     controller,
     selectedRegionIds,
-    regionByTile,
+    planningRegionByTile,
   );
 
   let bestTier = Infinity;
@@ -73,7 +79,7 @@ export function planBase(
     const corePlans = findCorePlans(
       controllerAreaCandidate,
       selectedRegionIds,
-      regionByTile,
+      planningRegionByTile,
     );
 
     for (const corePlan of corePlans) {
@@ -155,7 +161,7 @@ export function planBase(
     sources,
     minerals,
     selectedRegionIds,
-    regionByTile,
+    planningRegionByTile,
     bestControllerArea,
     bestCorePlan,
     resourceTree,
@@ -173,7 +179,7 @@ export function planBase(
     sources,
     minerals,
     selectedRegionIds,
-    regionByTile,
+    planningRegionByTile,
     bestControllerArea,
     bestCorePlan,
     resourceTree,
@@ -194,6 +200,21 @@ export function planBase(
   const anchor = { x: 25, y: 25 };
 
   return { version: 1, roomName, anchor, structures };
+}
+
+function restrictRegionsToInterior(
+  regionByTile: Int16Array,
+  insideMask: Uint8Array,
+): Int16Array {
+  const result = regionByTile.slice();
+
+  for (let index = 0; index < ROOM_AREA; index++) {
+    if (!insideMask[index]) {
+      result[index] = OUTSIDE_REGION_ID;
+    }
+  }
+
+  return result;
 }
 
 function visualizeSelectedRegions(
