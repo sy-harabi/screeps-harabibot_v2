@@ -36,12 +36,13 @@ export function planRegionBoundaryRoads(
 
   const selectedRegionDistanceMap = dijkstraMap(
     terrain,
-    corePlan.roads,
+    [corePlan.roads[1]],
     (x, y, terrainType) =>
       getBoundaryRoadCost(
         toRoomIndex(x, y),
         terrainType,
         upgradeChainCostMap,
+        roadMask,
       ),
     (x, y) => {
       const index = toRoomIndex(x, y);
@@ -94,9 +95,11 @@ function buildUpgradeChainCostMap(
   const costMap = new Int16Array(ROOM_AREA);
   costMap.fill(-1);
 
-  for (const chain of Object.values(controllerArea.upgradeChains)) {
-    chain.forEach(({ x, y }, chainIndex) => {
-      costMap[toRoomIndex(x, y)] = 50 - chainIndex * 5;
+  const { left, middle, right } = controllerArea.upgradeChains;
+
+  for (const chain of [left, middle, right]) {
+    chain.forEach(({ x, y }, tileIndex) => {
+      costMap[toRoomIndex(x, y)] = 50 - tileIndex * 5;
     });
   }
 
@@ -132,6 +135,7 @@ function tracePathToExistingRoad(
       currentIndex,
       terrain.get(current.x, current.y),
       upgradeChainCostMap,
+      roadMask,
     );
     let bestRoadIndex = -1;
     let bestIndex = -1;
@@ -182,11 +186,16 @@ function getBoundaryRoadCost(
   index: number,
   terrainType: number,
   upgradeChainCostMap: Int16Array,
+  roadMask: Uint8Array,
 ): number {
   const upgradeChainCost = upgradeChainCostMap[index];
 
   if (upgradeChainCost >= 0) {
     return upgradeChainCost;
+  }
+
+  if (roadMask[index]) {
+    return 3;
   }
 
   return terrainType === TERRAIN_MASK_SWAMP ? 6 : 5;

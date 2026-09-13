@@ -8,7 +8,7 @@ import {
   TerrainRegion,
 } from "../../world/map/terrainRegions";
 
-const minInnderTiles = 150;
+const minInnderTiles = 100;
 
 export function selectBaseRegions(
   controller: StructureController,
