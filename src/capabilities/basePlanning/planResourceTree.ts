@@ -8,11 +8,11 @@ import {
 } from "../../world/map/roomGrid";
 import { ControllerAreaCandidate } from "./findControllerAreaCandidates";
 import { CorePlan } from "./findCorePlans";
+import { planResourceEndpoints } from "./planResourceEndpoints";
 import {
   buildResourceDistanceMap,
   getResourceRoadCost,
-  planResourceEndpoints,
-} from "./planResourceEndpoints";
+} from "./resourcePlanningUtils";
 
 const INF = 30000;
 
