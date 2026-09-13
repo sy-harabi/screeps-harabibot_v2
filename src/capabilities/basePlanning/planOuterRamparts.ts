@@ -199,7 +199,7 @@ function buildControllerDistanceCosts(
     const distanceFactor =
       distance > BASE_DISTANCE ? distance - BASE_DISTANCE : 0;
 
-    tileCosts[index] = BASE_RAMPART_COST + 2 ** distanceFactor;
+    tileCosts[index] = BASE_RAMPART_COST + distanceFactor;
   }
 
   return tileCosts;

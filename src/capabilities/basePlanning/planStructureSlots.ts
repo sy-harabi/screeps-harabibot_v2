@@ -446,7 +446,7 @@ function buildStructureSlotBlockedMask(
     );
 
     if (!isLateStructureChain) {
-      chain.forEach(block);
+      block(chain[0]);
     }
   }
 
