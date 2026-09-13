@@ -24,6 +24,9 @@ interface BoundaryTarget {
 
 export function planRegionBoundaryRoads(
   terrain: RoomTerrain,
+  controller: StructureController,
+  sources: readonly Source[],
+  minerals: readonly Mineral[],
   components: readonly RegionBoundaryComponent[],
   selectedRegionIds: ReadonlySet<number>,
   regionByTile: Int16Array,
@@ -32,31 +35,39 @@ export function planRegionBoundaryRoads(
   resourceTree: ResourceTreePlan,
   visual: RoomVisual,
 ): RegionBoundaryRoadPlan | undefined {
-  const roadMask = new Uint8Array(ROOM_AREA);
+  const roadNetworkMask = new Uint8Array(ROOM_AREA);
 
   for (const { x, y } of [...corePlan.roads, ...resourceTree.roads]) {
-    roadMask[toRoomIndex(x, y)] = 1;
+    roadNetworkMask[toRoomIndex(x, y)] = 1;
   }
 
+  const boundaryRoadBlockedMask = buildBoundaryRoadBlockedMask(
+    controller,
+    sources,
+    minerals,
+    controllerArea,
+    corePlan,
+    resourceTree,
+  );
   const upgradeChainCostMap = buildUpgradeChainCostMap(controllerArea);
   const remainingComponents = components.map((_, index) => index);
   const roads: RoomCoordinate[] = [];
 
   while (remainingComponents.length > 0) {
-    const distanceMap = buildBoundaryDistanceMap(
+    const boundaryDistanceMap = buildBoundaryDistanceMap(
       terrain,
       selectedRegionIds,
       regionByTile,
       corePlan,
-      resourceTree,
+      boundaryRoadBlockedMask,
       upgradeChainCostMap,
-      roadMask,
+      roadNetworkMask,
     );
 
     const target = findClosestBoundaryTarget(
       components,
       remainingComponents,
-      distanceMap,
+      boundaryDistanceMap,
     );
 
     if (!target) {
@@ -66,9 +77,9 @@ export function planRegionBoundaryRoads(
     const path = tracePathToExistingRoad(
       terrain,
       target.coordinate,
-      distanceMap,
+      boundaryDistanceMap,
       upgradeChainCostMap,
-      roadMask,
+      roadNetworkMask,
     );
 
     if (!path) {
@@ -78,11 +89,11 @@ export function planRegionBoundaryRoads(
     for (const coordinate of path) {
       const index = toRoomIndex(coordinate.x, coordinate.y);
 
-      if (roadMask[index]) {
+      if (roadNetworkMask[index]) {
         continue;
       }
 
-      roadMask[index] = 1;
+      roadNetworkMask[index] = 1;
       roads.push(coordinate);
       visual.structure(coordinate.x, coordinate.y, STRUCTURE_ROAD);
     }
@@ -94,14 +105,52 @@ export function planRegionBoundaryRoads(
   return { roads };
 }
 
+function buildBoundaryRoadBlockedMask(
+  controller: StructureController,
+  sources: readonly Source[],
+  minerals: readonly Mineral[],
+  controllerArea: ControllerAreaCandidate,
+  corePlan: CorePlan,
+  resourceTree: ResourceTreePlan,
+): Uint8Array {
+  const blockedMask = new Uint8Array(ROOM_AREA);
+  const block = ({ x, y }: RoomCoordinate): void => {
+    blockedMask[toRoomIndex(x, y)] = 1;
+  };
+
+  block(controller.pos);
+  block(controllerArea.storage);
+  block(corePlan.manager);
+  block(corePlan.terminal);
+  block(corePlan.firstSpawn);
+  block(corePlan.link);
+  block(corePlan.factory);
+  block(corePlan.powerSpawn);
+  corePlan.parking.forEach(block);
+
+  for (const resource of [...sources, ...minerals]) {
+    block(resource.pos);
+  }
+
+  for (const branch of resourceTree.branches) {
+    block(branch.container);
+
+    if (branch.link) {
+      block(branch.link);
+    }
+  }
+
+  return blockedMask;
+}
+
 function buildBoundaryDistanceMap(
   terrain: RoomTerrain,
   selectedRegionIds: ReadonlySet<number>,
   regionByTile: Int16Array,
   corePlan: CorePlan,
-  resourceTree: ResourceTreePlan,
+  boundaryRoadBlockedMask: Uint8Array,
   upgradeChainCostMap: Int16Array,
-  roadMask: Uint8Array,
+  roadNetworkMask: Uint8Array,
 ): Int32Array {
   return dijkstraMap(
     terrain,
@@ -111,18 +160,13 @@ function buildBoundaryDistanceMap(
         toRoomIndex(x, y),
         terrainType,
         upgradeChainCostMap,
-        roadMask,
+        roadNetworkMask,
       ),
     (x, y) => {
       const index = toRoomIndex(x, y);
-
-      if (!selectedRegionIds.has(regionByTile[index])) {
-        return false;
-      }
-
       return (
-        resourceTree.coreDistanceMap[index] >= 0 ||
-        upgradeChainCostMap[index] >= 0
+        selectedRegionIds.has(regionByTile[index]) &&
+        boundaryRoadBlockedMask[index] === 0
       );
     },
   );
@@ -193,7 +237,7 @@ function tracePathToExistingRoad(
   start: RoomCoordinate,
   distanceMap: Int32Array,
   upgradeChainCostMap: Int16Array,
-  roadMask: Uint8Array,
+  roadNetworkMask: Uint8Array,
 ): RoomCoordinate[] | undefined {
   let currentIndex = toRoomIndex(start.x, start.y);
 
@@ -203,7 +247,7 @@ function tracePathToExistingRoad(
 
   const path: RoomCoordinate[] = [];
 
-  while (!roadMask[currentIndex]) {
+  while (!roadNetworkMask[currentIndex]) {
     const current = fromRoomIndex(currentIndex);
     const currentDistance = distanceMap[currentIndex];
 
@@ -217,7 +261,7 @@ function tracePathToExistingRoad(
       currentIndex,
       terrain.get(current.x, current.y),
       upgradeChainCostMap,
-      roadMask,
+      roadNetworkMask,
     );
     let bestRoadIndex = -1;
     let bestIndex = -1;
@@ -240,7 +284,7 @@ function tracePathToExistingRoad(
         continue;
       }
 
-      if (roadMask[neighborIndex]) {
+      if (roadNetworkMask[neighborIndex]) {
         if (bestRoadIndex < 0 || neighborIndex < bestRoadIndex) {
           bestRoadIndex = neighborIndex;
         }
@@ -268,7 +312,7 @@ function getBoundaryRoadCost(
   index: number,
   terrainType: number,
   upgradeChainCostMap: Int16Array,
-  roadMask: Uint8Array,
+  roadNetworkMask: Uint8Array,
 ): number {
   const upgradeChainCost = upgradeChainCostMap[index];
 
@@ -276,7 +320,7 @@ function getBoundaryRoadCost(
     return upgradeChainCost;
   }
 
-  if (roadMask[index]) {
+  if (roadNetworkMask[index]) {
     return 3;
   }
 
