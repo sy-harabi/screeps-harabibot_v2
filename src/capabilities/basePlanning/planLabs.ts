@@ -44,7 +44,7 @@ export function planLabs(
   boundaryRoadPlan: RegionBoundaryRoadPlan,
   visual: RoomVisual,
 ): LabPlan | undefined {
-  const reservedMask = buildReservedMask(
+  const labBlockedMask = buildLabBlockedMask(
     controller,
     sources,
     minerals,
@@ -53,19 +53,19 @@ export function planLabs(
     resourceTree,
   );
 
-  const serviceMask = new Uint8Array(ROOM_AREA);
+  const serviceRoadMask = new Uint8Array(ROOM_AREA);
 
   for (const { x, y } of [
     ...corePlan.roads,
     ...resourceTree.roads,
     ...boundaryRoadPlan.roads,
   ]) {
-    serviceMask[toRoomIndex(x, y)] = 1;
+    serviceRoadMask[toRoomIndex(x, y)] = 1;
   }
 
   const serviceDistanceMap = buildServiceDistanceMap(
     terrain,
-    serviceMask,
+    serviceRoadMask,
     corePlan.roads,
   );
 
@@ -76,10 +76,10 @@ export function planLabs(
   ) {
     const layout = tryLabLayout(
       terrain,
-      serviceMask,
+      serviceRoadMask,
       serviceDistanceMap,
       maxServiceDistance,
-      reservedMask,
+      labBlockedMask,
       selectedRegionIds,
       regionByTile,
     );
@@ -97,12 +97,12 @@ export function planLabs(
     for (let branchLength = 1; branchLength <= MAX_BRANCH_LENGTH; branchLength++) {
       const plan = findLabPlanWithBranch(
         terrain,
-        serviceMask,
+        serviceRoadMask,
         serviceDistanceMap,
         corePlan.roads,
         branchLength,
         maxServiceDistance,
-        reservedMask,
+        labBlockedMask,
         selectedRegionIds,
         regionByTile,
       );
@@ -119,12 +119,12 @@ export function planLabs(
 
 function findLabPlanWithBranch(
   terrain: RoomTerrain,
-  baseServiceMask: Uint8Array,
+  baseServiceRoadMask: Uint8Array,
   baseServiceDistanceMap: Int32Array,
   roots: readonly RoomCoordinate[],
   branchLength: number,
   maxServiceDistance: number,
-  reservedMask: Uint8Array,
+  labBlockedMask: Uint8Array,
   selectedRegionIds: Set<number>,
   regionByTile: Int16Array,
 ): LabPlan | undefined {
@@ -151,15 +151,15 @@ function findLabPlanWithBranch(
       }
       seenVariants.add(variantKey);
 
-      const serviceMask = baseServiceMask.slice();
+      const serviceRoadMask = baseServiceRoadMask.slice();
 
       for (const { x, y } of branch) {
-        serviceMask[toRoomIndex(x, y)] = 1;
+        serviceRoadMask[toRoomIndex(x, y)] = 1;
       }
 
       const serviceDistanceMap = buildServiceDistanceMap(
         terrain,
-        serviceMask,
+        serviceRoadMask,
         roots,
       );
 
@@ -176,10 +176,10 @@ function findLabPlanWithBranch(
 
       const layout = tryLabLayout(
         terrain,
-        serviceMask,
+        serviceRoadMask,
         serviceDistanceMap,
         maxServiceDistance,
-        reservedMask,
+        labBlockedMask,
         selectedRegionIds,
         regionByTile,
       );
@@ -208,11 +208,11 @@ function findLabPlanWithBranch(
         continue;
       }
 
-      if (baseServiceMask[index]) {
+      if (baseServiceRoadMask[index]) {
         continue;
       }
 
-      if (reservedMask[index]) {
+      if (labBlockedMask[index]) {
         continue;
       }
 
@@ -260,19 +260,19 @@ function findLabPlanWithBranch(
 
 function tryLabLayout(
   terrain: RoomTerrain,
-  serviceMask: Uint8Array,
+  serviceRoadMask: Uint8Array,
   serviceDistanceMap: Int32Array,
   maxServiceDistance: number,
-  reservedMask: Uint8Array,
+  labBlockedMask: Uint8Array,
   selectedRegionIds: Set<number>,
   regionByTile: Int16Array,
 ): LabLayout | undefined {
   const candidates = collectLabCandidates(
     terrain,
-    serviceMask,
+    serviceRoadMask,
     serviceDistanceMap,
     maxServiceDistance,
-    reservedMask,
+    labBlockedMask,
     selectedRegionIds,
     regionByTile,
   );
@@ -353,10 +353,10 @@ function canSupportEightOutputs(
 
 function collectLabCandidates(
   terrain: RoomTerrain,
-  serviceMask: Uint8Array,
+  serviceRoadMask: Uint8Array,
   serviceDistanceMap: Int32Array,
   maxServiceDistance: number,
-  reservedMask: Uint8Array,
+  labBlockedMask: Uint8Array,
   selectedRegionIds: Set<number>,
   regionByTile: Int16Array,
 ): LabCandidate[] {
@@ -386,7 +386,7 @@ function collectLabCandidates(
 
       const candidateIndex = toRoomIndex(candidateX, candidateY);
 
-      if (reservedMask[candidateIndex]) {
+      if (labBlockedMask[candidateIndex]) {
         continue;
       }
 
@@ -394,7 +394,7 @@ function collectLabCandidates(
         continue;
       }
 
-      if (serviceMask[candidateIndex]) {
+      if (serviceRoadMask[candidateIndex]) {
         continue;
       }
 
@@ -433,18 +433,18 @@ function collectLabCandidates(
 
 function buildServiceDistanceMap(
   terrain: RoomTerrain,
-  serviceMask: Uint8Array,
+  serviceRoadMask: Uint8Array,
   roots: readonly RoomCoordinate[],
 ): Int32Array {
   return dijkstraMap(
     terrain,
     roots,
     () => 1,
-    (x, y) => serviceMask[toRoomIndex(x, y)] === 1,
+    (x, y) => serviceRoadMask[toRoomIndex(x, y)] === 1,
   );
 }
 
-function buildReservedMask(
+function buildLabBlockedMask(
   controller: StructureController,
   sources: readonly Source[],
   minerals: readonly Mineral[],
@@ -452,40 +452,40 @@ function buildReservedMask(
   corePlan: CorePlan,
   resourceTree: ResourceTreePlan,
 ): Uint8Array {
-  const reservedMask = new Uint8Array(ROOM_AREA);
+  const labBlockedMask = new Uint8Array(ROOM_AREA);
 
-  const reserve = ({ x, y }: RoomCoordinate): void => {
-    reservedMask[toRoomIndex(x, y)] = 1;
+  const block = ({ x, y }: RoomCoordinate): void => {
+    labBlockedMask[toRoomIndex(x, y)] = 1;
   };
 
-  reserve(controller.pos);
-  reserve(controllerArea.storage);
+  block(controller.pos);
+  block(controllerArea.storage);
 
   for (const chain of Object.values(controllerArea.upgradeChains)) {
-    chain.forEach(reserve);
+    chain.forEach(block);
   }
 
-  reserve(corePlan.manager);
-  reserve(corePlan.terminal);
-  reserve(corePlan.firstSpawn);
-  reserve(corePlan.link);
-  reserve(corePlan.factory);
-  reserve(corePlan.powerSpawn);
-  corePlan.parking.forEach(reserve);
+  block(corePlan.manager);
+  block(corePlan.terminal);
+  block(corePlan.firstSpawn);
+  block(corePlan.link);
+  block(corePlan.factory);
+  block(corePlan.powerSpawn);
+  corePlan.parking.forEach(block);
 
   for (const resource of [...sources, ...minerals]) {
-    reserve(resource.pos);
+    block(resource.pos);
   }
 
   for (const branch of resourceTree.branches) {
-    reserve(branch.container);
+    block(branch.container);
 
     if (branch.link) {
-      reserve(branch.link);
+      block(branch.link);
     }
   }
 
-  return reservedMask;
+  return labBlockedMask;
 }
 
 function visualizeLabPlan(plan: LabPlan, visual: RoomVisual): void {
