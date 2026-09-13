@@ -10,6 +10,9 @@ const RANGED_ATTACK_RANGE = 3;
 const REPAIR_RANGE = 3;
 
 export interface DefensiveTileClassification {
+  /** Actual min-cut outer rampart line. */
+  readonly outerRampartMask: Uint8Array;
+
   /** Interior tiles that can be hit by a ranged attacker standing outside. */
   readonly dangerousMask: Uint8Array;
 
@@ -27,9 +30,9 @@ export interface DefensiveTileClassification {
 /**
  * Classifies defensive tiles after the outer rampart line is fixed.
  *
- * The three categories deliberately exclude the outer rampart tiles
- * themselves. Repairers are expected to stand behind the outer line, while
- * defenders may occupy the outer ramparts separately.
+ * Repair candidates deliberately exclude the outer rampart tiles themselves.
+ * Repairers are expected to stand behind the outer line, while defenders may
+ * occupy the outer ramparts separately.
  */
 export function classifyDefensiveTiles(
   outerRampartPlan: OuterRampartPlan,
@@ -62,6 +65,7 @@ export function classifyDefensiveTiles(
   }
 
   return {
+    outerRampartMask: outerRampartPlan.rampartMask,
     dangerousMask,
     safeRepairCandidateMask,
     rampartRequiredRepairCandidateMask,
