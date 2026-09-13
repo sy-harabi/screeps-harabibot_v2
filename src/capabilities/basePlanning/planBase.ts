@@ -115,6 +115,16 @@ export function planBase(
     bestCorePlan.firstSpawn.y,
     STRUCTURE_SPAWN,
   );
+  visual.structure(
+    bestCorePlan.factory.x,
+    bestCorePlan.factory.y,
+    STRUCTURE_FACTORY,
+  );
+  visual.structure(
+    bestCorePlan.powerSpawn.x,
+    bestCorePlan.powerSpawn.y,
+    STRUCTURE_POWER_SPAWN,
+  );
 
   bestCorePlan.roads.forEach((road) =>
     visual.structure(road.x, road.y, STRUCTURE_ROAD),

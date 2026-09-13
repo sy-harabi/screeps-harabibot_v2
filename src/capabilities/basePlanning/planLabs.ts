@@ -1,7 +1,6 @@
 import { dijkstraMap } from "../../world/map/dijkstraMap";
 import { getRange, RoomCoordinate } from "../../world/map/roomCoordinate";
 import {
-  forEachCoordinateInRange,
   fromRoomIndex,
   isInsideRoom,
   NEIGHBOR_OFFSETS,
@@ -467,11 +466,12 @@ function buildReservedMask(
   }
 
   reserve(corePlan.manager);
-
-  forEachCoordinateInRange(corePlan.terminal, 1, (x, y) => reserve({ x, y }));
-
+  reserve(corePlan.terminal);
   reserve(corePlan.firstSpawn);
   reserve(corePlan.link);
+  reserve(corePlan.factory);
+  reserve(corePlan.powerSpawn);
+  corePlan.parking.forEach(reserve);
 
   for (const resource of [...sources, ...minerals]) {
     reserve(resource.pos);

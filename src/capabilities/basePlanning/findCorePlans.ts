@@ -1,7 +1,10 @@
-import { RoomCoordinate } from "../../world/map/roomCoordinate";
+import { getRange, RoomCoordinate } from "../../world/map/roomCoordinate";
 import { isInsideRoom, toRoomIndex } from "../../world/map/roomGrid";
 
-import { ControllerAreaCandidate } from "./findControllerAreaCandidates";
+import {
+  ControllerAreaCandidate,
+  UpgradeChains,
+} from "./findControllerAreaCandidates";
 
 export const CORE_STAMP = {
   storage: { x: 0, y: 0 },
@@ -10,6 +13,11 @@ export const CORE_STAMP = {
   spawn: { x: 2, y: 1 },
   link: { x: 2, y: -1 },
   linkFallback: { x: 2, y: 0 },
+  parking: [
+    { x: 0, y: 1 },
+    { x: 1, y: 2 },
+  ],
+  parkingOptional: { x: -1, y: 0 },
   roads: [
     { x: -1, y: 1 },
     { x: 0, y: 2 },
@@ -24,6 +32,9 @@ export interface CorePlan {
   terminal: RoomCoordinate;
   firstSpawn: RoomCoordinate;
   link: RoomCoordinate;
+  factory: RoomCoordinate;
+  powerSpawn: RoomCoordinate;
+  parking: RoomCoordinate[];
   roads: RoomCoordinate[];
 }
 
@@ -50,6 +61,7 @@ export function findCorePlans(
       selectedRegionIds,
       regionByTile,
       upgradeTileIndices,
+      upgradeChains,
       middleRoot,
       mirrored,
     );
@@ -92,6 +104,7 @@ function tryCoreStamp(
   selectedRegionIds: Set<number>,
   regionByTile: Int16Array,
   upgradeTileIndices: Set<number>,
+  upgradeChains: UpgradeChains,
   middleRoot: RoomCoordinate,
   mirrored: boolean,
 ): CorePlan | undefined {
@@ -116,6 +129,13 @@ function tryCoreStamp(
   if (!isValid(manager)) {
     return;
   }
+
+  const managerStructures = findManagerStructures(manager, upgradeChains);
+
+  if (!managerStructures) {
+    return;
+  }
+
   const terminal = transform(CORE_STAMP.terminal);
 
   if (!isValid(terminal)) {
@@ -137,6 +157,18 @@ function tryCoreStamp(
     }
   }
 
+  const parking = CORE_STAMP.parking.map(transform);
+
+  if (parking.some((coordinate) => !isValid(coordinate))) {
+    return;
+  }
+
+  const optionalParking = transform(CORE_STAMP.parkingOptional);
+
+  if (isValid(optionalParking)) {
+    parking.push(optionalParking);
+  }
+
   const roads = CORE_STAMP.roads.map(transform);
 
   if (roads.some((road) => !isValid(road))) {
@@ -148,7 +180,29 @@ function tryCoreStamp(
     terminal,
     firstSpawn,
     link,
+    ...managerStructures,
+    parking,
     roads,
+  };
+}
+
+function findManagerStructures(
+  manager: RoomCoordinate,
+  upgradeChains: UpgradeChains,
+): Pick<CorePlan, "factory" | "powerSpawn"> | undefined {
+  const adjacentChains = Object.values(upgradeChains)
+    .filter(
+      (chain) => chain.length > 0 && getRange(manager, chain[0]) === 1,
+    )
+    .sort((left, right) => left.length - right.length);
+
+  if (adjacentChains.length < 2) {
+    return;
+  }
+
+  return {
+    factory: adjacentChains[0][0],
+    powerSpawn: adjacentChains[adjacentChains.length - 1][0],
   };
 }
 
