@@ -257,7 +257,7 @@ function assignStructureSlots(
   const observer = slots.pop();
   const nuker = slots.pop();
 
-  if (!observer || !nuker || slots.length < NUM_EXTENSIONS) {
+  if (!observer || !nuker) {
     return;
   }
 
@@ -307,7 +307,9 @@ function buildLateChainMask(
     toRoomIndex(corePlan.powerSpawn.x, corePlan.powerSpawn.y),
   ]);
 
-  for (const chain of Object.values(controllerArea.upgradeChains)) {
+  const { left, right, middle } = controllerArea.upgradeChains;
+
+  for (const chain of [left, right, middle]) {
     const isLateChain = chain.some(({ x, y }) =>
       lateStructureIndices.has(toRoomIndex(x, y)),
     );

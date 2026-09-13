@@ -15,13 +15,6 @@ import { ResourceTreePlan } from "./planResourceTree";
 
 const REQUIRED_STRUCTURE_SLOTS = 70;
 
-const DIAGONAL_DIRECTIONS: readonly RoomCoordinate[] = [
-  { x: 1, y: 1 },
-  { x: 1, y: -1 },
-  { x: -1, y: 1 },
-  { x: -1, y: -1 },
-];
-
 interface BranchCandidate {
   readonly newRoadIndices: number[];
 }
@@ -120,8 +113,6 @@ function findGreedySlotPlan(
     serviceDistanceMap,
   );
 
-  let complete = true;
-
   while (slots.length < REQUIRED_STRUCTURE_SLOTS) {
     const candidates = generateBranchCandidates(
       serviceRoadMask,
@@ -172,7 +163,6 @@ function findGreedySlotPlan(
     }
 
     if (!bestCandidate || !bestSlots) {
-      complete = false;
       break;
     }
 
@@ -183,6 +173,8 @@ function findGreedySlotPlan(
 
     slots = bestSlots;
   }
+
+  const complete = slots && slots.length >= REQUIRED_STRUCTURE_SLOTS - 5;
 
   return {
     slots,
@@ -206,7 +198,7 @@ function generateBranchCandidates(
 
     const root = fromRoomIndex(rootIndex);
 
-    for (const direction of DIAGONAL_DIRECTIONS) {
+    for (const direction of NEIGHBOR_OFFSETS) {
       const newRoadIndices: number[] = [];
 
       for (let step = 1; step <= 3; step++) {
