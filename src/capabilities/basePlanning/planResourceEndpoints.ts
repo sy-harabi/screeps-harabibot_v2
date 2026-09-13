@@ -152,7 +152,9 @@ function findResourceEndpointPlan(
   for (let index = 0; index < remainingTargets.length; index++) {
     const target = remainingTargets[index];
     const candidates = collectEndpointCandidates(
+      terrain,
       target,
+      blockedMap,
       distanceMap,
       coreRoadMask,
     );
@@ -208,7 +210,9 @@ function findResourceEndpointPlan(
 }
 
 function collectEndpointCandidates(
+  terrain: RoomTerrain,
   target: ResourceTarget,
+  blockedMap: Uint8Array,
   distanceMap: Int32Array,
   coreRoadMask: Uint8Array,
 ): ResourceEndpointCandidate[] {
@@ -230,9 +234,10 @@ function collectEndpointCandidates(
     }
 
     const linkCandidates = collectSourceLinkCandidates(
+      terrain,
       target.coordinate,
       container,
-      distanceMap,
+      blockedMap,
       coreRoadMask,
     );
 
@@ -246,9 +251,10 @@ function collectEndpointCandidates(
 }
 
 function collectSourceLinkCandidates(
+  terrain: RoomTerrain,
   source: RoomCoordinate,
   container: RoomCoordinate,
-  distanceMap: Int32Array,
+  blockedMap: Uint8Array,
   coreRoadMask: Uint8Array,
 ): RoomCoordinate[] {
   const candidates: RoomCoordinate[] = [];
@@ -266,7 +272,11 @@ function collectSourceLinkCandidates(
 
     const index = toRoomIndex(x, y);
 
-    if (distanceMap[index] < 0 || coreRoadMask[index]) {
+    if (
+      terrain.get(x, y) === TERRAIN_MASK_WALL ||
+      blockedMap[index] ||
+      coreRoadMask[index]
+    ) {
       return;
     }
 
