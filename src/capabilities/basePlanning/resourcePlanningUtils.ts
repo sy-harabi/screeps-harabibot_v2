@@ -4,14 +4,14 @@ import { toRoomIndex } from "../../world/map/roomGrid";
 
 export function buildResourceDistanceMap(
   terrain: RoomTerrain,
-  blockedMap: Uint8Array,
+  resourceRoadBlockedMask: Uint8Array,
   coreRoads: readonly RoomCoordinate[],
 ): Int32Array {
   return dijkstraMap(
     terrain,
     coreRoads,
     getResourceRoadCost,
-    (x, y) => blockedMap[toRoomIndex(x, y)] === 0,
+    (x, y) => resourceRoadBlockedMask[toRoomIndex(x, y)] === 0,
   );
 }
 
