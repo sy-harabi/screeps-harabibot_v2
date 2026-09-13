@@ -207,7 +207,8 @@ function buildRampartDistanceMap(
       ),
     (x, y) => {
       const index = toRoomIndex(x, y);
-      return (
+
+      return !!(
         (outerRampartPlan.insideMask[index] ||
           outerRampartPlan.rampartMask[index]) &&
         blockedMask[index] === 0
