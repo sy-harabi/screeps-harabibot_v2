@@ -10,7 +10,7 @@ outer ramparts: ${a.context.topology.ramparts.length}
 rampart diameter: ${c?Math.max(c.maxX-c.minX,c.maxY-c.minY):'—'}
 center region: ${centerRegion}
 
-${formatPlacement('central',a.central)}${a.central?` · shell ${a.central.baseRadius}+1=${a.central.searchRadius} · pool ${a.central.centralCandidateCount}`:''}
+${formatPlacement('central',a.central)}${a.central?` · shell ${a.central.baseRadius}+3=${a.central.searchRadius} · pool ${a.central.centralCandidateCount} · beam ${a.central.beamWidth}`:''}
 central certificate: ${cert}
 ${a.certificate.status==='certified'?'distributed: skipped (central certified)':formatPlacement('distributed',a.distributed)}
 heuristic winner: ${preferred}
@@ -27,18 +27,8 @@ function renderCurrent(){if(!currentRoom)return;setupCanvas();ctx.fillStyle='#0e
 function structureCounts(plan){const a={};if(!plan)return a;for(const s of plan.structures)a[s.structureType]=(a[s.structureType]||0)+1;return a}
 function renderSide(){document.getElementById('roomTitle').textContent=currentName||'—';const st=document.getElementById('status'),dl=document.getElementById('downloadBtn'),cp=document.getElementById('copyBtn');let status='NOT PLANNED',klass='idle';if(currentResult){if(currentResult.ok){status='SUCCESS';klass='ok'}else{status='FAIL · '+(currentResult.failureStage||'unknown');klass='bad'}}st.textContent=status;st.className='pill '+klass;dl.disabled=cp.disabled=!(currentResult&&currentResult.ok);
  const d=currentResult?.diagnostics||currentResult||{},cnt=structureCounts(currentResult?.plan);const metrics=[['attempt',currentResult?((d.attempt??0)+1):'—'],['tier',d.tier??'—'],['slots',d.slots??'—'],['structures',currentResult?.plan?.structures.length??'—'],['roads',cnt.road??'—'],['ramparts',cnt.rampart??'—'],['extensions',cnt.extension??'—'],['towers',cnt.tower??'—'],['time',currentResult?(currentElapsed.toFixed(1)+' ms'):'—']];document.getElementById('metrics').innerHTML=metrics.map(([k,v])=>`<div class="metric"><b>${v}</b><span>${k}</span></div>`).join('');
- document.getElementById('roomInfo').textContent=currentRoom?`controller: ${currentRoom.controller?`(${currentRoom.controller.x},${currentRoom.controller.y})`:'none'}
-sources: ${currentRoom.sources.length}
-minerals: ${currentRoom.minerals.map(m=>`${m.mineralType}@${m.x},${m.y}`).join(' · ')||'none'}`:'—';
- document.getElementById('plannerInfo').textContent=!currentResult?'not run':currentResult.ok?`SUCCESS
-region attempts: ${(d.attempt??0)+1}
-selected regions: ${(d.selectedRegions||[]).join(', ')}
-outer ramparts (planning): ${d.outerRamparts??'—'}
-controller candidates: ${d.controllerCandidates??'—'}
-anchor/storage: ${currentResult.plan.anchor.x},${currentResult.plan.anchor.y}`:`FAIL: ${currentResult.failureStage||'unknown'}
-region attempts: ${(d.attempt??0)+1}
-selected regions: ${(d.selectedRegions||[]).join(', ')||'—'}
-${currentResult.message||''}`;
+ document.getElementById('roomInfo').textContent=currentRoom?`controller: ${currentRoom.controller?`(${currentRoom.controller.x},${currentRoom.controller.y})`:'none'}\nsources: ${currentRoom.sources.length}\nminerals: ${currentRoom.minerals.map(m=>`${m.mineralType}@${m.x},${m.y}`).join(' · ')||'none'}`:'—';
+ document.getElementById('plannerInfo').textContent=!currentResult?'not run':currentResult.ok?`SUCCESS\nregion attempts: ${(d.attempt??0)+1}\nselected regions: ${(d.selectedRegions||[]).join(', ')}\nouter ramparts (planning): ${d.outerRamparts??'—'}\ncontroller candidates: ${d.controllerCandidates??'—'}\nanchor/storage: ${currentResult.plan.anchor.x},${currentResult.plan.anchor.y}`:`FAIL: ${currentResult.failureStage||'unknown'}\nregion attempts: ${(d.attempt??0)+1}\nselected regions: ${(d.selectedRegions||[]).join(', ')||'—'}\n${currentResult.message||''}`;
  document.getElementById('counts').textContent=currentResult?.ok?Object.entries(cnt).sort().map(([k,v])=>`${k.padEnd(12)} ${v}`).join('\n'):'—';document.getElementById('towerOptInfo').textContent=towerOptimizationText()}
 async function setRoom(name,autoPlan=true){name=(name||'').trim().toUpperCase();if(!/^[WE]\d+[NS]\d+$/.test(name)){alert(`Invalid room name: ${name}`);return}if(name!==currentName)cancelOptimalTowerSolve();const requestName=name;currentName=name;input.value=name;currentResult=planCache.get(name)?.result||null;currentElapsed=planCache.get(name)?.elapsed||0;wrap.classList.add('busy');document.getElementById('status').textContent='LOADING ROOM';document.getElementById('status').className='pill idle';try{currentRoom=await fetchRoomData(name)}catch(e){console.error(e);if(currentName===requestName){wrap.classList.remove('busy');currentRoom=null;currentResult=null;renderSide();alert(`Failed to load ${name}: ${e?.message||e}`)}return}if(currentName!==requestName)return;wrap.classList.remove('busy');renderCurrent();renderSide();if(autoPlan&&!currentResult)runPlan();else if(document.getElementById('milpTowerOverlay')?.checked&&currentResult?.ok)ensureOptimalTowerOverlay()}
 function runPlan(){if(!currentRoom)return;wrap.classList.add('busy');document.getElementById('status').textContent='PLANNING';document.getElementById('status').className='pill idle';setTimeout(()=>{const name=currentName,t0=performance.now();let result;try{result=planBaseOffline(currentRoom)}catch(e){console.error(e);result={ok:false,failureStage:'exception',message:e?.stack||String(e)}}const elapsed=performance.now()-t0;planCache.set(name,{result,elapsed});if(currentName!==name)return;currentResult=result;currentElapsed=elapsed;wrap.classList.remove('busy');renderCurrent();renderSide();if(document.getElementById('milpTowerOverlay')?.checked&&result?.ok)ensureOptimalTowerOverlay()},20)}
