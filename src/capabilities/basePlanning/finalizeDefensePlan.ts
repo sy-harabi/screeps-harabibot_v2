@@ -46,8 +46,14 @@ interface SafeRepairRoadTarget {
 }
 
 /**
- * Replaces provisional planning ramparts and rampart-only roads with a defense
- * plan based on the actual placed structures.
+ * Replaces provisional planning ramparts and rampart-only roads with a final
+ * defense plan based on the actual placed structures.
+ *
+ * Final min-cut components that cannot be reached from the civil road network
+ * are treated as natural-wall islands and discarded. The topology is then
+ * rebuilt from the remaining ramparts. Any final building or road that still
+ * lies in the resulting ranged-attack danger zone receives an overlapping
+ * rampart.
  */
 export function finalizeDefensePlan(
   terrain: RoomTerrain,
@@ -74,14 +80,32 @@ export function finalizeDefensePlan(
   const forcedInsideMask = new Uint8Array(ROOM_AREA);
 
   for (let attempt = 0; attempt < MAX_FINAL_RAMPART_ATTEMPTS; attempt++) {
-    const rampartPlan = planFinalRamparts(
+    const rawRampartPlan = planFinalRamparts(
       terrain,
       controller,
       baseStructures,
       forcedInsideMask,
     );
 
-    if (!rampartPlan) {
+    if (!rawRampartPlan) {
+      return;
+    }
+
+    const blockedMask = buildStandingBlockedMask(
+      controller,
+      sources,
+      minerals,
+      baseStructures,
+    );
+    const rampartPlan = discardInaccessibleRampartComponents(
+      terrain,
+      rawRampartPlan,
+      civilRoads,
+      blockedMask,
+      baseStructures,
+    );
+
+    if (!rampartPlan || rampartPlan.ramparts.length === 0) {
       return;
     }
 
@@ -108,6 +132,7 @@ export function finalizeDefensePlan(
       return;
     }
 
+    const finalRoads = [...civilRoads, ...defenseRoads];
     const repairRoadMask = buildCoordinateMask([
       ...internalCivilRoads,
       ...defenseRoads,
@@ -122,6 +147,12 @@ export function finalizeDefensePlan(
     );
 
     if (repairPlan.unresolvedRamparts.length === 0) {
+      const dangerousMask = classifyDefensiveTiles(rampartPlan).dangerousMask;
+      const dangerRamparts = collectDangerOverlayRamparts(
+        baseStructures,
+        finalRoads,
+        dangerousMask,
+      );
       const result = assembleFinalStructures(
         provisionalStructures,
         baseStructures,
@@ -129,14 +160,15 @@ export function finalizeDefensePlan(
         defenseRoads,
         rampartPlan.ramparts,
         repairPlan.ramparts,
+        dangerRamparts,
       );
 
       visualizeFinalPlan(result, visual);
       return result;
     }
 
-    // A repair gap that cannot be solved by an accessible dangerous standing
-    // tile forces the current cut tile inside. The next min-cut must move out.
+    // Only reachable outer-rampart tiles that still cannot be repaired force
+    // the cut outward. Inaccessible natural-wall islands were already removed.
     for (const { x, y } of repairPlan.unresolvedRamparts) {
       forcedInsideMask[toRoomIndex(x, y)] = 1;
     }
@@ -357,31 +389,17 @@ function isProtectedStructure(structure: PlannedStructure): boolean {
 function buildExitSinkMask(terrain: RoomTerrain): Uint8Array {
   const sinkMask = new Uint8Array(ROOM_AREA);
 
-  for (let index = 0; index < ROOM_AREA; index++) {
-    const { x, y } = fromRoomIndex(index);
-
-    if (x !== 0 && x !== ROOM_SIZE - 1 && y !== 0 && y !== ROOM_SIZE - 1) {
-      continue;
-    }
-
-    if (terrain.get(x, y) === TERRAIN_MASK_WALL) {
-      continue;
-    }
-
+  for (const exit of getExitCoordinates(terrain)) {
     for (let dy = -EXIT_SINK_RANGE; dy <= EXIT_SINK_RANGE; dy++) {
       for (let dx = -EXIT_SINK_RANGE; dx <= EXIT_SINK_RANGE; dx++) {
-        const sinkX = x + dx;
-        const sinkY = y + dy;
+        const x = exit.x + dx;
+        const y = exit.y + dy;
 
-        if (!isInsideRoom(sinkX, sinkY)) {
+        if (!isInsideRoom(x, y) || terrain.get(x, y) === TERRAIN_MASK_WALL) {
           continue;
         }
 
-        if (terrain.get(sinkX, sinkY) === TERRAIN_MASK_WALL) {
-          continue;
-        }
-
-        sinkMask[toRoomIndex(sinkX, sinkY)] = 1;
+        sinkMask[toRoomIndex(x, y)] = 1;
       }
     }
   }
@@ -410,6 +428,150 @@ function buildControllerDistanceCosts(
   }
 
   return costs;
+}
+
+/**
+ * Removes min-cut components that cannot be reached from the retained civil
+ * road network without leaving the original inside area. This is the same
+ * practical distinction the old planner made when it skipped a cut whose
+ * rampart path search was incomplete.
+ *
+ * After removal, inside/outside masks are recomputed from exits so ranged
+ * danger across natural walls is classified against the defense that will
+ * actually be built.
+ */
+function discardInaccessibleRampartComponents(
+  terrain: RoomTerrain,
+  rampartPlan: OuterRampartPlan,
+  civilRoads: readonly RoomCoordinate[],
+  blockedMask: Uint8Array,
+  structures: readonly PlannedStructure[],
+): OuterRampartPlan | undefined {
+  const components = findRampartComponents(rampartPlan.rampartMask);
+
+  if (components.length === 0) {
+    return;
+  }
+
+  const starts = civilRoads.filter(({ x, y }) => {
+    const index = toRoomIndex(x, y);
+    return !!(
+      (rampartPlan.insideMask[index] || rampartPlan.rampartMask[index]) &&
+      !blockedMask[index]
+    );
+  });
+
+  if (starts.length === 0) {
+    return;
+  }
+
+  const { distances } = floodFill(terrain, starts, (x, y) => {
+    const index = toRoomIndex(x, y);
+    return !!(
+      (rampartPlan.insideMask[index] || rampartPlan.rampartMask[index]) &&
+      !blockedMask[index]
+    );
+  });
+  const keptMask = new Uint8Array(ROOM_AREA);
+  let keptComponentCount = 0;
+
+  for (const component of components) {
+    if (!component.tileIndices.some((index) => distances[index] >= 0)) {
+      continue;
+    }
+
+    keptComponentCount++;
+
+    for (const index of component.tileIndices) {
+      keptMask[index] = 1;
+    }
+  }
+
+  if (keptComponentCount === 0) {
+    return;
+  }
+
+  if (keptComponentCount === components.length) {
+    return rampartPlan;
+  }
+
+  const filteredPlan = rebuildRampartPlan(terrain, keptMask);
+
+  // Discarding a natural-wall island must not open an actual protected
+  // structure to pathing from an exit. If it does, the component was not merely
+  // redundant and this final-defense attempt is invalid.
+  for (const structure of structures) {
+    if (!isProtectedStructure(structure)) {
+      continue;
+    }
+
+    const { x, y } = structure.coordinate;
+
+    if (filteredPlan.outsideMask[toRoomIndex(x, y)]) {
+      return;
+    }
+  }
+
+  return filteredPlan;
+}
+
+function rebuildRampartPlan(
+  terrain: RoomTerrain,
+  rampartMask: Uint8Array,
+): OuterRampartPlan {
+  const exits = getExitCoordinates(terrain).filter(
+    ({ x, y }) => !rampartMask[toRoomIndex(x, y)],
+  );
+  const { distances } = floodFill(
+    terrain,
+    exits,
+    (x, y) => !rampartMask[toRoomIndex(x, y)],
+  );
+  const outsideMask = new Uint8Array(ROOM_AREA);
+  const insideMask = new Uint8Array(ROOM_AREA);
+
+  for (let index = 0; index < ROOM_AREA; index++) {
+    const { x, y } = fromRoomIndex(index);
+
+    if (terrain.get(x, y) === TERRAIN_MASK_WALL || rampartMask[index]) {
+      continue;
+    }
+
+    if (distances[index] >= 0) {
+      outsideMask[index] = 1;
+    } else {
+      insideMask[index] = 1;
+    }
+  }
+
+  return {
+    ramparts: coordinatesFromMask(rampartMask),
+    rampartMask,
+    insideMask,
+    outsideMask,
+  };
+}
+
+function getExitCoordinates(terrain: RoomTerrain): RoomCoordinate[] {
+  const exits: RoomCoordinate[] = [];
+
+  for (let x = 0; x < ROOM_SIZE; x++) {
+    for (const y of [0, ROOM_SIZE - 1]) {
+      if (terrain.get(x, y) !== TERRAIN_MASK_WALL) {
+        exits.push({ x, y });
+      }
+    }
+  }
+
+  for (let y = 1; y < ROOM_SIZE - 1; y++) {
+    for (const x of [0, ROOM_SIZE - 1]) {
+      if (terrain.get(x, y) !== TERRAIN_MASK_WALL) {
+        exits.push({ x, y });
+      }
+    }
+  }
+
+  return exits;
 }
 
 function planFinalDefenseRoads(
@@ -1002,6 +1164,33 @@ function buildStandingBlockedMask(
   return blockedMask;
 }
 
+function collectDangerOverlayRamparts(
+  structures: readonly PlannedStructure[],
+  roads: readonly RoomCoordinate[],
+  dangerousMask: Uint8Array,
+): RoomCoordinate[] {
+  const rampartMask = new Uint8Array(ROOM_AREA);
+
+  for (const structure of structures) {
+    const { x, y } = structure.coordinate;
+    const index = toRoomIndex(x, y);
+
+    if (dangerousMask[index]) {
+      rampartMask[index] = 1;
+    }
+  }
+
+  for (const { x, y } of roads) {
+    const index = toRoomIndex(x, y);
+
+    if (dangerousMask[index]) {
+      rampartMask[index] = 1;
+    }
+  }
+
+  return coordinatesFromMask(rampartMask);
+}
+
 function assembleFinalStructures(
   provisionalStructures: readonly PlannedStructure[],
   baseStructures: readonly PlannedStructure[],
@@ -1009,6 +1198,7 @@ function assembleFinalStructures(
   defenseRoads: readonly RoomCoordinate[],
   outerRamparts: readonly RoomCoordinate[],
   repairRamparts: readonly RoomCoordinate[],
+  dangerRamparts: readonly RoomCoordinate[],
 ): PlannedStructure[] {
   const structures: PlannedStructure[] = [...baseStructures];
   const seen = new Set(
@@ -1045,7 +1235,11 @@ function assembleFinalStructures(
     add(STRUCTURE_ROAD, road, roadRcl);
   }
 
-  for (const rampart of [...outerRamparts, ...repairRamparts]) {
+  for (const rampart of [
+    ...outerRamparts,
+    ...repairRamparts,
+    ...dangerRamparts,
+  ]) {
     add(STRUCTURE_RAMPART, rampart, rampartRcl);
   }
 
