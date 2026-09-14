@@ -6,11 +6,11 @@ It shows:
 
 - compact central greedy placement from the minimum feasible center-region radius plus one shell
 - cheap central optimality certificate using at least the three lowest-damage ramparts
-- diameter-seeded distributed greedy with median central exclusion
+- diameter-seeded distributed greedy
 - exact/time-limited MILP comparator (GLPK.js)
 - current v2 planner placement
 
-All comparison strategies use the same tower candidate constraints as the planner snapshot embedded in the experiment. The MILP runs asynchronously (30 s primary limit, 3 s secondary tie-break), while central/distributed/current-v2 results render immediately. Moving to another room or disabling the MILP overlay cancels the active solver worker.
+Distributed chooses one seed near each diameter endpoint, then greedily selects the remaining four from all remaining legal candidates; there is no median center exclusion. All comparison strategies use the same tower candidate constraints as the planner snapshot embedded in the experiment. The MILP runs asynchronously (30 s primary limit, 3 s secondary tie-break), while central/distributed/current-v2 results render immediately. Moving to another room or disabling the MILP overlay cancels the active solver worker.
 
 ## Run
 
