@@ -1,6 +1,8 @@
 # Tower placement comparison experiment
 
-Browser experiment for comparing tower placement strategies against the current v2 base planner.
+Browser experiment for comparing the tower-placement strategies explored during the v2 base-planner research.
+
+> Production note (2026-09-14): the production planner no longer chooses between centered and distributed branches. It now uses global max-min greedy seeding, single-tower replacement to convergence, and two full pair sweeps. See [ADR 0005](../../docs/decisions/0005-tower-placement-local-search.md) and the [tower placement experiment log](../../docs/rewrite-log/2026-09-14-tower-placement-experiments.md). The centered/distributed views below are retained as historical research tools.
 
 It shows:
 
@@ -8,9 +10,9 @@ It shows:
 - cheap central optimality certificate using at least the three lowest-damage ramparts
 - diameter-seeded distributed placement with v2 weakest-rampart continuation
 - exact/time-limited MILP comparator (GLPK.js)
-- current v2 planner placement
+- the planner placement captured by the experiment implementation
 
-Distributed chooses one seed near each diameter endpoint, then selects the remaining four with the current v2 tower logic: find the weakest rampart under the current selection, keep eligible candidates within `minRange + 1` of that rampart, then choose the candidate with the lowest average range to all ramparts (preferring non-slot candidates on ties). There is no median center exclusion. Central uses a width-64 beam over candidates within `minimum feasible center radius + 3`, ordered by min damage, weak-rampart count, total damage, center-distance sum, and stable room-index ties. All comparison strategies use the same tower candidate constraints as the planner snapshot embedded in the experiment. The MILP runs asynchronously (30 s primary limit, 3 s secondary tie-break), while central/distributed/current-v2 results render immediately. Moving to another room or disabling the MILP overlay cancels the active solver worker.
+Distributed chooses one seed near each diameter endpoint, then selects the remaining four with the earlier v2 tower logic: find the weakest rampart under the current selection, keep eligible candidates within `minRange + 1` of that rampart, then choose the candidate with the lowest average range to all ramparts (preferring non-slot candidates on ties). There is no median center exclusion. Central uses a width-64 beam over candidates within `minimum feasible center radius + 3`, ordered by min damage, weak-rampart count, total damage, center-distance sum, and stable room-index ties. All comparison strategies use the same tower candidate constraints as the planner snapshot embedded in the experiment. The MILP runs asynchronously (30 s primary limit, 3 s secondary tie-break), while central/distributed/planner results render immediately. Moving to another room or disabling the MILP overlay cancels the active solver worker.
 
 ## Run
 
