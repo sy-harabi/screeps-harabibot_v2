@@ -1,4 +1,3 @@
-import { dijkstraMap } from "../../world/map/dijkstraMap";
 import { floodFill } from "../../world/map/floodFill";
 import { findMinimumTileCut } from "../../world/map/minCut";
 import type { RoomCoordinate } from "../../world/map/roomCoordinate";
@@ -19,31 +18,13 @@ import type { OuterRampartPlan } from "./planOuterRamparts";
 import { planRampartRepairRoads } from "./planRampartRepairRoads";
 
 const PROTECTION_RANGE = 3;
-const REPAIR_RANGE = 3;
 const EXIT_SINK_RANGE = 1;
 const BASE_RAMPART_COST = 1;
 const BASE_DISTANCE = 15;
 const MAX_FINAL_RAMPART_ATTEMPTS = 5;
 
-interface RepairStationPlan {
-  readonly ramparts: RoomCoordinate[];
-  readonly unresolvedRamparts: RoomCoordinate[];
-}
-
 interface RampartComponent {
   readonly tileIndices: readonly number[];
-}
-
-interface RampartTarget {
-  readonly componentIndex: number;
-  readonly coordinate: RoomCoordinate;
-  readonly distance: number;
-}
-
-interface SafeRepairRoadTarget {
-  readonly coordinate: RoomCoordinate;
-  readonly distance: number;
-  readonly coverage: number;
 }
 
 /**
@@ -111,10 +92,9 @@ export function finalizeDefensePlan(
     }
 
     // Resource roads may legitimately remain outside the final defensive line.
-    // Only the internal part is used as the seed for final defense roads.
+    // Only roads strictly inside the outer ramparts can seed repair-road reuse.
     const internalCivilRoads = civilRoads.filter(({ x, y }) => {
-      const index = toRoomIndex(x, y);
-      return !!rampartPlan.insideMask[index];
+      return !!rampartPlan.insideMask[toRoomIndex(x, y)];
     });
 
     const repairRoadPlan = planRampartRepairRoads(
@@ -132,10 +112,8 @@ export function finalizeDefensePlan(
       return;
     }
 
-    const defenseRoads = repairRoadPlan.roads;
-    const finalRoads = [...civilRoads, ...defenseRoads];
-
     if (repairRoadPlan.unresolvedRamparts.length === 0) {
+      const finalRoads = [...civilRoads, ...repairRoadPlan.roads];
       const dangerousMask = classifyDefensiveTiles(rampartPlan).dangerousMask;
       const dangerRamparts = collectDangerOverlayRamparts(
         baseStructures,
@@ -146,9 +124,8 @@ export function finalizeDefensePlan(
         provisionalStructures,
         baseStructures,
         civilRoads,
-        defenseRoads,
+        repairRoadPlan.roads,
         rampartPlan.ramparts,
-        [],
         dangerRamparts,
       );
 
@@ -563,224 +540,6 @@ function getExitCoordinates(terrain: RoomTerrain): RoomCoordinate[] {
   return exits;
 }
 
-function planFinalDefenseRoads(
-  terrain: RoomTerrain,
-  controller: StructureController,
-  sources: readonly Source[],
-  minerals: readonly Mineral[],
-  structures: readonly PlannedStructure[],
-  civilRoads: readonly RoomCoordinate[],
-  rampartPlan: OuterRampartPlan,
-): RoomCoordinate[] | undefined {
-  if (civilRoads.length === 0) {
-    return;
-  }
-
-  const roadMask = buildCoordinateMask(civilRoads);
-  const blockedMask = buildStandingBlockedMask(
-    controller,
-    sources,
-    minerals,
-    structures,
-  );
-  const additions: RoomCoordinate[] = [];
-
-  if (
-    !connectRampartComponents(
-      terrain,
-      rampartPlan,
-      blockedMask,
-      roadMask,
-      additions,
-    )
-  ) {
-    return;
-  }
-
-  extendRoadsToSafeRepairTiles(
-    terrain,
-    rampartPlan,
-    blockedMask,
-    roadMask,
-    additions,
-  );
-
-  return additions;
-}
-
-function connectRampartComponents(
-  terrain: RoomTerrain,
-  rampartPlan: OuterRampartPlan,
-  blockedMask: Uint8Array,
-  roadMask: Uint8Array,
-  additions: RoomCoordinate[],
-): boolean {
-  const components = findRampartComponents(rampartPlan.rampartMask);
-  const remainingComponents = components.map((_, index) => index);
-
-  while (remainingComponents.length > 0) {
-    const distances = buildDefenseRoadDistanceMap(
-      terrain,
-      rampartPlan,
-      blockedMask,
-      roadMask,
-    );
-    const target = findClosestRampartTarget(
-      components,
-      remainingComponents,
-      distances,
-    );
-
-    if (!target) {
-      return false;
-    }
-
-    const path = traceDefenseRoadPath(
-      terrain,
-      target.coordinate,
-      distances,
-      roadMask,
-    );
-
-    if (!path) {
-      return false;
-    }
-
-    addRoadPath(path, roadMask, additions);
-    remainingComponents.splice(
-      remainingComponents.indexOf(target.componentIndex),
-      1,
-    );
-  }
-
-  return true;
-}
-
-/**
- * A component connection alone may leave long sections of the wall without a
- * practical repair position. Extend the final road network to safe repair
- * tiles before considering dangerous repair stations or moving the min-cut.
- */
-function extendRoadsToSafeRepairTiles(
-  terrain: RoomTerrain,
-  rampartPlan: OuterRampartPlan,
-  blockedMask: Uint8Array,
-  roadMask: Uint8Array,
-  additions: RoomCoordinate[],
-): void {
-  const safeRepairMask =
-    classifyDefensiveTiles(rampartPlan).safeRepairCandidateMask;
-
-  while (true) {
-    const uncovered = getRampartsWithoutAccessibleSafeRepair(
-      rampartPlan.ramparts,
-      safeRepairMask,
-      blockedMask,
-      roadMask,
-    );
-
-    if (uncovered.size === 0) {
-      return;
-    }
-
-    const distances = buildDefenseRoadDistanceMap(
-      terrain,
-      rampartPlan,
-      blockedMask,
-      roadMask,
-    );
-    const target = findBestSafeRepairRoadTarget(
-      safeRepairMask,
-      blockedMask,
-      uncovered,
-      distances,
-    );
-
-    if (!target) {
-      return;
-    }
-
-    const path = traceDefenseRoadPath(
-      terrain,
-      target.coordinate,
-      distances,
-      roadMask,
-    );
-
-    if (!path || path.length === 0) {
-      return;
-    }
-
-    addRoadPath(path, roadMask, additions);
-  }
-}
-
-function buildDefenseRoadDistanceMap(
-  terrain: RoomTerrain,
-  rampartPlan: OuterRampartPlan,
-  blockedMask: Uint8Array,
-  roadMask: Uint8Array,
-): Int32Array {
-  return dijkstraMap(
-    terrain,
-    coordinatesFromMask(roadMask),
-    (x, y, terrainType) =>
-      getDefenseRoadCost(toRoomIndex(x, y), terrainType, roadMask),
-    (x, y) => {
-      const index = toRoomIndex(x, y);
-      return !!(
-        (rampartPlan.insideMask[index] || rampartPlan.rampartMask[index]) &&
-        !blockedMask[index]
-      );
-    },
-  );
-}
-
-function findBestSafeRepairRoadTarget(
-  safeRepairMask: Uint8Array,
-  blockedMask: Uint8Array,
-  uncoveredRamparts: ReadonlySet<number>,
-  distances: Int32Array,
-): SafeRepairRoadTarget | undefined {
-  let best: SafeRepairRoadTarget | undefined;
-
-  for (let index = 0; index < ROOM_AREA; index++) {
-    if (!safeRepairMask[index] || blockedMask[index] || distances[index] < 0) {
-      continue;
-    }
-
-    const coordinate = fromRoomIndex(index);
-    let coverage = 0;
-
-    forEachCoordinateInRange(coordinate, REPAIR_RANGE, (x, y) => {
-      if (uncoveredRamparts.has(toRoomIndex(x, y))) {
-        coverage++;
-      }
-    });
-
-    if (coverage === 0) {
-      continue;
-    }
-
-    const distance = distances[index];
-
-    if (
-      best &&
-      (distance > best.distance ||
-        (distance === best.distance && coverage < best.coverage) ||
-        (distance === best.distance &&
-          coverage === best.coverage &&
-          index >= toRoomIndex(best.coordinate.x, best.coordinate.y)))
-    ) {
-      continue;
-    }
-
-    best = { coordinate, distance, coverage };
-  }
-
-  return best;
-}
-
 function findRampartComponents(rampartMask: Uint8Array): RampartComponent[] {
   const visited = new Uint8Array(ROOM_AREA);
   const components: RampartComponent[] = [];
@@ -820,311 +579,6 @@ function findRampartComponents(rampartMask: Uint8Array): RampartComponent[] {
   }
 
   return components;
-}
-
-function findClosestRampartTarget(
-  components: readonly RampartComponent[],
-  remainingComponents: readonly number[],
-  distances: Int32Array,
-): RampartTarget | undefined {
-  let best: RampartTarget | undefined;
-
-  for (const componentIndex of remainingComponents) {
-    for (const tileIndex of components[componentIndex].tileIndices) {
-      const distance = distances[tileIndex];
-
-      if (distance < 0) {
-        continue;
-      }
-
-      if (
-        best &&
-        (distance > best.distance ||
-          (distance === best.distance &&
-            (componentIndex > best.componentIndex ||
-              (componentIndex === best.componentIndex &&
-                tileIndex >=
-                  toRoomIndex(best.coordinate.x, best.coordinate.y)))))
-      ) {
-        continue;
-      }
-
-      best = {
-        componentIndex,
-        coordinate: fromRoomIndex(tileIndex),
-        distance,
-      };
-    }
-  }
-
-  return best;
-}
-
-function traceDefenseRoadPath(
-  terrain: RoomTerrain,
-  start: RoomCoordinate,
-  distances: Int32Array,
-  roadMask: Uint8Array,
-): RoomCoordinate[] | undefined {
-  let currentIndex = toRoomIndex(start.x, start.y);
-
-  if (distances[currentIndex] < 0) {
-    return;
-  }
-
-  const path: RoomCoordinate[] = [];
-
-  while (!roadMask[currentIndex]) {
-    const current = fromRoomIndex(currentIndex);
-    const currentDistance = distances[currentIndex];
-
-    if (currentDistance <= 0) {
-      return;
-    }
-
-    path.push(current);
-
-    const currentCost = getDefenseRoadCost(
-      currentIndex,
-      terrain.get(current.x, current.y),
-      roadMask,
-    );
-    let bestRoadIndex = -1;
-    let bestIndex = -1;
-
-    for (const offset of NEIGHBOR_OFFSETS) {
-      const x = current.x + offset.x;
-      const y = current.y + offset.y;
-
-      if (!isInsideRoom(x, y)) {
-        continue;
-      }
-
-      const neighborIndex = toRoomIndex(x, y);
-      const neighborDistance = distances[neighborIndex];
-
-      if (
-        neighborDistance < 0 ||
-        neighborDistance + currentCost !== currentDistance
-      ) {
-        continue;
-      }
-
-      if (roadMask[neighborIndex]) {
-        if (bestRoadIndex < 0 || neighborIndex < bestRoadIndex) {
-          bestRoadIndex = neighborIndex;
-        }
-        continue;
-      }
-
-      if (bestIndex < 0 || neighborIndex < bestIndex) {
-        bestIndex = neighborIndex;
-      }
-    }
-
-    const nextIndex = bestRoadIndex >= 0 ? bestRoadIndex : bestIndex;
-
-    if (nextIndex < 0) {
-      return;
-    }
-
-    currentIndex = nextIndex;
-  }
-
-  return path;
-}
-
-function addRoadPath(
-  path: readonly RoomCoordinate[],
-  roadMask: Uint8Array,
-  additions: RoomCoordinate[],
-): void {
-  for (const coordinate of path) {
-    const index = toRoomIndex(coordinate.x, coordinate.y);
-
-    if (roadMask[index]) {
-      continue;
-    }
-
-    roadMask[index] = 1;
-    additions.push(coordinate);
-  }
-}
-
-function getDefenseRoadCost(
-  index: number,
-  terrainType: number,
-  roadMask: Uint8Array,
-): number {
-  if (roadMask[index]) {
-    return 3;
-  }
-
-  return terrainType === TERRAIN_MASK_SWAMP ? 6 : 5;
-}
-
-function planRepairStations(
-  controller: StructureController,
-  sources: readonly Source[],
-  minerals: readonly Mineral[],
-  structures: readonly PlannedStructure[],
-  rampartPlan: OuterRampartPlan,
-  roadMask: Uint8Array,
-): RepairStationPlan {
-  const defensiveTiles = classifyDefensiveTiles(rampartPlan);
-  const blockedMask = buildStandingBlockedMask(
-    controller,
-    sources,
-    minerals,
-    structures,
-  );
-  const uncovered = getRampartsWithoutAccessibleSafeRepair(
-    rampartPlan.ramparts,
-    defensiveTiles.safeRepairCandidateMask,
-    blockedMask,
-    roadMask,
-  );
-  const repairRamparts: RoomCoordinate[] = [];
-
-  // Prefer an already-roaded dangerous tile, then a tile adjacent to a road.
-  // Among equally accessible candidates, cover as many repair gaps as possible.
-  while (uncovered.size > 0) {
-    let bestCandidateIndex = -1;
-    let bestAccessRank = Infinity;
-    let bestCoverage: number[] = [];
-
-    for (let index = 0; index < ROOM_AREA; index++) {
-      if (
-        !defensiveTiles.rampartRequiredRepairCandidateMask[index] ||
-        blockedMask[index]
-      ) {
-        continue;
-      }
-
-      const accessRank = getRepairAccessRank(index, roadMask);
-
-      if (accessRank < 0) {
-        continue;
-      }
-
-      const coordinate = fromRoomIndex(index);
-      const coverage: number[] = [];
-
-      forEachCoordinateInRange(coordinate, REPAIR_RANGE, (x, y) => {
-        const rampartIndex = toRoomIndex(x, y);
-
-        if (uncovered.has(rampartIndex)) {
-          coverage.push(rampartIndex);
-        }
-      });
-
-      if (coverage.length === 0) {
-        continue;
-      }
-
-      if (
-        accessRank < bestAccessRank ||
-        (accessRank === bestAccessRank &&
-          (coverage.length > bestCoverage.length ||
-            (coverage.length === bestCoverage.length &&
-              (bestCandidateIndex < 0 || index < bestCandidateIndex))))
-      ) {
-        bestCandidateIndex = index;
-        bestAccessRank = accessRank;
-        bestCoverage = coverage;
-      }
-    }
-
-    if (bestCandidateIndex < 0) {
-      break;
-    }
-
-    repairRamparts.push(fromRoomIndex(bestCandidateIndex));
-
-    for (const coveredIndex of bestCoverage) {
-      uncovered.delete(coveredIndex);
-    }
-  }
-
-  return {
-    ramparts: repairRamparts,
-    unresolvedRamparts: [...uncovered].map(fromRoomIndex),
-  };
-}
-
-function getRampartsWithoutAccessibleSafeRepair(
-  ramparts: readonly RoomCoordinate[],
-  safeRepairMask: Uint8Array,
-  blockedMask: Uint8Array,
-  roadMask: Uint8Array,
-): Set<number> {
-  const uncovered = new Set<number>();
-
-  for (const rampart of ramparts) {
-    if (
-      !hasAccessibleSafeRepairTile(
-        rampart,
-        safeRepairMask,
-        blockedMask,
-        roadMask,
-      )
-    ) {
-      uncovered.add(toRoomIndex(rampart.x, rampart.y));
-    }
-  }
-
-  return uncovered;
-}
-
-function hasAccessibleSafeRepairTile(
-  rampart: RoomCoordinate,
-  safeRepairMask: Uint8Array,
-  blockedMask: Uint8Array,
-  roadMask: Uint8Array,
-): boolean {
-  let found = false;
-
-  forEachCoordinateInRange(rampart, REPAIR_RANGE, (x, y) => {
-    if (found) {
-      return;
-    }
-
-    const index = toRoomIndex(x, y);
-
-    if (
-      safeRepairMask[index] &&
-      !blockedMask[index] &&
-      getRepairAccessRank(index, roadMask) >= 0
-    ) {
-      found = true;
-    }
-  });
-
-  return found;
-}
-
-/** Returns 0 for a road tile, 1 for a tile adjacent to a road, and -1 otherwise. */
-function getRepairAccessRank(index: number, roadMask: Uint8Array): number {
-  if (roadMask[index]) {
-    return 0;
-  }
-
-  const coordinate = fromRoomIndex(index);
-
-  for (const offset of NEIGHBOR_OFFSETS) {
-    const x = coordinate.x + offset.x;
-    const y = coordinate.y + offset.y;
-
-    if (!isInsideRoom(x, y)) {
-      continue;
-    }
-
-    if (roadMask[toRoomIndex(x, y)]) {
-      return 1;
-    }
-  }
-
-  return -1;
 }
 
 function buildStandingBlockedMask(
@@ -1184,9 +638,8 @@ function assembleFinalStructures(
   provisionalStructures: readonly PlannedStructure[],
   baseStructures: readonly PlannedStructure[],
   civilRoads: readonly RoomCoordinate[],
-  defenseRoads: readonly RoomCoordinate[],
+  repairRoads: readonly RoomCoordinate[],
   outerRamparts: readonly RoomCoordinate[],
-  repairRamparts: readonly RoomCoordinate[],
   dangerRamparts: readonly RoomCoordinate[],
 ): PlannedStructure[] {
   const structures: PlannedStructure[] = [...baseStructures];
@@ -1220,15 +673,11 @@ function assembleFinalStructures(
     structures.push({ structureType, coordinate, rcl });
   };
 
-  for (const road of [...civilRoads, ...defenseRoads]) {
+  for (const road of [...civilRoads, ...repairRoads]) {
     add(STRUCTURE_ROAD, road, roadRcl);
   }
 
-  for (const rampart of [
-    ...outerRamparts,
-    ...repairRamparts,
-    ...dangerRamparts,
-  ]) {
+  for (const rampart of [...outerRamparts, ...dangerRamparts]) {
     add(STRUCTURE_RAMPART, rampart, rampartRcl);
   }
 
@@ -1245,18 +694,6 @@ function getStructureRcl(structureType: BuildableStructureConstant): number {
   }
 
   return 8;
-}
-
-function buildCoordinateMask(
-  coordinates: readonly RoomCoordinate[],
-): Uint8Array {
-  const mask = new Uint8Array(ROOM_AREA);
-
-  for (const { x, y } of coordinates) {
-    mask[toRoomIndex(x, y)] = 1;
-  }
-
-  return mask;
 }
 
 function coordinatesFromMask(mask: Uint8Array): RoomCoordinate[] {
