@@ -1,28 +1,32 @@
 # Central-first tower placement design
 
 Date: 2026-09-14
-Related commits: none; documentation-only working-tree change
+Status: superseded by later tower-placement experiments and ADR 0005
 
-## Goal
+## Historical context
 
-Record a tower-placement procedure suitable for low-cost Screeps planning without combination search or substantial optimization machinery.
+This note recorded the intermediate central-first design: construct a compact central placement, attempt a weak-rampart upper-bound certificate, and fall back to a diameter-seeded distributed greedy placement when the central result was not certified.
 
-## Starting point
+That design was useful during the tower-placement investigation, but it is no longer the production direction.
 
-The tower-placement discussion explored central versus dispersed layouts using an external HTML planner experiment. That experiment includes LP and tower exchanges; it is not the selected production algorithm. The repository's rewrite context remains authoritative: production planning targets the Screeps runtime.
+## Why it was superseded
 
-## Decision and work completed
+Subsequent MILP comparisons showed that the main remaining errors were local-search errors rather than failures to classify a room as centered or distributed. Repeated single-tower replacement removed many of the gaps, and full two-tower replacement removed almost all of the remaining large errors.
 
-Added [decision 0004](../decisions/0004-tower-placement-central-first-greedy.md): try a compact central placement, certify its minimum attack power with a weak-rampart support upper bound, and use a fresh six-step greedy fallback only when not certified. Retain the better complete feasible result.
+Once pair local search was enabled, a simple global max-min greedy seed performed at least as well as the more complicated centered/distributed initialization. Candidate shortlisting before pair search was also tested and rejected because it frequently removed complementary candidate pairs.
 
-Recorded the inclusive outside-range-3 exclusion, construction constraints, certificate proof, integer-grid bound, greedy comparison rule, complexity, and validation requirements. Certification failure is explicitly inconclusive; it is not evidence that central placement is inferior.
+The final production procedure is:
 
-## Evidence and limitations
+```text
+global max-min greedy seed
+-> single-tower replacement to convergence
+-> full pair sweep
+-> full pair sweep
+```
 
-This is an accepted design direction, not a production implementation or a measured CPU/quality claim. No production source was changed. The referenced legacy path `C:\projects\screeps\HarabiBot_3.0` was unavailable during documentation, so this record does not attribute behavior to that legacy implementation.
+See:
 
-The mathematical certificate follows from minimum <= subset average <= the best six candidate support sum. The greedy fallback has no claimed general approximation guarantee. Earlier HTML LP-plus-swaps measurements are not evidence for this simpler procedure.
+- [ADR 0005: Tower placement by greedy seed and local pair search](../decisions/0005-tower-placement-local-search.md)
+- [Tower placement experiments: from greedy placement to pair local search](2026-09-14-tower-placement-experiments.md)
 
-## Next step
-
-Implement the small procedure when requested, settle the compact-neighborhood rule, and validate quality and actual Screeps CPU with the same candidate/feasibility model used by the reference optimizer.
+The original central/distributed browser experiment is retained as historical research tooling, not as the description of current production behavior.
