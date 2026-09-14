@@ -1,1 +1,995 @@
-aW1wb3J0IHsgZmxvb2RGaWxsIH0gZnJvbSAiLi4vLi4vd29ybGQvbWFwL2Zsb29kRmlsbCI7CmltcG9ydCB7IGdldFJhbmdlLCBSb29tQ29vcmRpbmF0ZSB9IGZyb20gIi4uLy4uL3dvcmxkL21hcC9yb29tQ29vcmRpbmF0ZSI7CmltcG9ydCB7CiAgZnJvbVJvb21JbmRleCwKICBpc0luc2lkZVJvb20sCiAgTkVJR0hCT1JfT0ZGU0VUUywKICBST09NX0FSRUEsCiAgUk9PTV9TSVpFLAogIHRvUm9vbUluZGV4LAp9IGZyb20gIi4uLy4uL3dvcmxkL21hcC9yb29tR3JpZCI7CmltcG9ydCB0eXBlIHsgUGxhbm5lZFN0cnVjdHVyZSB9IGZyb20gIi4vYmFzZVBsYW4iOwppbXBvcnQgeyBjbGFzc2lmeURlZmVuc2l2ZVRpbGVzIH0gZnJvbSAiLi9jbGFzc2lmeURlZmVuc2l2ZVRpbGVzIjsKaW1wb3J0IHR5cGUgeyBDb250cm9sbGVyQXJlYUNhbmRpZGF0ZSB9IGZyb20gIi4vZmluZENvbnRyb2xsZXJBcmVhQ2FuZGlkYXRlcyI7CmltcG9ydCB0eXBlIHsgQ29yZVBsYW4gfSBmcm9tICIuL2ZpbmRDb3JlUGxhbnMiOwppbXBvcnQgdHlwZSB7IE91dGVyUmFtcGFydFBsYW4gfSBmcm9tICIuL3BsYW5PdXRlclJhbXBhcnRzIjsKaW1wb3J0IHR5cGUgeyBTdHJ1Y3R1cmVTbG90UGxhbiB9IGZyb20gIi4vcGxhblN0cnVjdHVyZVNsb3RzIjsKCmNvbnN0IE5VTV9UT1dFUlMgPSA2Owpjb25zdCBSRVFVSVJFRF9OT05fVE9XRVJfU0xPVFMgPSA2NDsKCmludGVyZmFjZSBUb3dlckNhbmRpZGF0ZSB7CiAgcmVhZG9ubHkgY29vcmRpbmF0ZTogUm9vbUNvb3JkaW5hdGU7CiAgcmVhZG9ubHkgcm9vbUluZGV4OiBudW1iZXI7CiAgcmVhZG9ubHkgdXNlc1N0cnVjdHVyZVNsb3Q6IGJvb2xlYW47CiAgcmVhZG9ubHkgdXNlc1NwYXduU2xvdDogYm9vbGVhbjsKfQoKZXhwb3J0IGZ1bmN0aW9uIHBsYW5Ub3dlcnMoCiAgdGVycmFpbjogUm9vbVRlcnJhaW4sCiAgY29udHJvbGxlcjogU3RydWN0dXJlQ29udHJvbGxlciwKICBzb3VyY2VzOiByZWFkb25seSBTb3VyY2VbXSwKICBtaW5lcmFsczogcmVhZG9ubHkgTWluZXJhbFtdLAogIGNvbnRyb2xsZXJBcmVhOiBDb250cm9sbGVyQXJlYUNhbmRpZGF0ZSwKICBjb3JlUGxhbjogQ29yZVBsYW4sCiAgc2xvdFBsYW46IFN0cnVjdHVyZVNsb3RQbGFuLAogIHN0cnVjdHVyZXM6IHJlYWRvbmx5IFBsYW5uZWRTdHJ1Y3R1cmVbXSwKKTogUm9vbUNvb3JkaW5hdGVbXSB8IHVuZGVmaW5lZCB7CiAgaWYgKHNsb3RQbGFuLnNsb3RzLmxlbmd0aCA8IFJFUVVJUkVEX05PTl9UT1dFUl9TTE9UUykgewogICAgcmV0dXJuOwogIH0KCiAgY29uc3QgdG9wb2xvZ3kgPSByZWJ1aWxkRmluYWxSYW1wYXJ0UGxhbih0ZXJyYWluLCBzdHJ1Y3R1cmVzKTsKCiAgaWYgKCF0b3BvbG9neSB8fCB0b3BvbG9neS5yYW1wYXJ0cy5sZW5ndGggPT09IDApIHsKICAgIHJldHVybjsKICB9CgogIGNvbnN0IGRhbmdlcm91c01hc2sgPSBjbGFzc2lmeURlZmVuc2l2ZVRpbGVzKHRvcG9sb2d5KS5kYW5nZXJvdXNNYXNrOwogIGNvbnN0IHJvYWRNYXNrID0gYnVpbGRSb2FkTWFzayhzdHJ1Y3R1cmVzKTsKICBjb25zdCBzcGF3blNsb3RDb3VudCA9IGNvdW50U3Bhd25TbG90cyhzbG90UGxhbiwgcm9hZE1hc2spOwoKICBpZiAoc3Bhd25TbG90Q291bnQgPCAyKSB7CiAgICByZXR1cm47CiAgfQoKICBjb25zdCBjYW5kaWRhdGVzID0gY29sbGVjdFRvd2VyQ2FuZGlkYXRlcygKICAgIHRlcnJhaW4sCiAgICBjb250cm9sbGVyLAogICAgc291cmNlcywKICAgIG1pbmVyYWxzLAogICAgY29udHJvbGxlckFyZWEsCiAgICBjb3JlUGxhbiwKICAgIHNsb3RQbGFuLAogICAgc3RydWN0dXJlcywKICAgIHRvcG9sb2d5LAogICAgZGFuZ2Vyb3VzTWFzaywKICAgIHJvYWRNYXNrLAogICk7CiAgY29uc3QgbWF4U2xvdFRvd2VycyA9IE1hdGgubWF4KAogICAgMCwKICAgIHNsb3RQbGFuLnNsb3RzLmxlbmd0aCAtIFJFUVVJUkVEX05PTl9UT1dFUl9TTE9UUywKICApOwogIGNvbnN0IHNlbGVjdGVkID0gc2VsZWN0VG93ZXJDYW5kaWRhdGVzKAogICAgY2FuZGlkYXRlcywKICAgIHRvcG9sb2d5LnJhbXBhcnRzLAogICAgbWF4U2xvdFRvd2VycywKICAgIHNwYXduU2xvdENvdW50IC0gMiwKICApOwoKICBpZiAoIXNlbGVjdGVkIHx8IHNlbGVjdGVkLmxlbmd0aCAhPT0gTlVNX1RPV0VSUykgewogICAgcmV0dXJuOwogIH0KCiAgcmV0dXJuIHNlbGVjdGVkLm1hcCgoeyBjb29yZGluYXRlIH0pID0+IGNvb3JkaW5hdGUpOwp9CgpmdW5jdGlvbiBjb2xsZWN0VG93ZXJDYW5kaWRhdGVzKAogIHRlcnJhaW46IFJvb21UZXJyYWluLAogIGNvbnRyb2xsZXI6IFN0cnVjdHVyZUNvbnRyb2xsZXIsCiAgc291cmNlczogcmVhZG9ubHkgU291cmNlW10sCiAgbWluZXJhbHM6IHJlYWRvbmx5IE1pbmVyYWxbXSwKICBjb250cm9sbGVyQXJlYTogQ29udHJvbGxlckFyZWFDYW5kaWRhdGUsCiAgY29yZVBsYW46IENvcmVQbGFuLAogIHNsb3RQbGFuOiBTdHJ1Y3R1cmVTbG90UGxhbiwKICBzdHJ1Y3R1cmVzOiByZWFkb25seSBQbGFubmVkU3RydWN0dXJlW10sCiAgdG9wb2xvZ3k6IE91dGVyUmFtcGFydFBsYW4sCiAgZGFuZ2Vyb3VzTWFzazogVWludDhBcnJheSwKICByb2FkTWFzazogVWludDhBcnJheSwKKTogVG93ZXJDYW5kaWRhdGVbXSB7CiAgY29uc3Qgc2xvdE1hc2sgPSBuZXcgVWludDhBcnJheShST09NX0FSRUEpOwoKICBmb3IgKGNvbnN0IHsgY29vcmRpbmF0ZSB9IG9mIHNsb3RQbGFuLnNsb3RzKSB7CiAgICBzbG90TWFza1t0b1Jvb21JbmRleChjb29yZGluYXRlLngsIGNvb3JkaW5hdGUueSldID0gMTsKICB9CgogIGNvbnN0IHJhbXBhcnRNYXNrID0gbmV3IFVpbnQ4QXJyYXkoUk9PTV9BUkVBKTsKICBjb25zdCBvY2N1cGllZE1hc2sgPSBuZXcgVWludDhBcnJheShST09NX0FSRUEpOwoKICBmb3IgKGNvbnN0IHN0cnVjdHVyZSBvZiBzdHJ1Y3R1cmVzKSB7CiAgICBjb25zdCB7IHgsIHkgfSA9IHN0cnVjdHVyZS5jb29yZGluYXRlOwogICAgY29uc3QgaW5kZXggPSB0b1Jvb21JbmRleCh4LCB5KTsKCiAgICBpZiAoc3RydWN0dXJlLnN0cnVjdHVyZVR5cGUgPT09IFNUUlVDVFVSRV9ST0FEKSB7CiAgICAgIGNvbnRpbnVlOwogICAgfQoKICAgIGlmIChzdHJ1Y3R1cmUuc3RydWN0dXJlVHlwZSA9PT0gU1RSVUNUVVJFX1JBTVBBUlQpIHsKICAgICAgcmFtcGFydE1hc2tbaW5kZXhdID0gMTsKICAgICAgY29udGludWU7CiAgICB9CgogICAgLy8gU2xvdCBleHRlbnNpb25zIGFyZSB0ZW1wb3JhcnkgZGVmZW5zZS1maW5hbGl6YXRpb24gcGxhY2Vob2xkZXJzLiBUb3dlcnMKICAgIC8vIGludGVudGlvbmFsbHkgZ2V0IHByaW9yaXR5IG92ZXIgdGhlbSBiZWZvcmUgdGhlIHJlYWwgc2xvdCBhc3NpZ25tZW50LgogICAgaWYgKHN0cnVjdHVyZS5zdHJ1Y3R1cmVUeXBlID09PSBTVFJVQ1RVUkVfRVhURU5TSU9OICYmIHNsb3RNYXNrW2luZGV4XSkgewogICAgICBjb250aW51ZTsKICAgIH0KCiAgICBvY2N1cGllZE1hc2tbaW5kZXhdID0gMTsKICB9CgogIGNvbnN0IHJlc2VydmVkT3Blbk1hc2sgPSBidWlsZFJlc2VydmVkT3BlblRpbGVNYXNrKGNvbnRyb2xsZXJBcmVhLCBjb3JlUGxhbik7CiAgY29uc3Qgcm9vbU9iamVjdE1hc2sgPSBuZXcgVWludDhBcnJheShST09NX0FSRUEpOwogIHJvb21PYmplY3RNYXNrW3RvUm9vbUluZGV4KGNvbnRyb2xsZXIucG9zLngsIGNvbnRyb2xsZXIucG9zLnkpXSA9IDE7CgogIGZvciAoY29uc3QgeyBwb3MgfSBvZiBzb3VyY2VzKSB7CiAgICByb29tT2JqZWN0TWFza1t0b1Jvb21JbmRleChwb3MueCwgcG9zLnkpXSA9IDE7CiAgfQoKICBmb3IgKGNvbnN0IHsgcG9zIH0gb2YgbWluZXJhbHMpIHsKICAgIHJvb21PYmplY3RNYXNrW3RvUm9vbUluZGV4KHBvcy54LCBwb3MueSldID0gMTsKICB9CgogIGNvbnN0IHNlZW4gPSBuZXcgVWludDhBcnJheShST09NX0FSRUEpOwogIGNvbnN0IGNhbmRpZGF0ZXM6IFRvd2VyQ2FuZGlkYXRlW10gPSBbXTsKCiAgZm9yIChsZXQgcm9hZEluZGV4ID0gMDsgcm9hZEluZGV4IDwgUk9PTV9BUkVBOyByb2FkSW5kZXgrKykgewogICAgaWYgKCFyb2FkTWFza1tyb2FkSW5kZXhdIHx8ICF0b3BvbG9neS5pbnNpZGVNYXNrW3JvYWRJbmRleF0pIHsKICAgICAgY29udGludWU7CiAgICB9CgogICAgY29uc3Qgcm9hZCA9IGZyb21Sb29tSW5kZXgocm9hZEluZGV4KTsKCiAgICBmb3IgKGNvbnN0IG9mZnNldCBvZiBORUlHSEJPUl9PRkZTRVRTKSB7CiAgICAgIGNvbnN0IHggPSByb2FkLnggKyBvZmZzZXQueDsKICAgICAgY29uc3QgeSA9IHJvYWQueSArIG9mZnNldC55OwoKICAgICAgaWYgKCFpc0luc2lkZVJvb20oeCwgeSkpIHsKICAgICAgICBjb250aW51ZTsKICAgICAgfQoKICAgICAgY29uc3QgaW5kZXggPSB0b1Jvb21JbmRleCh4LCB5KTsKCiAgICAgIGlmIChzZWVuW2luZGV4XSkgewogICAgICAgIGNvbnRpbnVlOwogICAgICB9CgogICAgICBzZWVuW2luZGV4XSA9IDE7CgogICAgICBpZiAoIXRvcG9sb2d5Lmluc2lkZU1hc2tbaW5kZXhdKSB7CiAgICAgICAgY29udGludWU7CiAgICAgIH0KCiAgICAgIGlmICh0ZXJyYWluLmdldCh4LCB5KSA9PT0gVEVSUkFJTl9NQVNLX1dBTEwpIHsKICAgICAgICBjb250aW51ZTsKICAgICAgfQoKICAgICAgaWYgKAogICAgICAgIHJvYWRNYXNrW2luZGV4XSB8fAogICAgICAgIG9jY3VwaWVkTWFza1tpbmRleF0gfHwKICAgICAgICByZXNlcnZlZE9wZW5NYXNrW2luZGV4XSB8fAogICAgICAgIHJvb21PYmplY3RNYXNrW2luZGV4XQogICAgICApIHsKICAgICAgICBjb250aW51ZTsKICAgICAgfQoKICAgICAgLy8gRGVmZW5zZSBpcyBhbHJlYWR5IGZpbmFsaXplZC4gQSBkYW5nZXJvdXMgdGlsZSBpcyBvbmx5IHZhbGlkIGlmIHRoZQogICAgICAvLyBkZWZlbnNlIHBhc3MgYWxyZWFkeSBwbGFjZWQgYW4gb3ZlcmxhcHBpbmcgcmFtcGFydCB0aGVyZSBmb3IgYSBzbG90LgogICAgICBpZiAoZGFuZ2Vyb3VzTWFzW2luZGV4XSAmJiAhcmFtcGFydE1hc2tbaW5kZXhdKSB7CiAgICAgICAgY29udGludWU7CiAgICAgIH0KCiAgICAgIGNvbnN0IHVzZXNTdHJ1Y3R1cmVTbG90ID0gc2xvdE1hc2tbaW5kZXhdID09PSAxOwoKICAgICAgY2FuZGlkYXRlcy5wdXNoKHsKICAgICAgICBjb29yZGluYXRlOiB7IHgsIHkgfSwKICAgICAgICByb29tSW5kZXg6IGluZGV4LAogICAgICAgIHVzZXNTdHJ1Y3R1cmVTbG90LAogICAgICAgIHVzZXNTcGF3blNsb3Q6CiAgICAgICAgICB1c2VzU3RydWN0dXJlU2xvdCAmJiBjb3VudEFkamFjZW50Um9hZHMoeyB4LCB5IH0sIHJvYWRNYXNrKSA+PSAyLAogICAgICB9KTsKICAgIH0KICB9CgogIHJldHVybiBjYW5kaWRhdGVzOwp9CgpmdW5jdGlvbiBidWlsZFJvYWRNYXNrKHN0cnVjdHVyZXM6IHJlYWRvbmx5IFBsYW5uZWRTdHJ1Y3R1cmVbXSk6IFVpbnQ4QXJyYXkgewogIGNvbnN0IHJvYWRNYXNrID0gbmV3IFVpbnQ4QXJyYXkoUk9PTV9BUkVBKTsKCiAgZm9yIChjb25zdCBzdHJ1Y3R1cmUgb2Ygc3RydWN0dXJlcykgewogICAgaWYgKHN0cnVjdHVyZS5zdHJ1Y3R1cmVUeXBlICE9PSBTVFJVQ1RVUkVfUk9BRCkgewogICAgICBjb250aW51ZTsKICAgIH0KCiAgICBjb25zdCB7IHgsIHkgfSA9IHN0cnVjdHVyZS5jb29yZGluYXRlOwogICAgcm9hZE1hc2tbdG9Sb29tSW5kZXgoeCwgeSldID0gMTsKICB9CgogIHJldHVybiByb2FkTWFzazsKfQoKZnVuY3Rpb24gY291bnRTcGF3blNsb3RzKAogIHNsb3RQbGFuOiBTdHJ1Y3R1cmVTbG90UGxhbiwKICByb2FkTWFzazogVWludDhBcnJheSwKKTogbnVtYmVyIHsKICBsZXQgY291bnQgPSAwOwoKICBmb3IgKGNvbnN0IHsgY29vcmRpbmF0ZSB9IG9mIHNsb3RQbGFuLnNsb3RzKSB7CiAgICBpZiAoY291bnRBZGphY2VudFJvYWRzKGNvb3JkaW5hdGUsIHJvYWRNYXNrKSA+PSAyKSB7CiAgICAgIGNvdW50Kys7CiAgICB9CiAgfQoKICByZXR1cm4gY291bnQ7Cn0KCmZ1bmN0aW9uIGNvdW50QWRqYWNlbnRSb2FkcygKICBjb29yZGluYXRlOiBSb29tQ29vcmRpbmF0ZSwKICByb2FkTWFzazogVWludDhBcnJheSwKKTogbnVtYmVyIHsKICBsZXQgY291bnQgPSAwOwoKICBmb3IgKGNvbnN0IG9mZnNldCBvZiBORUlHSEJPUl9PRkZTRVRTKSB7CiAgICBjb25zdCB4ID0gY29vcmRpbmF0ZS54ICsgb2Zmc2V0Lng7CiAgICBjb25zdCB5ID0gY29vcmRpbmF0ZS55ICsgb2Zmc2V0Lnk7CgogICAgaWYgKCFpc0luc2lkZVJvb20oeCwgeSkpIHsKICAgICAgY29udGludWU7CiAgICB9CgogICAgaWYgKHJvYWRNYXNrW3RvUm9vbUluZGV4KHgsIHkpXSkgewogICAgICBjb3VudCsrOwogICAgfQogIH0KCiAgcmV0dXJuIGNvdW50Owp9CgpmdW5jdGlvbiBidWlsZFJlc2VydmVkT3BlblRpbGVNYXNrKAogIGNvbnRyb2xsZXJBcmVhOiBDb250cm9sbGVyQXJlYUNhbmRpZGF0ZSwKICBjb3JlUGxhbjogQ29yZVBsYW4sCik6IFVpbnQ4QXJyYXkgewogIGNvbnN0IG1hc2sgPSBuZXcgVWludDhBcnJheShST09NX0FSRUEpOwogIGNvbnN0IGJsb2NrID0gKHsgeCwgeSB9OiBSb29tQ29vcmRpbmF0ZSk6IHZvaWQgPT4gewogICAgbWFza1t0b1Jvb21JbmRleCh4LCB5KV0gPSAxOwogIH07CgogIGJsb2NrKGNvcmVQbGFuLm1hbmFnZXIpOwogIGNvcmVQbGFuLnBhcmtpbmcuZm9yRWFjaChibG9jayk7CgogIGNvbnN0IGxhdGVTdHJ1Y3R1cmVJbmRpY2VzID0gbmV3IFNldChbCiAgICB0b1Jvb21JbmRleChjb3JlUGxhbi5mYWN0b3J5LngsIGNvcmVQbGFuLmZhY3RvcnkueSksCiAgICB0b1Jvb21JbmRleChjb3JlUGxhbi5wb3dlclNwYXduLngsIGNvcmVQbGFuLnBvd2VyU3Bhd24ueSksCiAgXSk7CiAgY29uc3QgeyBsZWZ0LCBtaWRkbGUsIHJpZ2h0IH0gPSBjb250cm9sbGVyQXJlYS51cGdyYWRlQ2hhaW5zOwoKICBmb3IgKGNvbnN0IGNoYWluIG9mIFtsZWZ0LCBtaWRkbGUsIHJpZ2h0XSkgewogICAgY29uc3QgaXNMYXRlU3RydWN0dXJlQ2hhaW4gPSBjaGFpbi5zb21lKCh7IHgsIHkgfSA9PgogICAgICBsYXRlU3RydWN0dXJlSW5kaWNlcy5oYXModG9Sb29tSW5kZXgoeCwgeSkpLAogICAgKTsKCiAgICBpZiAoIWlzTGF0ZVN0cnVjdHVyZUNoYWluKSB7CiAgICAgIGJsb2NrKGNoYWluWzBdKTsKICAgIH0KICB9CgogIHJldHVybiBtYXNrOwp9CgpmdW5jdGlvbiBzZWxlY3RUb3dlckNhbmRpZGF0ZXMoCiAgY2FuZGlkYXRlczogVG93ZXJDYW5kaWRhdGVbXSwKICByYW1wYXJ0czogcmVhZG9ubHkgUm9vbUNvb3JkaW5hdGVbXSwKICBtYXhTbG90VG93ZXJzOiBudW1iZXIsCiAgbWF4U3Bhd25TbG90VG93ZXJzOiBudW1iZXIsCik6IFRvd2VyQ2FuZGlkYXRlW10gfCB1bmRlZmluZWQgewogIGlmIChjYW5kaWRhdGVzLmxlbmd0aCA8IE5VTV9UT1dFUlMgfHwgcmFtcGFydHMubGVuZ3RoID09PSAwKSB7CiAgICByZXR1cm47CiAgfQoKICBjb25zdCByZW1haW5pbmcgPSBbLi4uY2FuZGlkYXRlc107CiAgY29uc3Qgc2VsZWN0ZWQ6IFRvd2VyQ2FuZGlkYXRlW10gPSBbXTsKICBsZXQgc2VsZWN0ZWRTbG90VG93ZXJzID0gMDsKICBsZXQgc2VsZWN0ZWRTcGF3blNsb3RUb3dlcnMgPSAwOwoKICBjb25zdCBmaXJzdFRvd2VyID0gZ2V0TWluQ2FuZGlkYXRlKAogICAgZ2V0RWxpZ2libGVDYW5kaWRhdGVzKAogICAgICByZW1haW5pbmcsCiAgICAgIHNlbGVjdGVkU2xvdFRvd2VycywKICAgICAgbWF4U2xvdFRvd2VycywKICAgICAgc2VsZWN0ZWRTcGF3blNsb3RUb3dlcnMsCiAgICAgIG1heFNwYXduU2xvdFRvd2VycywKICAgICksCiAgICAoY2FuZGlkYXRlKSA9PiBnZXRBdmVyYWdlUmFuZ2UoY2FuZGlkYXRlLmNvb3JkaW5hdGUsIHJhbXBhcnRzKSwKICApOwoKICBpZiAoIWZpcnN0VG93ZXIpIHsKICAgIHJldHVybjsKICB9CgogIHJlbW92ZUNhbmRpZGF0ZShyZW1haW5pbmcsIGZpcnN0VG93ZXIpOwogIHNlbGVjdGVkLnB1c2goZmlyc3RUb3dlcik7CiAgc2VsZWN0ZWRTbG90VG93ZXJzICs9IGZpcnN0VG93ZXIudXNlc1N0cnVjdHVyZVNsb3QgPyAxIDogMDsKICBzZWxlY3RlZFNwYXduU2xvdFRvd2VycyArPSBmaXJzdFRvd2VyLnVzZXNTcGF3blNsb3QgPyAxIDogMDsKCiAgd2hpbGUgKHNlbGVjdGVkLmxlbmd0aCA8IE5VTV9UT1dFUlMpIHsKICAgIGxldCB3ZWFrZXN0UmFtcGFydDogUm9vbUNvb3JkaW5hdGUgfCB1bmRlZmluZWQ7CiAgICBsZXQgbWluRGFtYWdlID0gSW5maW5pdHk7CgogICAgZm9yIChjb25zdCByYW1wYXJ0IG9mIHJhbXBhcnRzKSB7CiAgICAgIGxldCBkYW1hZ2UgPSAwOwoKICAgICAgZm9yIChjb25zdCB0b3dlciBvZiBzZWxlY3RlZCkgewogICAgICAgIGRhbWFnZSArPSBnZXRUb3dlckRhbWFnZShnZXRSYW5nZSh0b3dlci5jb29yZGluYXRlLCByYW1wYXJ0KSk7CiAgICAgIH0KCiAgICAgIGlmIChkYW1hZ2UgPCBtaW5EYW1hZ2UpIHsKICAgICAgICBtaW5EYW1hZ2UgPSBkYW1hZ2U7CiAgICAgICAgd2Vha2VzdFJhbXBhcnQgPSByYW1wYXJ0OwogICAgICB9CiAgICB9CgogICAgaWYgKCF3ZWFrZXN0UmFtcGFydCkgewogICAgICByZXR1cm47CiAgICB9CgogICAgY29uc3QgZWxpZ2libGUgPSBnZXRFbGlnaWJsZUNhbmRpZGF0ZXMoCiAgICAgIHJlbWFpbmluZywKICAgICAgc2VsZWN0ZWRTbG90VG93ZXJzLAogICAgICBtYXhTbG90VG93ZXJzLAogICAgICBzZWxlY3RlZFNwYXduU2xvdFRvd2VycywKICAgICAgbWF4U3Bhd25TbG90VG93ZXJzLAogICAgKTsKCiAgICBpZiAoZWxpZ2libGUubGVuZ3RoID09PSAwKSB7CiAgICAgIHJldHVybjsKICAgIH0KCiAgICBsZXQgbWluUmFuZ2UgPSBJbmZpbml0eTsKCiAgICBmb3IgKGNvbnN0IGNhbmRpZGF0ZSBvZiBlbGlnaWJsZSkgewogICAgICBtaW5SYW5nZSA9IE1hdGgubWluKAogICAgICAgIG1pblJhbmdlLAogICAgICAgIGdldFJhbmdlKGNhbmRpZGF0ZS5jb29yZGluYXRlLCB3ZWFrZXN0UmFtcGFydCksCiAgICAgICk7CiAgICB9CgogICAgY29uc3QgbmVhcldlYWtlc3QgPSBlbGlnaWJsZS5maWx0ZXIoCiAgICAgIChjYW5kaWRhdGUpID0+CiAgICAgICAgZ2V0UmFuZ2UoY2FuZGlkYXRlLmNvb3JkaW5hdGUsIHdlYWtlc3RSYW1wYXJ0KSA8PSBtaW5SYW5nZSArIDEsCiAgICApOwogICAgY29uc3QgdG93ZXIgPSBnZXRNaW5DYW5kaWRhdGUobmVhcldlYWtlc3QsIChjYW5kaWRhdGUpID0+CiAgICAgIGdldEF2ZXJhZ2VSYW5nZShjYW5kaWRhdGUuY29vcmRpbmF0ZSwgcmFtcGFydHMpLAogICAgKTsKCiAgICBpZiAoIXRvd2VyKSB7CiAgICAgIHJldHVybjsKICAgIH0KCiAgICByZW1vdmVDYW5kaWRhdGUocmVtYWluaW5nLCB0b3dlcik7CiAgICBzZWxlY3RlZC5wdXNoKHRvd2VyKTsKICAgIHNlbGVjdGVkU2xvdFRvd2VycyArPSB0b3dlci51c2VzU3RydWN0dXJlU2xvdCA/IDEgOiAwOwogICAgc2VsZWN0ZWRTcGF3blNsb3RUb3dlcnMgKz0gdG93ZXIudXNlc1NwYXduU2xvdCA/IDEgOiAwOwogIH0KCiAgcmV0dXJuIHNlbGVjdGVkOwp9CgpmdW5jdGlvbiBnZXRFbGlnaWJsZUNhbmRpZGF0ZXMoCiAgY2FuZGlkYXRlczogcmVhZG9ubHkgVG93ZXJDYW5kaWRhdGVbXSwKICBzZWxlY3RlZFNsb3RUb3dlcnM6IG51bWJlciwKICBtYXhTbG90VG93ZXJzOiBudW1iZXIsCiAgc2VsZWN0ZWRTcGF3blNsb3RUb3dlcnM6IG51bWJlciwKICBtYXhTcGF3blNsb3RUb3dlcnM6IG51bWJlciwKKTogVG93ZXJDYW5kaWRhdGVbXSB7CiAgcmV0dXJuIGNhbmRpZGF0ZXMuZmlsdGVyKChjYW5kaWRhdGUpID0+IHsKICAgIGlmICgKICAgICAgY2FuZGlkYXRlLnVzZXNTdHJ1Y3R1cmVTbG90ICYmCiAgICAgIHNlbGVjdGVkU2xvdFRvd2VycyA+PSBtYXhTbG90VG93ZXJzCiAgICApIHsKICAgICAgcmV0dXJuIGZhbHNlOwogICAgfQoKICAgIGlmICgKICAgICAgY2FuZGlkYXRlLnVzZXNTcGF3blNsb3QgJiYKICAgICAgc2VsZWN0ZWRTcGF3blNsb3RUb3dlcnMgPj0gbWF4U3Bhd25TbG90VG93ZXJzCiAgICApIHsKICAgICAgcmV0dXJuIGZhbHNlOwogICAgfQoKICAgIHJldHVybiB0cnVlOwogIH0pOwp9CgpmdW5jdGlvbiBnZXRNaW5DYW5kaWRhdGUoCiAgY2FuZGlkYXRlczogcmVhZG9ubHkgVG93ZXJDYW5kaWRhdGVbXSwKICBnZXRTY29yZTogKGNhbmRpZGF0ZTogVG93ZXJDYW5kaWRhdGUpID0+IG51bWJlciwKKTogVG93ZXJDYW5kaWRhdGUgfCB1bmRlZmluZWQgewogIGxldCBiZXN0OiBUb3dlckNhbmRpZGF0ZSB8IHVuZGVmaW5lZDsKICBsZXQgYmVzdFNjb3JlID0gSW5maW5pdHk7CgogIGZvciAoY29uc3QgY2FuZGlkYXRlIG9mIGNhbmRpZGF0ZXMpIHsKICAgIGNvbnN0IHNjb3JlID0gZ2V0U2NvcmUoY2FuZGlkYXRlKTsKCiAgICBpZiAoc2NvcmUgPiBiZXN0U2NvcmUpIHsKICAgICAgY29udGludWU7CiAgICB9CgogICAgaWYgKHNjb3JlID09PSBiZXN0U2NvcmUgJiYgYmVzdCkgewogICAgICBpZiAoY2FuZGlkYXRlLnVzZXNTdHJ1Y3R1cmVTbG90ICE9PSBiZXN0LnVzZXNTdHJ1Y3R1cmVTbG90KSB7CiAgICAgICAgaWYgKGNhbmRpZGF0ZS51c2VzU3RydWN0dXJlU2xvdCkgewogICAgICAgICAgY29udGludWU7CiAgICAgICAgfQogICAgICB9IGVsc2UgaWYgKGNhbmRpZGF0ZS5yb29tSW5kZXggPj0gYmVzdC5yb29tSW5kZXgpIHsKICAgICAgICBjb250aW51ZTsKICAgICAgfQogICAgfQoKICAgIGJlc3QgPSBjYW5kaWRhdGU7CiAgICBiZXN0U2NvcmUgPSBzY29yZTsKICB9CgogIHJldHVybiBiZXN0Owp9CgpmdW5jdGlvbiByZW1vdmVDYW5kaWRhdGUoCiAgY2FuZGlkYXRlczogVG93ZXJDYW5kaWRhdGVbXSwKICB0YXJnZXQ6IFRvd2VyQ2FuZGlkYXRlLAopOiB2b2lkIHsKICBjb25zdCBpbmRleCA9IGNhbmRpZGF0ZXMuaW5kZXhPZih0YXJnZXQpOwoKICBpZiAoaW5kZXggPj0gMCkgewogICAgY2FuZGlkYXRlcy5zcGxpY2UoaW5kZXgsIDEpOwogIH0KfQoKZnVuY3Rpb24gcmVidWlsZEZpbmFsUmFtcGFydFBsYW4oCiAgdGVycmFpbjogUm9vbVRlcnJhaW4sCiAgc3RydWN0dXJlczogcmVhZG9ubHkgUGxhbm5lZFN0cnVjdHVyZVtdLAopOiBPdXRlclJhbXBhcnRQbGFuIHwgdW5kZWZpbmVkIHsKICBjb25zdCBhbGxSYW1wYXJ0TWFzayA9IG5ldyBVaW50OEFycmF5KFJPT01fQVJFQSk7CgogIGZvciAoY29uc3Qgc3RydWN0dXJlIG9mIHN0cnVjdHVyZXMpIHsKICAgIGlmIChzdHJ1Y3R1cmUuc3RydWN0dXJlVHlwZSAhPT0gU1RSVUNUVVJFX1JBTVBBUlQpIHsKICAgICAgY29udGludWU7CiAgICB9CgogICAgY29uc3QgeyB4LCB5IH0gPSBzdHJ1Y3R1cmUuY29vcmRpbmF0ZTsKICAgIGFsbFJhbXBhcnRNYXNrW3RvUm9vbUluZGV4KHgsIHkpXSA9IDE7CiAgfQoKICBjb25zdCBvdXRzaWRlV2l0aEFsbFJhbXBhcnRzID0gYnVpbGRPdXRzaWRlTWFzayh0ZXJyYWluLCBhbGxSYW1wYXJ0TWFzayk7CiAgY29uc3Qgb3V0ZXJSYW1wYXJ0TWFzayA9IG5ldyBVaW50OEFycmF5KFJPT01fQVJFQSk7CgogIGZvciAobGV0IGluZGV4ID0gMDsgaW5kZXggPCBST09NX0FSRUE7IGluZGV4KyspIHsKICAgIGlmICghYWxsUmFtcGFydE1hc2tbaW5kZXhdKSB7CiAgICAgIGNvbnRpbnVlOwogICAgfQoKICAgIGNvbnN0IGNvb3JkaW5hdGUgPSBmcm9tUm9vbUluZGV4KGluZGV4KTsKCiAgICBmb3IgKGNvbnN0IG9mZnNldCBvZiBORUlHSEJPUl9PRkZTRVRTKSB7CiAgICAgIGNvbnN0IHggPSBjb29yZGluYXRlLnggKyBvZmZzZXQueDsKICAgICAgY29uc3QgeSA9IGNvb3JkaW5hdGUueSArIG9mZnNldC55OwoKICAgICAgaWYgKCFpc0luc2lkZVJvb20oeCwgeSkpIHsKICAgICAgICBjb250aW51ZTsKICAgICAgfQoKICAgICAgaWYgKG91dHNpZGVXaXRoQWxsUmFtcGFydHNbdG9Sb29tSW5kZXgoeCwgeSldKSB7CiAgICAgICAgb3V0ZXJSYW1wYXJ0TWFza1tpbmRleF0gPSAxOwogICAgICAgIGJyZWFrOwogICAgICB9CiAgICB9CiAgfQoKICBjb25zdCByYW1wYXJ0cyA9IGNvb3JkaW5hdGVzRnJvbU1hc2sob3V0ZXJSYW1wYXJ0TWFzayk7CgogIGlmIChyYW1wYXJ0cy5sZW5ndGggPT09IDApIHsKICAgIHJldHVybjsKICB9CgogIGNvbnN0IG91dHNpZGVNYXNrID0gYnVpbGRPdXRzaWRlTWFzayh0ZXJyYWluLCBvdXRlclJhbXBhcnRNYXNrKTsKICBjb25zdCBpbnNpZGVNYXNrID0gbmV3IFVpbnQ4QXJyYXkoUk9PTV9BUkVBKTsKCiAgZm9yIChsZXQgaW5kZXggPSAwOyBpbmRleCA8IFJPT01fQVJFQTsgaW5kZXgrKykgewogICAgY29uc3QgeyB4LCB5IH0gPSBmcm9tUm9vbUluZGV4KGluZGV4KTsKCiAgICBpZiAodGVycmFpbi5nZXQoeCwgeSkgPT09IFRFUlJBSU5fTUFTS19XQUxMIHx8IG91dGVyUmFtcGFydE1hc2tbaW5kZXhdKSB7CiAgICAgIGNvbnRpbnVlOwogICAgfQoKICAgIGlmICghb3V0c2lkZU1hc2tbaW5kZXhdKSB7CiAgICAgIGluc2lkZU1hc2tbaW5kZXhdID0gMTsKICAgIH0KICB9CgogIHJldHVybiB7CiAgICByYW1wYXJ0cywKICAgIHJhbXBhcnRNYXNrOiBvdXRlclJhbXBhcnRNYXNrLAogICAgaW5zaWRlTWFzaywKICAgIG91dHNpZGVNYXNrLAogIH07Cn0KCmZ1bmN0aW9uIGJ1aWxkT3V0c2lkZU1hc2soCiAgdGVycmFpbjogUm9vbVRlcnJhaW4sCiAgcmFtcGFydE1hc2s6IFVpbnQ4QXJyYXksCik6IFVpbnQ4QXJyYXkgewogIGNvbnN0IGV4aXRzID0gZ2V0RXhpdENvb3JkaW5hdGVzKHRlcnJhaW4pLmZpbHRlcigKICAgICh7IHgsIHkgfSkgPT4gIXJhbXBhcnRNYXNrW3RvUm9vbUluZGV4KHgsIHkpXSwKICApOwogIGNvbnN0IHsgZGlzdGFuY2VzIH0gPSBmbG9vZEZpbGwoCiAgICB0ZXJyYWluLAogICAgZXhpdHMsCiAgICAoeCwgeSkgPT4gIXJhbXBhcnRNYXNrW3RvUm9vbUluZGV4KHgsIHkpXSwKICApOwogIGNvbnN0IG91dHNpZGVNYXNrID0gbmV3IFVpbnQ4QXJyYXkoUk9PTV9BUkVBKTsKCiAgZm9yIChsZXQgaW5kZXggPSAwOyBpbmRleCA8IFJPT01fQVJFQTsgaW5kZXgrKykgewogICAgaWYgKGRpc3RhbmNlc1tpbmRleF0gPj0gMCkgewogICAgICBvdXRzaWRlTWFza1tpbmRleF0gPSAxOwogICAgfQogIH0KCiAgcmV0dXJuIG91dHNpZGVNYXNrOwp9CgpmdW5jdGlvbiBnZXRFeGl0Q29vcmRpbmF0ZXModGVycmFpbjogUm9vbVRlcnJhaW4pOiBSb29tQ29vcmRpbmF0ZVtdIHsKICBjb25zdCBleGl0czogUm9vbUNvb3JkaW5hdGVbXSA9IFtdOwoKICBmb3IgKGxldCB4ID0gMDsgeCA8IFJPT01fU0laRTsgeCsrKSB7CiAgICBmb3IgKGNvbnN0IHkgb2YgWzAsIFJPT01fU0laRSAtIDFdKSB7CiAgICAgIGlmICh0ZXJyYWluLmdldCh4LCB5KSAhPT0gVEVSUkFJTl9NQVNLX1dBTEwpIHsKICAgICAgICBleGl0cy5wdXNoKHsgeCwgeSB9KTsKICAgICAgfQogICAgfQogIH0KCiAgZm9yIChsZXQgeSA9IDE7IHkgPCBST09NX1NJWkUgLSAxOyB5KyspIHsKICAgIGZvciAoY29uc3QgeCBvZiBbMCwgUk9PTV9TSVpFIC0gMV0pIHsKICAgICAgaWYgKHRlcnJhaW4uZ2V0KHgsIHkpICE9PSBURVJSQUlOX01BU0tfV0FMTCkgewogICAgICAgIGV4aXRzLnB1c2goeyB4LCB5IH0pOwogICAgICB9CiAgICB9CiAgfQoKICByZXR1cm4gZXhpdHM7Cn0KCmZ1bmN0aW9uIGNvb3JkaW5hdGVzRnJvbU1hc2sobWFzazogVWludDhBcnJheSk6IFJvb21Db29yZGluYXRlW10gewogIGNvbnN0IGNvb3JkaW5hdGVzOiBSb29tQ29vcmRpbmF0ZVtdID0gW107CgogIGZvciAobGV0IGluZGV4ID0gMDsgaW5kZXggPCBST09NX0FSRUE7IGluZGV4KyspIHsKICAgIGlmIChtYXNrW2luZGV4XSkgewogICAgICBjb29yZGluYXRlcy5wdXNoKGZyb21Sb29tSW5kZXgoaW5kZXgpKTsKICAgIH0KICB9CgogIHJldHVybiBjb29yZGluYXRlczsKfQoKZnVuY3Rpb24gZ2V0QXZlcmFnZVJhbmdlKAogIGNvb3JkaW5hdGU6IFJvb21Db29yZGluYXRlLAogIHRhcmdldHM6IHJlYWRvbmx5IFJvb21Db29yZGluYXRlW10sCik6IG51bWJlciB7CiAgbGV0IHRvdGFsID0gMDsKCiAgZm9yIChjb25zdCB0YXJnZXQgb2YgdGFyZ2V0cykgewogICAgdG90YWwgKz0gZ2V0UmFuZ2UoY29vcmRpbmF0ZSwgdGFyZ2V0KTsKICB9CgogIHJldHVybiB0b3RhbCAvIHRhcmdldHMubGVuZ3RoOwp9CgpmdW5jdGlvbiBnZXRUb3dlckRhbWFnZShyYW5nZTogbnVtYmVyKTogbnVtYmVyIHsKICBpZiAocmFuZ2UgPD0gVE9XRVJfT1BUSU1BTF9SQU5HRSkgewogICAgcmV0dXJuIFRPV0VSX1BPV0VSX0FUVEFDSzsKICB9CgogIGNvbnN0IGNsYW1wZWRSYW5nZSA9IE1hdGgubWluKHJhbmdlLCBUT1dFUl9GQUxMT0ZGX1JBTkdFKTsKICBjb25zdCBmYWxsb2ZmID0KICAgIChUT1dFUl9GQUxMT0ZGICogKGNsYW1wZWRSYW5nZSAtIFRPV0VSX09QVElNQUxfUkFOR0UpKSAvCiAgICAoVE9XRVJfRkFMTE9GRl9SQU5HRSAtIFRPV0VSX09QVElNQUxfUkFOR0UpOwoKICByZXR1cm4gVE9XRVJfUE9XRVJfQVRUQUNLICogKDEgLSBmYWxsb2ZmKTsKfQo=
+import { floodFill } from "../../world/map/floodFill";
+import { getRange, RoomCoordinate } from "../../world/map/roomCoordinate";
+import {
+  fromRoomIndex,
+  isInsideRoom,
+  NEIGHBOR_OFFSETS,
+  ROOM_AREA,
+  ROOM_SIZE,
+  toRoomIndex,
+} from "../../world/map/roomGrid";
+import type { PlannedStructure } from "./basePlan";
+import { classifyDefensiveTiles } from "./classifyDefensiveTiles";
+import type { ControllerAreaCandidate } from "./findControllerAreaCandidates";
+import type { CorePlan } from "./findCorePlans";
+import type { OuterRampartPlan } from "./planOuterRamparts";
+import type { StructureSlotPlan } from "./planStructureSlots";
+
+const NUM_TOWERS = 6;
+const REQUIRED_NON_TOWER_SLOTS = 64;
+const FULL_PAIR_SWEEPS = 2;
+const MAX_SINGLE_REFINEMENT_SWEEPS = 20;
+
+interface TowerCandidate {
+  readonly coordinate: RoomCoordinate;
+  readonly roomIndex: number;
+  readonly usesStructureSlot: boolean;
+  readonly usesSpawnSlot: boolean;
+}
+
+interface TowerPlacementScore {
+  readonly minDamage: number;
+  readonly weakCount: number;
+  readonly totalDamage: number;
+}
+
+interface CandidateUsage {
+  readonly slotTowers: number;
+  readonly spawnSlotTowers: number;
+}
+
+interface DamageCache {
+  readonly rampartCount: number;
+  readonly matrix: Uint16Array;
+  readonly totalDamage: Uint32Array;
+}
+
+export function planTowers(
+  terrain: RoomTerrain,
+  controller: StructureController,
+  sources: readonly Source[],
+  minerals: readonly Mineral[],
+  controllerArea: ControllerAreaCandidate,
+  corePlan: CorePlan,
+  slotPlan: StructureSlotPlan,
+  structures: readonly PlannedStructure[],
+): RoomCoordinate[] | undefined {
+  if (slotPlan.slots.length < REQUIRED_NON_TOWER_SLOTS) {
+    return;
+  }
+
+  const topology = rebuildFinalRampartPlan(terrain, structures);
+
+  if (!topology || topology.ramparts.length === 0) {
+    return;
+  }
+
+  const dangerousMask = classifyDefensiveTiles(topology).dangerousMask;
+  const roadMask = buildRoadMask(structures);
+  const spawnSlotCount = countSpawnSlots(slotPlan, roadMask);
+
+  if (spawnSlotCount < 2) {
+    return;
+  }
+
+  const candidates = collectTowerCandidates(
+    terrain,
+    controller,
+    sources,
+    minerals,
+    controllerArea,
+    corePlan,
+    slotPlan,
+    structures,
+    topology,
+    dangerousMask,
+    roadMask,
+  );
+  const maxSlotTowers = Math.max(
+    0,
+    slotPlan.slots.length - REQUIRED_NON_TOWER_SLOTS,
+  );
+  const selected = selectTowerCandidates(
+    candidates,
+    topology.ramparts,
+    maxSlotTowers,
+    spawnSlotCount - 2,
+  );
+
+  if (!selected || selected.length !== NUM_TOWERS) {
+    return;
+  }
+
+  return selected.map((index) => candidates[index].coordinate);
+}
+
+function collectTowerCandidates(
+  terrain: RoomTerrain,
+  controller: StructureController,
+  sources: readonly Source[],
+  minerals: readonly Mineral[],
+  controllerArea: ControllerAreaCandidate,
+  corePlan: CorePlan,
+  slotPlan: StructureSlotPlan,
+  structures: readonly PlannedStructure[],
+  topology: OuterRampartPlan,
+  dangerousMask: Uint8Array,
+  roadMask: Uint8Array,
+): TowerCandidate[] {
+  const slotMask = new Uint8Array(ROOM_AREA);
+
+  for (const { coordinate } of slotPlan.slots) {
+    slotMask[toRoomIndex(coordinate.x, coordinate.y)] = 1;
+  }
+
+  const rampartMask = new Uint8Array(ROOM_AREA);
+  const occupiedMask = new Uint8Array(ROOM_AREA);
+
+  for (const structure of structures) {
+    const { x, y } = structure.coordinate;
+    const index = toRoomIndex(x, y);
+
+    if (structure.structureType === STRUCTURE_ROAD) {
+      continue;
+    }
+
+    if (structure.structureType === STRUCTURE_RAMPART) {
+      rampartMask[index] = 1;
+      continue;
+    }
+
+    // Slot extensions are temporary defense-finalization placeholders. Towers
+    // intentionally get priority over them before the real slot assignment.
+    if (structure.structureType === STRUCTURE_EXTENSION && slotMask[index]) {
+      continue;
+    }
+
+    occupiedMask[index] = 1;
+  }
+
+  const reservedOpenMask = buildReservedOpenTileMask(controllerArea, corePlan);
+  const roomObjectMask = new Uint8Array(ROOM_AREA);
+  roomObjectMask[toRoomIndex(controller.pos.x, controller.pos.y)] = 1;
+
+  for (const { pos } of sources) {
+    roomObjectMask[toRoomIndex(pos.x, pos.y)] = 1;
+  }
+
+  for (const { pos } of minerals) {
+    roomObjectMask[toRoomIndex(pos.x, pos.y)] = 1;
+  }
+
+  const seen = new Uint8Array(ROOM_AREA);
+  const candidates: TowerCandidate[] = [];
+
+  for (let roadIndex = 0; roadIndex < ROOM_AREA; roadIndex++) {
+    if (!roadMask[roadIndex] || !topology.insideMask[roadIndex]) {
+      continue;
+    }
+
+    const road = fromRoomIndex(roadIndex);
+
+    for (const offset of NEIGHBOR_OFFSETS) {
+      const x = road.x + offset.x;
+      const y = road.y + offset.y;
+
+      if (!isInsideRoom(x, y)) {
+        continue;
+      }
+
+      const index = toRoomIndex(x, y);
+
+      if (seen[index]) {
+        continue;
+      }
+      seen[index] = 1;
+
+      if (!topology.insideMask[index]) {
+        continue;
+      }
+
+      if (terrain.get(x, y) === TERRAIN_MASK_WALL) {
+        continue;
+      }
+
+      if (
+        roadMask[index] ||
+        occupiedMask[index] ||
+        reservedOpenMask[index] ||
+        roomObjectMask[index]
+      ) {
+        continue;
+      }
+
+      // Defense is already finalized. A dangerous tile is only valid if the
+      // defense pass already placed an overlapping rampart there for a slot.
+      if (dangerousMask[index] && !rampartMask[index]) {
+        continue;
+      }
+
+      const usesStructureSlot = slotMask[index] === 1;
+
+      candidates.push({
+        coordinate: { x, y },
+        roomIndex: index,
+        usesStructureSlot,
+        usesSpawnSlot:
+          usesStructureSlot && countAdjacentRoads({ x, y }, roadMask) >= 2,
+      });
+    }
+  }
+
+  return candidates;
+}
+
+function selectTowerCandidates(
+  candidates: readonly TowerCandidate[],
+  ramparts: readonly RoomCoordinate[],
+  maxSlotTowers: number,
+  maxSpawnSlotTowers: number,
+): number[] | undefined {
+  if (candidates.length < NUM_TOWERS || ramparts.length === 0) {
+    return;
+  }
+
+  const cache = buildDamageCache(candidates, ramparts);
+  const greedy = buildGlobalGreedyPlacement(
+    candidates,
+    cache,
+    maxSlotTowers,
+    maxSpawnSlotTowers,
+  );
+
+  if (!greedy) {
+    return;
+  }
+
+  const singleRefined = refineSingleTowersToConvergence(
+    greedy,
+    candidates,
+    cache,
+    maxSlotTowers,
+    maxSpawnSlotTowers,
+  );
+
+  return refineTowerPairs(
+    singleRefined,
+    candidates,
+    cache,
+    maxSlotTowers,
+    maxSpawnSlotTowers,
+    FULL_PAIR_SWEEPS,
+  );
+}
+
+function buildDamageCache(
+  candidates: readonly TowerCandidate[],
+  ramparts: readonly RoomCoordinate[],
+): DamageCache {
+  const rampartCount = ramparts.length;
+  const matrix = new Uint16Array(candidates.length * rampartCount);
+  const totalDamage = new Uint32Array(candidates.length);
+
+  for (
+    let candidateIndex = 0;
+    candidateIndex < candidates.length;
+    candidateIndex++
+  ) {
+    const candidate = candidates[candidateIndex];
+    const offset = candidateIndex * rampartCount;
+    let total = 0;
+
+    for (let rampartIndex = 0; rampartIndex < rampartCount; rampartIndex++) {
+      const damage = Math.round(
+        getTowerDamage(getRange(candidate.coordinate, ramparts[rampartIndex])),
+      );
+      matrix[offset + rampartIndex] = damage;
+      total += damage;
+    }
+
+    totalDamage[candidateIndex] = total;
+  }
+
+  return { rampartCount, matrix, totalDamage };
+}
+
+function buildGlobalGreedyPlacement(
+  candidates: readonly TowerCandidate[],
+  cache: DamageCache,
+  maxSlotTowers: number,
+  maxSpawnSlotTowers: number,
+): number[] | undefined {
+  const selected: number[] = [];
+  const used = new Uint8Array(candidates.length);
+  const damage = new Uint16Array(cache.rampartCount);
+  let totalDamage = 0;
+  let slotTowers = 0;
+  let spawnSlotTowers = 0;
+
+  while (selected.length < NUM_TOWERS) {
+    let bestCandidate = -1;
+    let bestScore: TowerPlacementScore | undefined;
+
+    for (
+      let candidateIndex = 0;
+      candidateIndex < candidates.length;
+      candidateIndex++
+    ) {
+      if (used[candidateIndex]) {
+        continue;
+      }
+
+      const candidate = candidates[candidateIndex];
+
+      if (
+        !canAddCandidate(
+          candidate,
+          slotTowers,
+          spawnSlotTowers,
+          maxSlotTowers,
+          maxSpawnSlotTowers,
+        )
+      ) {
+        continue;
+      }
+
+      const score = scoreAddedCandidate(
+        damage,
+        totalDamage,
+        candidateIndex,
+        cache,
+      );
+
+      if (
+        !bestScore ||
+        isPrimaryScoreBetter(score, bestScore) ||
+        (isSamePrimaryScore(score, bestScore) &&
+          isCandidateTieBetter(candidate, candidates[bestCandidate]))
+      ) {
+        bestCandidate = candidateIndex;
+        bestScore = score;
+      }
+    }
+
+    if (bestCandidate < 0) {
+      return;
+    }
+
+    selected.push(bestCandidate);
+    used[bestCandidate] = 1;
+    addCandidateDamage(damage, bestCandidate, cache);
+    totalDamage += cache.totalDamage[bestCandidate];
+    slotTowers += candidates[bestCandidate].usesStructureSlot ? 1 : 0;
+    spawnSlotTowers += candidates[bestCandidate].usesSpawnSlot ? 1 : 0;
+  }
+
+  return selected;
+}
+
+function refineSingleTowersToConvergence(
+  initial: readonly number[],
+  candidates: readonly TowerCandidate[],
+  cache: DamageCache,
+  maxSlotTowers: number,
+  maxSpawnSlotTowers: number,
+): number[] {
+  const selected = [...initial];
+
+  for (let sweep = 0; sweep < MAX_SINGLE_REFINEMENT_SWEEPS; sweep++) {
+    let changed = false;
+
+    for (let replaceIndex = 0; replaceIndex < NUM_TOWERS; replaceIndex++) {
+      const fixed = selected.filter((_, index) => index !== replaceIndex);
+      const fixedSet = buildSelectedMask(fixed, candidates.length);
+      const fixedUsage = getSelectionUsage(fixed, candidates);
+      const fixedDamage = buildSelectionDamage(fixed, cache);
+      const fixedTotalDamage = getSelectionTotalDamage(fixed, cache);
+      let bestCandidate = selected[replaceIndex];
+      let bestScore = scoreSelection(selected, cache);
+
+      for (
+        let candidateIndex = 0;
+        candidateIndex < candidates.length;
+        candidateIndex++
+      ) {
+        if (fixedSet[candidateIndex]) {
+          continue;
+        }
+
+        if (
+          !canAddCandidate(
+            candidates[candidateIndex],
+            fixedUsage.slotTowers,
+            fixedUsage.spawnSlotTowers,
+            maxSlotTowers,
+            maxSpawnSlotTowers,
+          )
+        ) {
+          continue;
+        }
+
+        const score = scoreAddedCandidate(
+          fixedDamage,
+          fixedTotalDamage,
+          candidateIndex,
+          cache,
+        );
+
+        if (
+          isPrimaryScoreBetter(score, bestScore) ||
+          (isSamePrimaryScore(score, bestScore) &&
+            candidates[candidateIndex].roomIndex <
+              candidates[bestCandidate].roomIndex)
+        ) {
+          bestCandidate = candidateIndex;
+          bestScore = score;
+        }
+      }
+
+      if (bestCandidate !== selected[replaceIndex]) {
+        selected[replaceIndex] = bestCandidate;
+        changed = true;
+      }
+    }
+
+    if (!changed) {
+      break;
+    }
+  }
+
+  return selected;
+}
+
+function refineTowerPairs(
+  initial: readonly number[],
+  candidates: readonly TowerCandidate[],
+  cache: DamageCache,
+  maxSlotTowers: number,
+  maxSpawnSlotTowers: number,
+  sweeps: number,
+): number[] {
+  const selected = [...initial];
+
+  for (let sweep = 0; sweep < sweeps; sweep++) {
+    for (let firstIndex = 0; firstIndex < NUM_TOWERS - 1; firstIndex++) {
+      for (
+        let secondIndex = firstIndex + 1;
+        secondIndex < NUM_TOWERS;
+        secondIndex++
+      ) {
+        const fixed: number[] = [];
+
+        for (let index = 0; index < NUM_TOWERS; index++) {
+          if (index !== firstIndex && index !== secondIndex) {
+            fixed.push(selected[index]);
+          }
+        }
+
+        const fixedSet = buildSelectedMask(fixed, candidates.length);
+        const fixedUsage = getSelectionUsage(fixed, candidates);
+        const fixedDamage = buildSelectionDamage(fixed, cache);
+        const fixedTotalDamage = getSelectionTotalDamage(fixed, cache);
+        let bestFirst = selected[firstIndex];
+        let bestSecond = selected[secondIndex];
+        let bestScore = scoreSelection(selected, cache);
+        let bestTie = getPairTie(
+          candidates[bestFirst].roomIndex,
+          candidates[bestSecond].roomIndex,
+        );
+
+        for (
+          let firstCandidate = 0;
+          firstCandidate < candidates.length - 1;
+          firstCandidate++
+        ) {
+          if (fixedSet[firstCandidate]) {
+            continue;
+          }
+
+          const first = candidates[firstCandidate];
+          const firstSlotTowers =
+            fixedUsage.slotTowers + (first.usesStructureSlot ? 1 : 0);
+          const firstSpawnSlotTowers =
+            fixedUsage.spawnSlotTowers + (first.usesSpawnSlot ? 1 : 0);
+
+          if (
+            firstSlotTowers > maxSlotTowers ||
+            firstSpawnSlotTowers > maxSpawnSlotTowers
+          ) {
+            continue;
+          }
+
+          for (
+            let secondCandidate = firstCandidate + 1;
+            secondCandidate < candidates.length;
+            secondCandidate++
+          ) {
+            if (fixedSet[secondCandidate]) {
+              continue;
+            }
+
+            const second = candidates[secondCandidate];
+
+            if (
+              firstSlotTowers + (second.usesStructureSlot ? 1 : 0) >
+                maxSlotTowers ||
+              firstSpawnSlotTowers + (second.usesSpawnSlot ? 1 : 0) >
+                maxSpawnSlotTowers
+            ) {
+              continue;
+            }
+
+            const score = scoreAddedCandidatePair(
+              fixedDamage,
+              fixedTotalDamage,
+              firstCandidate,
+              secondCandidate,
+              cache,
+            );
+            const tie = getPairTie(first.roomIndex, second.roomIndex);
+
+            if (
+              isPrimaryScoreBetter(score, bestScore) ||
+              (isSamePrimaryScore(score, bestScore) && tie < bestTie)
+            ) {
+              bestFirst = firstCandidate;
+              bestSecond = secondCandidate;
+              bestScore = score;
+              bestTie = tie;
+            }
+          }
+        }
+
+        selected[firstIndex] = bestFirst;
+        selected[secondIndex] = bestSecond;
+      }
+    }
+  }
+
+  return selected;
+}
+
+function scoreAddedCandidate(
+  baseDamage: Uint16Array,
+  baseTotalDamage: number,
+  candidateIndex: number,
+  cache: DamageCache,
+): TowerPlacementScore {
+  const offset = candidateIndex * cache.rampartCount;
+  let minDamage = Infinity;
+  let weakCount = 0;
+
+  for (
+    let rampartIndex = 0;
+    rampartIndex < cache.rampartCount;
+    rampartIndex++
+  ) {
+    const damage =
+      baseDamage[rampartIndex] + cache.matrix[offset + rampartIndex];
+
+    if (damage < minDamage) {
+      minDamage = damage;
+      weakCount = 1;
+    } else if (damage === minDamage) {
+      weakCount++;
+    }
+  }
+
+  return {
+    minDamage,
+    weakCount,
+    totalDamage: baseTotalDamage + cache.totalDamage[candidateIndex],
+  };
+}
+
+function scoreAddedCandidatePair(
+  baseDamage: Uint16Array,
+  baseTotalDamage: number,
+  firstCandidate: number,
+  secondCandidate: number,
+  cache: DamageCache,
+): TowerPlacementScore {
+  const firstOffset = firstCandidate * cache.rampartCount;
+  const secondOffset = secondCandidate * cache.rampartCount;
+  let minDamage = Infinity;
+  let weakCount = 0;
+
+  for (
+    let rampartIndex = 0;
+    rampartIndex < cache.rampartCount;
+    rampartIndex++
+  ) {
+    const damage =
+      baseDamage[rampartIndex] +
+      cache.matrix[firstOffset + rampartIndex] +
+      cache.matrix[secondOffset + rampartIndex];
+
+    if (damage < minDamage) {
+      minDamage = damage;
+      weakCount = 1;
+    } else if (damage === minDamage) {
+      weakCount++;
+    }
+  }
+
+  return {
+    minDamage,
+    weakCount,
+    totalDamage:
+      baseTotalDamage +
+      cache.totalDamage[firstCandidate] +
+      cache.totalDamage[secondCandidate],
+  };
+}
+
+function scoreSelection(
+  selected: readonly number[],
+  cache: DamageCache,
+): TowerPlacementScore {
+  const damage = buildSelectionDamage(selected, cache);
+  let minDamage = Infinity;
+  let weakCount = 0;
+  let totalDamage = 0;
+
+  for (
+    let rampartIndex = 0;
+    rampartIndex < cache.rampartCount;
+    rampartIndex++
+  ) {
+    const value = damage[rampartIndex];
+    totalDamage += value;
+
+    if (value < minDamage) {
+      minDamage = value;
+      weakCount = 1;
+    } else if (value === minDamage) {
+      weakCount++;
+    }
+  }
+
+  return { minDamage, weakCount, totalDamage };
+}
+
+function buildSelectionDamage(
+  selected: readonly number[],
+  cache: DamageCache,
+): Uint16Array {
+  const damage = new Uint16Array(cache.rampartCount);
+
+  for (const candidateIndex of selected) {
+    addCandidateDamage(damage, candidateIndex, cache);
+  }
+
+  return damage;
+}
+
+function addCandidateDamage(
+  damage: Uint16Array,
+  candidateIndex: number,
+  cache: DamageCache,
+): void {
+  const offset = candidateIndex * cache.rampartCount;
+
+  for (
+    let rampartIndex = 0;
+    rampartIndex < cache.rampartCount;
+    rampartIndex++
+  ) {
+    damage[rampartIndex] += cache.matrix[offset + rampartIndex];
+  }
+}
+
+function getSelectionTotalDamage(
+  selected: readonly number[],
+  cache: DamageCache,
+): number {
+  let total = 0;
+
+  for (const candidateIndex of selected) {
+    total += cache.totalDamage[candidateIndex];
+  }
+
+  return total;
+}
+
+function buildSelectedMask(
+  selected: readonly number[],
+  candidateCount: number,
+): Uint8Array {
+  const mask = new Uint8Array(candidateCount);
+
+  for (const candidateIndex of selected) {
+    mask[candidateIndex] = 1;
+  }
+
+  return mask;
+}
+
+function getSelectionUsage(
+  selected: readonly number[],
+  candidates: readonly TowerCandidate[],
+): CandidateUsage {
+  let slotTowers = 0;
+  let spawnSlotTowers = 0;
+
+  for (const candidateIndex of selected) {
+    slotTowers += candidates[candidateIndex].usesStructureSlot ? 1 : 0;
+    spawnSlotTowers += candidates[candidateIndex].usesSpawnSlot ? 1 : 0;
+  }
+
+  return { slotTowers, spawnSlotTowers };
+}
+
+function canAddCandidate(
+  candidate: TowerCandidate,
+  slotTowers: number,
+  spawnSlotTowers: number,
+  maxSlotTowers: number,
+  maxSpawnSlotTowers: number,
+): boolean {
+  return (
+    slotTowers + (candidate.usesStructureSlot ? 1 : 0) <= maxSlotTowers &&
+    spawnSlotTowers + (candidate.usesSpawnSlot ? 1 : 0) <= maxSpawnSlotTowers
+  );
+}
+
+function isPrimaryScoreBetter(
+  candidate: TowerPlacementScore,
+  current: TowerPlacementScore,
+): boolean {
+  if (candidate.minDamage !== current.minDamage) {
+    return candidate.minDamage > current.minDamage;
+  }
+
+  if (candidate.weakCount !== current.weakCount) {
+    return candidate.weakCount < current.weakCount;
+  }
+
+  return candidate.totalDamage > current.totalDamage;
+}
+
+function isSamePrimaryScore(
+  first: TowerPlacementScore,
+  second: TowerPlacementScore,
+): boolean {
+  return (
+    first.minDamage === second.minDamage &&
+    first.weakCount === second.weakCount &&
+    first.totalDamage === second.totalDamage
+  );
+}
+
+function isCandidateTieBetter(
+  candidate: TowerCandidate,
+  current: TowerCandidate | undefined,
+): boolean {
+  return !current || candidate.roomIndex < current.roomIndex;
+}
+
+function getPairTie(firstRoomIndex: number, secondRoomIndex: number): number {
+  const lower = Math.min(firstRoomIndex, secondRoomIndex);
+  const higher = Math.max(firstRoomIndex, secondRoomIndex);
+  return lower * ROOM_AREA + higher;
+}
+
+function buildRoadMask(structures: readonly PlannedStructure[]): Uint8Array {
+  const roadMask = new Uint8Array(ROOM_AREA);
+
+  for (const structure of structures) {
+    if (structure.structureType !== STRUCTURE_ROAD) {
+      continue;
+    }
+
+    const { x, y } = structure.coordinate;
+    roadMask[toRoomIndex(x, y)] = 1;
+  }
+
+  return roadMask;
+}
+
+function countSpawnSlots(
+  slotPlan: StructureSlotPlan,
+  roadMask: Uint8Array,
+): number {
+  let count = 0;
+
+  for (const { coordinate } of slotPlan.slots) {
+    if (countAdjacentRoads(coordinate, roadMask) >= 2) {
+      count++;
+    }
+  }
+
+  return count;
+}
+
+function countAdjacentRoads(
+  coordinate: RoomCoordinate,
+  roadMask: Uint8Array,
+): number {
+  let count = 0;
+
+  for (const offset of NEIGHBOR_OFFSETS) {
+    const x = coordinate.x + offset.x;
+    const y = coordinate.y + offset.y;
+
+    if (!isInsideRoom(x, y)) {
+      continue;
+    }
+
+    if (roadMask[toRoomIndex(x, y)]) {
+      count++;
+    }
+  }
+
+  return count;
+}
+
+function buildReservedOpenTileMask(
+  controllerArea: ControllerAreaCandidate,
+  corePlan: CorePlan,
+): Uint8Array {
+  const mask = new Uint8Array(ROOM_AREA);
+  const block = ({ x, y }: RoomCoordinate): void => {
+    mask[toRoomIndex(x, y)] = 1;
+  };
+
+  block(corePlan.manager);
+  corePlan.parking.forEach(block);
+
+  const lateStructureIndices = new Set([
+    toRoomIndex(corePlan.factory.x, corePlan.factory.y),
+    toRoomIndex(corePlan.powerSpawn.x, corePlan.powerSpawn.y),
+  ]);
+  const { left, middle, right } = controllerArea.upgradeChains;
+
+  for (const chain of [left, middle, right]) {
+    const isLateStructureChain = chain.some(({ x, y }) =>
+      lateStructureIndices.has(toRoomIndex(x, y)),
+    );
+
+    if (!isLateStructureChain) {
+      block(chain[0]);
+    }
+  }
+
+  return mask;
+}
+
+function rebuildFinalRampartPlan(
+  terrain: RoomTerrain,
+  structures: readonly PlannedStructure[],
+): OuterRampartPlan | undefined {
+  const allRampartMask = new Uint8Array(ROOM_AREA);
+
+  for (const structure of structures) {
+    if (structure.structureType !== STRUCTURE_RAMPART) {
+      continue;
+    }
+
+    const { x, y } = structure.coordinate;
+    allRampartMask[toRoomIndex(x, y)] = 1;
+  }
+
+  const outsideWithAllRamparts = buildOutsideMask(terrain, allRampartMask);
+  const outerRampartMask = new Uint8Array(ROOM_AREA);
+
+  for (let index = 0; index < ROOM_AREA; index++) {
+    if (!allRampartMask[index]) {
+      continue;
+    }
+
+    const coordinate = fromRoomIndex(index);
+
+    for (const offset of NEIGHBOR_OFFSETS) {
+      const x = coordinate.x + offset.x;
+      const y = coordinate.y + offset.y;
+
+      if (!isInsideRoom(x, y)) {
+        continue;
+      }
+
+      if (outsideWithAllRamparts[toRoomIndex(x, y)]) {
+        outerRampartMask[index] = 1;
+        break;
+      }
+    }
+  }
+
+  const ramparts = coordinatesFromMask(outerRampartMask);
+
+  if (ramparts.length === 0) {
+    return;
+  }
+
+  const outsideMask = buildOutsideMask(terrain, outerRampartMask);
+  const insideMask = new Uint8Array(ROOM_AREA);
+
+  for (let index = 0; index < ROOM_AREA; index++) {
+    const { x, y } = fromRoomIndex(index);
+
+    if (terrain.get(x, y) === TERRAIN_MASK_WALL || outerRampartMask[index]) {
+      continue;
+    }
+
+    if (!outsideMask[index]) {
+      insideMask[index] = 1;
+    }
+  }
+
+  return {
+    ramparts,
+    rampartMask: outerRampartMask,
+    insideMask,
+    outsideMask,
+  };
+}
+
+function buildOutsideMask(
+  terrain: RoomTerrain,
+  rampartMask: Uint8Array,
+): Uint8Array {
+  const exits = getExitCoordinates(terrain).filter(
+    ({ x, y }) => !rampartMask[toRoomIndex(x, y)],
+  );
+  const { distances } = floodFill(
+    terrain,
+    exits,
+    (x, y) => !rampartMask[toRoomIndex(x, y)],
+  );
+  const outsideMask = new Uint8Array(ROOM_AREA);
+
+  for (let index = 0; index < ROOM_AREA; index++) {
+    if (distances[index] >= 0) {
+      outsideMask[index] = 1;
+    }
+  }
+
+  return outsideMask;
+}
+
+function getExitCoordinates(terrain: RoomTerrain): RoomCoordinate[] {
+  const exits: RoomCoordinate[] = [];
+
+  for (let x = 0; x < ROOM_SIZE; x++) {
+    for (const y of [0, ROOM_SIZE - 1]) {
+      if (terrain.get(x, y) !== TERRAIN_MASK_WALL) {
+        exits.push({ x, y });
+      }
+    }
+  }
+
+  for (let y = 1; y < ROOM_SIZE - 1; y++) {
+    for (const x of [0, ROOM_SIZE - 1]) {
+      if (terrain.get(x, y) !== TERRAIN_MASK_WALL) {
+        exits.push({ x, y });
+      }
+    }
+  }
+
+  return exits;
+}
+
+function coordinatesFromMask(mask: Uint8Array): RoomCoordinate[] {
+  const coordinates: RoomCoordinate[] = [];
+
+  for (let index = 0; index < ROOM_AREA; index++) {
+    if (mask[index]) {
+      coordinates.push(fromRoomIndex(index));
+    }
+  }
+
+  return coordinates;
+}
+
+function getTowerDamage(range: number): number {
+  if (range <= TOWER_OPTIMAL_RANGE) {
+    return TOWER_POWER_ATTACK;
+  }
+
+  const clampedRange = Math.min(range, TOWER_FALLOFF_RANGE);
+  const falloff =
+    (TOWER_FALLOFF * (clampedRange - TOWER_OPTIMAL_RANGE)) /
+    (TOWER_FALLOFF_RANGE - TOWER_OPTIMAL_RANGE);
+
+  return TOWER_POWER_ATTACK * (1 - falloff);
+}
