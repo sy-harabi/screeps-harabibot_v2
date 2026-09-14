@@ -1,0 +1,61 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width,initial-scale=1" />
+<title>shardSeason 8 · harabibot v2 Base Planner</title>
+<style>
+:root{--bg:#0b0e12;--panel:#12171d;--panel2:#171d25;--line:#2a3440;--text:#dbe5ef;--muted:#8f9cab;--ok:#5bd18a;--bad:#ff6b76;--accent:#6eb8ff;--warn:#f2c55c}
+*{box-sizing:border-box} html,body{margin:0;background:var(--bg);color:var(--text);font-family:Inter,ui-sans-serif,system-ui,-apple-system,BlinkMacSystemFont,"Segoe UI",sans-serif}
+body{min-height:100vh} button,input,select{font:inherit} button{background:#1b2530;color:var(--text);border:1px solid var(--line);border-radius:7px;padding:8px 11px;cursor:pointer} button:hover:not(:disabled){border-color:#4c6176;background:#202d3a} button:disabled{opacity:.45;cursor:not-allowed}
+input[type=text]{background:#0d1218;color:var(--text);border:1px solid var(--line);border-radius:7px;padding:9px 10px;width:170px;outline:none} input[type=text]:focus{border-color:var(--accent)}
+header{border-bottom:1px solid var(--line);background:#0e1319;position:sticky;top:0;z-index:20}.top{max-width:1500px;margin:auto;padding:12px 16px;display:flex;gap:10px;align-items:center;flex-wrap:wrap}.brand{font-weight:700;margin-right:6px}.muted{color:var(--muted)}.grow{flex:1}
+main{max-width:1500px;margin:auto;padding:14px 16px 30px}.controls{display:flex;gap:8px;align-items:center;flex-wrap:wrap}.toggle{display:flex;gap:6px;align-items:center;font-size:12px;color:var(--muted)}
+.layout{display:grid;grid-template-columns:minmax(620px,1fr) 360px;gap:14px;align-items:start}.card{background:var(--panel);border:1px solid var(--line);border-radius:10px;overflow:hidden}.canvaswrap{position:relative;background:#090b0e;aspect-ratio:1/1;min-height:620px}.canvaswrap.busy:after{content:'Planning…';position:absolute;inset:0;background:#07101acc;display:flex;align-items:center;justify-content:center;font-size:22px;font-weight:700;color:#b9d9ff;backdrop-filter:blur(2px)}canvas{display:block;width:100%;height:100%}.tip{display:none;position:absolute;pointer-events:none;background:#05080ce8;border:1px solid #465465;border-radius:6px;padding:5px 7px;font-size:12px;white-space:nowrap;z-index:8}.side{padding:13px}.statusrow{display:flex;justify-content:space-between;align-items:center;gap:8px;margin-bottom:10px}.roomtitle{font-size:20px;font-weight:700}.pill{border:1px solid var(--line);border-radius:999px;padding:4px 8px;font-size:12px}.pill.ok{color:var(--ok);border-color:#2d6f48}.pill.bad{color:var(--bad);border-color:#74363c}.pill.idle{color:var(--muted)}
+.metrics{display:grid;grid-template-columns:repeat(3,1fr);gap:6px;margin:10px 0}.metric{background:var(--panel2);border:1px solid #222c37;border-radius:7px;padding:8px}.metric b{display:block;font-size:15px}.metric span{font-size:10px;color:var(--muted)}.section{border-top:1px solid var(--line);padding-top:10px;margin-top:11px}.section h3{font-size:12px;letter-spacing:.05em;text-transform:uppercase;margin:0 0 7px;color:#9eabb8}.mono{font-family:ui-monospace,SFMono-Regular,Menlo,Consolas,monospace;font-size:11px;white-space:pre-wrap;line-height:1.45;color:#b9c5d1}.actions{display:flex;gap:7px;flex-wrap:wrap}.primary{background:#183d61;border-color:#2d6594}.primary:hover:not(:disabled){background:#1e4a73}.successbox{color:var(--ok)}.failbox{color:var(--bad)}
+.legend{display:flex;gap:10px;flex-wrap:wrap;font-size:11px;color:var(--muted);padding:9px 12px;border-top:1px solid var(--line)}.sw{display:inline-block;width:9px;height:9px;border-radius:2px;margin-right:4px;vertical-align:-1px}.footer{font-size:11px;color:#748190;margin-top:12px;line-height:1.5}.note{font-size:11px;color:var(--muted);line-height:1.45}.assetstate{font-size:10px;color:#748190}
+@media(max-width:1050px){.layout{grid-template-columns:1fr}.canvaswrap{min-height:0}.side{min-height:auto}}@media(max-width:650px){main,.top{padding-left:8px;padding-right:8px}.layout{display:block}.card+.card{margin-top:10px}.canvaswrap{min-height:0}input[type=text]{width:140px}}
+</style>
+</head>
+<body>
+<header><div class="top">
+  <div class="brand">shardSeason 8 · v2 Base Planner</div>
+  <div class="controls">
+    <input id="roomInput" type="text" list="roomList" autocomplete="off" spellcheck="false" value="E27N37" aria-label="Room name" />
+    <datalist id="roomList"></datalist>
+    <button id="planBtn" class="primary">Plan</button>
+    <button id="prevBtn" title="Previous room">◀</button><button id="nextBtn" title="Next room">▶</button>
+    <button id="randomBtn">Random controller</button>
+    <label class="toggle"><input id="controllerOnly" type="checkbox" checked> navigation: controller rooms only</label>
+    <label class="toggle"><input id="centralTowerOverlay" type="checkbox" checked> central</label>
+    <label class="toggle"><input id="distributedTowerOverlay" type="checkbox" checked> distributed</label>
+    <label class="toggle"><input id="milpTowerOverlay" type="checkbox" checked> MILP</label>
+    <label class="toggle"><input id="plannerTowerOverlay" type="checkbox" checked> v2 planner</label>
+  </div>
+  <div class="grow"></div>
+  <span class="muted" id="datasetMeta"></span>
+</div></header>
+<main>
+<div class="layout">
+  <div class="card">
+    <div id="canvasWrap" class="canvaswrap"><canvas id="cv"></canvas><div id="tip" class="tip"></div></div>
+    <div class="legend"><span><i class="sw" style="background:#10151b"></i>wall</span><span><i class="sw" style="background:#24272c"></i>plain</span><span><i class="sw" style="background:#454830"></i>swamp</span><span><i class="sw" style="background:#66717d"></i>road</span><span><i class="sw" style="background:#42ad68"></i>rampart</span><span><i class="sw" style="background:#6eb8ff"></i>central</span><span><i class="sw" style="background:#ff936b"></i>distributed</span><span><i class="sw" style="background:#f2c55c"></i>MILP</span><span><i class="sw" style="background:#dbe5ef"></i>v2 planner</span></div>
+  </div>
+  <div class="card side">
+    <div class="statusrow"><div id="roomTitle" class="roomtitle">—</div><div id="status" class="pill idle">NOT PLANNED</div></div>
+    <div class="actions"><button id="downloadBtn" disabled>Download BasePlan JSON</button><button id="copyBtn" disabled>Copy JSON</button></div>
+    <div id="metrics" class="metrics"></div>
+    <div class="section"><h3>Room</h3><div id="roomInfo" class="mono">—</div></div>
+    <div class="section"><h3>Planner</h3><div id="plannerInfo" class="mono">Choose a room and run Plan.</div></div>
+    <div class="section"><h3>Structures</h3><div id="counts" class="mono">—</div></div>
+    <div class="section"><h3>Tower Comparison</h3><div id="towerOptInfo" class="mono">planner result required</div></div>
+    <div class="section"><h3>Notes</h3><div class="note">Runs the browser port of harabibot v2 base planner snapshot <b>7187a457</b>. Tower comparison reuses the exact v2 tower candidate collector and slot/spawn capacity limits. Central uses the theoretical perimeter center; its weak-rampart upper bound follows decision 0004. Distributed is evaluated only when central is not certified. Its two diameter seeds ignore the center filter; the remaining four greedy picks exclude candidates closer to the theoretical center than the candidate-distance median. MILP uses the same feasible candidate model with 30 s primary / 3 s tie-break limits.</div></div>
+  </div>
+</div>
+<div class="footer">Map data: shardSeason 8 snapshot. Structure sprites: admon84/screeps-room-planner (MIT). Extension rendering uses the official Screeps renderer extension texture/border assets and falls back to the same circle geometry if those assets cannot load.</div>
+</main>
+<script src="./planner-core.js"></script>
+<script src="./planner-layout.js"></script>
+<script src="./rooms.js"></script>
+<script src="./app.js"></script>
+</body></html>
