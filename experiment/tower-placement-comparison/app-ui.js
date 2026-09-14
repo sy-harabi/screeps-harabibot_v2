@@ -12,7 +12,7 @@ center region: ${centerRegion}
 
 ${formatPlacement('central',a.central)}${a.central?` · shell ${a.central.baseRadius}+1=${a.central.searchRadius} · pool ${a.central.centralCandidateCount}`:''}
 central certificate: ${cert}
-${a.certificate.status==='certified'?'distributed: skipped (central certified)':formatPlacement('distributed',a.distributed)}${a.distributed?` · center median ${a.distributed.medianCenterDistance}`:''}
+${a.certificate.status==='certified'?'distributed: skipped (central certified)':formatPlacement('distributed',a.distributed)}
 heuristic winner: ${preferred}
 ${formatPlacement('v2 planner',a.planner)}
 ${milpText}`}
