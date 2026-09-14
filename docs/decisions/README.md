@@ -30,3 +30,4 @@ Date: YYYY-MM-DD
 - [0003: Dynamic lab placement](0003-dynamic-lab-placement.md)
 - [0004: Central-first tower placement with a greedy fallback](0004-tower-placement-central-first-greedy.md) — superseded by 0005
 - [0005: Tower placement by greedy seed and local pair search](0005-tower-placement-local-search.md)
+- [0006: Storage, persistence, and bot options](0006-storage-persistence-and-bot-options.md)
