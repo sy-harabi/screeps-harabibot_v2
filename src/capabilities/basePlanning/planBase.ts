@@ -7,7 +7,10 @@ import {
 } from "../../world/map/terrainRegions";
 import type { BasePlan } from "./basePlan";
 import { classifyDefensiveTiles } from "./classifyDefensiveTiles";
-import { finalizeBasePlanStructures } from "./finalizeBasePlan";
+import {
+  buildProvisionalBasePlanStructures,
+  finalizeBasePlanStructures,
+} from "./finalizeBasePlan";
 import { finalizeDefensePlan } from "./finalizeDefensePlan";
 import {
   ControllerAreaCandidate,
@@ -19,6 +22,7 @@ import { planOuterRampartRoads } from "./planOuterRampartRoads";
 import { planOuterRamparts } from "./planOuterRamparts";
 import { planResourceTree } from "./planResourceTree";
 import { planStructureSlots } from "./planStructureSlots";
+import { planTowers } from "./planTowers";
 import { createBaseRegionSelection } from "./selectBaseRegions";
 
 export interface PlanBaseOptions {
@@ -253,7 +257,7 @@ function tryPlanBaseWithRegions(
     return;
   }
 
-  const provisionalStructures = finalizeBasePlanStructures(
+  const provisionalStructures = buildProvisionalBasePlanStructures(
     sources,
     minerals,
     bestControllerArea,
@@ -263,25 +267,48 @@ function tryPlanBaseWithRegions(
     rampartRoadPlan,
     labPlan,
     slotPlan,
-    visual,
   );
-
-  if (!provisionalStructures) {
-    return;
-  }
 
   // structure(ROAD) stores road coordinates on RoomVisual separately from the
   // actual draw commands. Drop any intermediate cache before the final pass so
   // connectRoads() can only connect roads in the final plan.
   finalVisual.roads = [];
 
-  const structures = finalizeDefensePlan(
+  const defenseStructures = finalizeDefensePlan(
     terrain,
     controller,
     sources,
     minerals,
     provisionalStructures,
     bestCorePlan,
+    finalVisual,
+  );
+
+  if (!defenseStructures) {
+    return;
+  }
+
+  const towers = planTowers(
+    terrain,
+    controller,
+    sources,
+    minerals,
+    bestControllerArea,
+    bestCorePlan,
+    slotPlan,
+    defenseStructures,
+  );
+
+  if (!towers) {
+    return;
+  }
+
+  const structures = finalizeBasePlanStructures(
+    defenseStructures,
+    bestControllerArea,
+    bestCorePlan,
+    slotPlan,
+    towers,
     finalVisual,
   );
 

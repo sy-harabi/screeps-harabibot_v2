@@ -1,4 +1,4 @@
-import { getRange, RoomCoordinate } from "../../world/map/roomCoordinate";
+import { RoomCoordinate } from "../../world/map/roomCoordinate";
 import {
   NEIGHBOR_OFFSETS,
   ROOM_AREA,
@@ -14,8 +14,11 @@ import type { ResourceTreePlan } from "./planResourceTree";
 import type { StructureSlot, StructureSlotPlan } from "./planStructureSlots";
 
 const NUM_ADDITIONAL_SPAWNS = 2;
-const NUM_TOWERS = 6;
 const NUM_EXTENSIONS = 60;
+const NUM_OTHER_SLOT_STRUCTURES = 2;
+const REQUIRED_NON_TOWER_SLOTS =
+  NUM_ADDITIONAL_SPAWNS + NUM_EXTENSIONS + NUM_OTHER_SLOT_STRUCTURES;
+const PROVISIONAL_SLOT_RCL = 8;
 
 interface RankedSlot {
   readonly slot: StructureSlot;
@@ -25,13 +28,12 @@ interface RankedSlot {
 
 interface AssignedSlotStructures {
   readonly spawns: RankedSlot[];
-  readonly towers: RankedSlot[];
   readonly observer: RankedSlot;
   readonly nuker: RankedSlot;
   readonly extensions: RankedSlot[];
 }
 
-export function finalizeBasePlanStructures(
+export function buildProvisionalBasePlanStructures(
   sources: readonly Source[],
   minerals: readonly Mineral[],
   controllerArea: ControllerAreaCandidate,
@@ -41,24 +43,7 @@ export function finalizeBasePlanStructures(
   boundaryRoadPlan: RegionBoundaryRoadPlan,
   labPlan: LabPlan,
   slotPlan: StructureSlotPlan,
-  visual: RoomVisual,
-): PlannedStructure[] | undefined {
-  const assigned = assignStructureSlots(
-    controllerArea,
-    corePlan,
-    resourceTree,
-    outerRampartPlan,
-    boundaryRoadPlan,
-    labPlan,
-    slotPlan,
-  );
-
-  if (!assigned) {
-    return;
-  }
-
-  visualizeAssignedSlots(assigned, visual);
-
+): PlannedStructure[] {
   const structures: PlannedStructure[] = [];
   const seen = new Set<string>();
 
@@ -78,6 +63,160 @@ export function finalizeBasePlanStructures(
     structures.push({ structureType, coordinate, rcl, tag });
   };
 
+  addFixedStructures(
+    sources,
+    minerals,
+    controllerArea,
+    corePlan,
+    resourceTree,
+    labPlan,
+    addStructure,
+  );
+
+  // Slot coordinates are temporary stand-ins only. They force final min-cut,
+  // civil-road pruning, and repair-road routing to respect the complete future
+  // structure footprint before towers receive priority over those slots.
+  for (const { coordinate } of slotPlan.slots) {
+    addStructure(
+      STRUCTURE_EXTENSION,
+      coordinate,
+      PROVISIONAL_SLOT_RCL,
+    );
+  }
+
+  const roads = [
+    ...corePlan.roads,
+    ...resourceTree.roads,
+    ...boundaryRoadPlan.roads,
+    ...labPlan.serviceRoads,
+    ...slotPlan.roads,
+  ];
+
+  roads.forEach((coordinate) =>
+    addStructure(
+      STRUCTURE_ROAD,
+      coordinate,
+      getStructureRcl(STRUCTURE_ROAD, 0),
+    ),
+  );
+
+  outerRampartPlan.ramparts.forEach((coordinate) =>
+    addStructure(
+      STRUCTURE_RAMPART,
+      coordinate,
+      getStructureRcl(STRUCTURE_RAMPART, 0),
+    ),
+  );
+
+  return structures;
+}
+
+export function finalizeBasePlanStructures(
+  defenseStructures: readonly PlannedStructure[],
+  controllerArea: ControllerAreaCandidate,
+  corePlan: CorePlan,
+  slotPlan: StructureSlotPlan,
+  towers: readonly RoomCoordinate[],
+  visual: RoomVisual,
+): PlannedStructure[] | undefined {
+  const slotMask = buildSlotMask(slotPlan.slots);
+  const towerMask = buildCoordinateMask(towers);
+  const structures = defenseStructures.filter((structure) => {
+    if (structure.structureType !== STRUCTURE_EXTENSION) {
+      return true;
+    }
+
+    const { x, y } = structure.coordinate;
+    return !slotMask[toRoomIndex(x, y)];
+  });
+  const roadMask = buildRoadMask(structures);
+  const assigned = assignStructureSlots(
+    slotPlan,
+    controllerArea,
+    corePlan,
+    towerMask,
+    roadMask,
+  );
+
+  if (!assigned) {
+    return;
+  }
+
+  const seen = new Set(
+    structures.map(
+      ({ structureType, coordinate }) =>
+        `${structureType}:${coordinate.x}:${coordinate.y}`,
+    ),
+  );
+
+  const addStructure = (
+    structureType: BuildableStructureConstant,
+    coordinate: RoomCoordinate,
+    rcl: number,
+  ): void => {
+    const key = `${structureType}:${coordinate.x}:${coordinate.y}`;
+
+    if (seen.has(key)) {
+      return;
+    }
+
+    seen.add(key);
+    structures.push({ structureType, coordinate, rcl });
+  };
+
+  towers.forEach((coordinate, index) =>
+    addStructure(
+      STRUCTURE_TOWER,
+      coordinate,
+      getStructureRcl(STRUCTURE_TOWER, index),
+    ),
+  );
+
+  assigned.spawns.forEach((rankedSlot, index) =>
+    addStructure(
+      STRUCTURE_SPAWN,
+      rankedSlot.slot.coordinate,
+      getStructureRcl(STRUCTURE_SPAWN, index + 1),
+    ),
+  );
+
+  addStructure(
+    STRUCTURE_OBSERVER,
+    assigned.observer.slot.coordinate,
+    getStructureRcl(STRUCTURE_OBSERVER, 0),
+  );
+  addStructure(
+    STRUCTURE_NUKER,
+    assigned.nuker.slot.coordinate,
+    getStructureRcl(STRUCTURE_NUKER, 0),
+  );
+
+  assigned.extensions.forEach((rankedSlot, index) =>
+    addStructure(
+      STRUCTURE_EXTENSION,
+      rankedSlot.slot.coordinate,
+      getStructureRcl(STRUCTURE_EXTENSION, index),
+    ),
+  );
+
+  visualizeFinalPlan(structures, visual);
+  return structures;
+}
+
+function addFixedStructures(
+  sources: readonly Source[],
+  minerals: readonly Mineral[],
+  controllerArea: ControllerAreaCandidate,
+  corePlan: CorePlan,
+  resourceTree: ResourceTreePlan,
+  labPlan: LabPlan,
+  addStructure: (
+    structureType: BuildableStructureConstant,
+    coordinate: RoomCoordinate,
+    rcl: number,
+    tag?: PlannedStructureTag,
+  ) => void,
+): void {
   addStructure(
     STRUCTURE_SPAWN,
     corePlan.firstSpawn,
@@ -150,88 +289,22 @@ export function finalizeBasePlanStructures(
       getStructureRcl(STRUCTURE_LAB, index),
     ),
   );
-
-  assigned.spawns.forEach((rankedSlot, index) =>
-    addStructure(
-      STRUCTURE_SPAWN,
-      rankedSlot.slot.coordinate,
-      getStructureRcl(STRUCTURE_SPAWN, index + 1),
-    ),
-  );
-
-  [...assigned.towers]
-    .sort(compareRankedSlots)
-    .forEach((rankedSlot, index) =>
-      addStructure(
-        STRUCTURE_TOWER,
-        rankedSlot.slot.coordinate,
-        getStructureRcl(STRUCTURE_TOWER, index),
-      ),
-    );
-
-  addStructure(
-    STRUCTURE_OBSERVER,
-    assigned.observer.slot.coordinate,
-    getStructureRcl(STRUCTURE_OBSERVER, 0),
-  );
-  addStructure(
-    STRUCTURE_NUKER,
-    assigned.nuker.slot.coordinate,
-    getStructureRcl(STRUCTURE_NUKER, 0),
-  );
-
-  assigned.extensions.forEach((rankedSlot, index) =>
-    addStructure(
-      STRUCTURE_EXTENSION,
-      rankedSlot.slot.coordinate,
-      getStructureRcl(STRUCTURE_EXTENSION, index),
-    ),
-  );
-
-  const roads = [
-    ...corePlan.roads,
-    ...resourceTree.roads,
-    ...boundaryRoadPlan.roads,
-    ...labPlan.serviceRoads,
-    ...slotPlan.roads,
-  ];
-
-  roads.forEach((coordinate) =>
-    addStructure(
-      STRUCTURE_ROAD,
-      coordinate,
-      getStructureRcl(STRUCTURE_ROAD, 0),
-    ),
-  );
-
-  outerRampartPlan.ramparts.forEach((coordinate) =>
-    addStructure(
-      STRUCTURE_RAMPART,
-      coordinate,
-      getStructureRcl(STRUCTURE_RAMPART, 0),
-    ),
-  );
-
-  return structures;
 }
 
 function assignStructureSlots(
+  slotPlan: StructureSlotPlan,
   controllerArea: ControllerAreaCandidate,
   corePlan: CorePlan,
-  resourceTree: ResourceTreePlan,
-  outerRampartPlan: OuterRampartPlan,
-  boundaryRoadPlan: RegionBoundaryRoadPlan,
-  labPlan: LabPlan,
-  slotPlan: StructureSlotPlan,
+  towerMask: Uint8Array,
+  roadMask: Uint8Array,
 ): AssignedSlotStructures | undefined {
-  const slots = rankSlots(slotPlan.slots, controllerArea, corePlan);
-  const roadMask = buildRoadMask(
-    corePlan,
-    resourceTree,
-    boundaryRoadPlan,
-    labPlan,
-    slotPlan,
+  const slots = rankSlots(slotPlan.slots, controllerArea, corePlan).filter(
+    ({ roomIndex }) => !towerMask[roomIndex],
   );
+
+  if (slots.length < REQUIRED_NON_TOWER_SLOTS) {
+    return;
+  }
 
   const spawns: RankedSlot[] = [];
 
@@ -248,12 +321,6 @@ function assignStructureSlots(
     spawns.push(spawn);
   }
 
-  const towers = selectTowerSlots(slots, outerRampartPlan.ramparts);
-
-  if (!towers || towers.length !== NUM_TOWERS) {
-    return;
-  }
-
   const observer = slots.pop();
   const nuker = slots.pop();
 
@@ -263,7 +330,11 @@ function assignStructureSlots(
 
   const extensions = slots.slice(0, NUM_EXTENSIONS);
 
-  return { spawns, towers, observer, nuker, extensions };
+  if (extensions.length !== NUM_EXTENSIONS) {
+    return;
+  }
+
+  return { spawns, observer, nuker, extensions };
 }
 
 function rankSlots(
@@ -326,26 +397,35 @@ function buildLateChainMask(
   return mask;
 }
 
-function buildRoadMask(
-  corePlan: CorePlan,
-  resourceTree: ResourceTreePlan,
-  boundaryRoadPlan: RegionBoundaryRoadPlan,
-  labPlan: LabPlan,
-  slotPlan: StructureSlotPlan,
-): Uint8Array {
+function buildRoadMask(structures: readonly PlannedStructure[]): Uint8Array {
   const roadMask = new Uint8Array(ROOM_AREA);
 
-  for (const { x, y } of [
-    ...corePlan.roads,
-    ...resourceTree.roads,
-    ...boundaryRoadPlan.roads,
-    ...labPlan.serviceRoads,
-    ...slotPlan.roads,
-  ]) {
+  for (const structure of structures) {
+    if (structure.structureType !== STRUCTURE_ROAD) {
+      continue;
+    }
+
+    const { x, y } = structure.coordinate;
     roadMask[toRoomIndex(x, y)] = 1;
   }
 
   return roadMask;
+}
+
+function buildSlotMask(slots: readonly StructureSlot[]): Uint8Array {
+  return buildCoordinateMask(slots.map(({ coordinate }) => coordinate));
+}
+
+function buildCoordinateMask(
+  coordinates: readonly RoomCoordinate[],
+): Uint8Array {
+  const mask = new Uint8Array(ROOM_AREA);
+
+  for (const { x, y } of coordinates) {
+    mask[toRoomIndex(x, y)] = 1;
+  }
+
+  return mask;
 }
 
 function countAdjacentRoads(
@@ -381,132 +461,6 @@ function takeFirstMatching(
   }
 
   return slots.splice(index, 1)[0];
-}
-
-function selectTowerSlots(
-  slots: RankedSlot[],
-  ramparts: readonly RoomCoordinate[],
-): RankedSlot[] | undefined {
-  if (ramparts.length === 0 || slots.length < NUM_TOWERS) {
-    return;
-  }
-
-  const selected: RankedSlot[] = [];
-
-  const firstTower = getMinSlot(slots, ({ slot }) =>
-    getAverageRange(slot.coordinate, ramparts),
-  );
-
-  if (!firstTower) {
-    return;
-  }
-
-  removeSlot(slots, firstTower);
-  selected.push(firstTower);
-
-  while (selected.length < NUM_TOWERS) {
-    if (slots.length === 0) {
-      return;
-    }
-
-    let weakestRampart: RoomCoordinate | undefined;
-    let minDamage = Infinity;
-
-    for (const rampart of ramparts) {
-      let damage = 0;
-
-      for (const tower of selected) {
-        damage += getTowerDamage(getRange(tower.slot.coordinate, rampart));
-      }
-
-      if (damage < minDamage) {
-        minDamage = damage;
-        weakestRampart = rampart;
-      }
-    }
-
-    if (!weakestRampart) {
-      return;
-    }
-
-    let minRange = Infinity;
-
-    for (const candidate of slots) {
-      minRange = Math.min(
-        minRange,
-        getRange(candidate.slot.coordinate, weakestRampart),
-      );
-    }
-
-    const candidates = slots.filter(
-      ({ slot }) => getRange(slot.coordinate, weakestRampart) <= minRange + 1,
-    );
-    const tower = getMinSlot(candidates, ({ slot }) =>
-      getAverageRange(slot.coordinate, ramparts),
-    );
-
-    if (!tower) {
-      return;
-    }
-
-    removeSlot(slots, tower);
-    selected.push(tower);
-  }
-
-  return selected;
-}
-
-function getMinSlot(
-  slots: readonly RankedSlot[],
-  getScore: (slot: RankedSlot) => number,
-): RankedSlot | undefined {
-  let best: RankedSlot | undefined;
-  let bestScore = Infinity;
-
-  for (const slot of slots) {
-    const score = getScore(slot);
-
-    if (score < bestScore) {
-      best = slot;
-      bestScore = score;
-    }
-  }
-
-  return best;
-}
-
-function removeSlot(slots: RankedSlot[], target: RankedSlot): void {
-  const index = slots.indexOf(target);
-
-  if (index >= 0) {
-    slots.splice(index, 1);
-  }
-}
-
-function getAverageRange(
-  coordinate: RoomCoordinate,
-  targets: readonly RoomCoordinate[],
-): number {
-  let total = 0;
-
-  for (const target of targets) {
-    total += getRange(coordinate, target);
-  }
-
-  return total / targets.length;
-}
-
-function getTowerDamage(range: number): number {
-  if (range <= TOWER_OPTIMAL_RANGE) {
-    return TOWER_POWER_ATTACK;
-  }
-
-  const clampedRange = Math.min(range, TOWER_FALLOFF_RANGE);
-  const falloff =
-    (TOWER_FALLOFF * (clampedRange - TOWER_OPTIMAL_RANGE)) /
-    (TOWER_FALLOFF_RANGE - TOWER_OPTIMAL_RANGE);
-
-  return TOWER_POWER_ATTACK * (1 - falloff);
 }
 
 function getResourceTag(
@@ -546,27 +500,18 @@ function getStructureRcl(
   );
 }
 
-function visualizeAssignedSlots(
-  assigned: AssignedSlotStructures,
+function visualizeFinalPlan(
+  structures: readonly PlannedStructure[],
   visual: RoomVisual,
 ): void {
-  assigned.spawns.forEach(({ slot }) =>
-    visual.structure(slot.coordinate.x, slot.coordinate.y, STRUCTURE_SPAWN),
-  );
-  assigned.towers.forEach(({ slot }) =>
-    visual.structure(slot.coordinate.x, slot.coordinate.y, STRUCTURE_TOWER),
-  );
-  visual.structure(
-    assigned.observer.slot.coordinate.x,
-    assigned.observer.slot.coordinate.y,
-    STRUCTURE_OBSERVER,
-  );
-  visual.structure(
-    assigned.nuker.slot.coordinate.x,
-    assigned.nuker.slot.coordinate.y,
-    STRUCTURE_NUKER,
-  );
-  assigned.extensions.forEach(({ slot }) =>
-    visual.structure(slot.coordinate.x, slot.coordinate.y, STRUCTURE_EXTENSION),
-  );
+  visual.clear();
+  visual.roads = [];
+
+  for (const structure of structures) {
+    visual.structure(
+      structure.coordinate.x,
+      structure.coordinate.y,
+      structure.structureType,
+    );
+  }
 }
