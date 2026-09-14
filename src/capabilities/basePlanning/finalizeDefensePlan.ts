@@ -1,3 +1,4 @@
+import { dijkstraMap } from "../../world/map/dijkstraMap";
 import { floodFill } from "../../world/map/floodFill";
 import { findMinimumTileCut } from "../../world/map/minCut";
 import type { RoomCoordinate } from "../../world/map/roomCoordinate";
@@ -22,9 +23,22 @@ const EXIT_SINK_RANGE = 1;
 const BASE_RAMPART_COST = 1;
 const BASE_DISTANCE = 15;
 const MAX_FINAL_RAMPART_ATTEMPTS = 5;
+const EXISTING_RAMPART_ROAD_COST = 3;
+const PLAIN_RAMPART_ROAD_COST = 5;
+const SWAMP_RAMPART_ROAD_COST = 6;
 
 interface RampartComponent {
   readonly tileIndices: readonly number[];
+}
+
+interface FinalRampartRoadPlan {
+  readonly roads: RoomCoordinate[];
+}
+
+interface FinalRampartRoadTarget {
+  readonly componentIndex: number;
+  readonly coordinate: RoomCoordinate;
+  readonly distance: number;
 }
 
 /**
@@ -92,10 +106,22 @@ export function finalizeDefensePlan(
     }
 
     // Resource roads may legitimately remain outside the final defensive line.
-    // Only roads strictly inside the outer ramparts can seed repair-road reuse.
+    // Only roads strictly inside the outer ramparts seed final defense roads.
     const internalCivilRoads = civilRoads.filter(({ x, y }) => {
       return !!rampartPlan.insideMask[toRoomIndex(x, y)];
     });
+
+    const rampartRoadPlan = planFinalRampartRoads(
+      terrain,
+      corePlan.roads,
+      internalCivilRoads,
+      rampartPlan,
+      blockedMask,
+    );
+
+    if (!rampartRoadPlan) {
+      return;
+    }
 
     const repairRoadPlan = planRampartRepairRoads(
       terrain,
@@ -104,7 +130,7 @@ export function finalizeDefensePlan(
       minerals,
       baseStructures,
       corePlan.roads,
-      internalCivilRoads,
+      [...internalCivilRoads, ...rampartRoadPlan.roads],
       rampartPlan,
     );
 
@@ -113,7 +139,11 @@ export function finalizeDefensePlan(
     }
 
     if (repairRoadPlan.unresolvedRamparts.length === 0) {
-      const finalRoads = [...civilRoads, ...repairRoadPlan.roads];
+      const defenseRoads = [
+        ...rampartRoadPlan.roads,
+        ...repairRoadPlan.roads,
+      ];
+      const finalRoads = [...civilRoads, ...defenseRoads];
       const dangerousMask = classifyDefensiveTiles(rampartPlan).dangerousMask;
       const dangerRamparts = collectDangerOverlayRamparts(
         baseStructures,
@@ -124,7 +154,7 @@ export function finalizeDefensePlan(
         provisionalStructures,
         baseStructures,
         civilRoads,
-        repairRoadPlan.roads,
+        defenseRoads,
         rampartPlan.ramparts,
         dangerRamparts,
       );
@@ -284,6 +314,244 @@ function findClosestReachableRoad(
   }
 
   return bestIndex;
+}
+
+/**
+ * Reconnects every final outer-rampart component to the retained civil road
+ * network. Once a component is connected, every rampart tile in that component
+ * receives an overlapping road and becomes reusable by later connections.
+ */
+function planFinalRampartRoads(
+  terrain: RoomTerrain,
+  coreRoads: readonly RoomCoordinate[],
+  existingRoads: readonly RoomCoordinate[],
+  rampartPlan: OuterRampartPlan,
+  blockedMask: Uint8Array,
+): FinalRampartRoadPlan | undefined {
+  if (coreRoads.length === 0) {
+    return;
+  }
+
+  const roadMask = new Uint8Array(ROOM_AREA);
+
+  for (const { x, y } of [...coreRoads, ...existingRoads]) {
+    roadMask[toRoomIndex(x, y)] = 1;
+  }
+
+  const components = findRampartComponents(rampartPlan.rampartMask);
+  const remainingComponents = components.map((_, index) => index);
+  const roads: RoomCoordinate[] = [];
+
+  while (remainingComponents.length > 0) {
+    const distanceMap = buildFinalRampartRoadDistanceMap(
+      terrain,
+      coreRoads,
+      rampartPlan,
+      blockedMask,
+      roadMask,
+    );
+    const target = findClosestFinalRampartRoadTarget(
+      components,
+      remainingComponents,
+      distanceMap,
+    );
+
+    if (!target) {
+      return;
+    }
+
+    const path = traceFinalRampartRoadPath(
+      terrain,
+      target.coordinate,
+      distanceMap,
+      roadMask,
+    );
+
+    if (!path) {
+      return;
+    }
+
+    for (const coordinate of path) {
+      addFinalRampartRoad(coordinate, roadMask, roads);
+    }
+
+    for (const tileIndex of components[target.componentIndex].tileIndices) {
+      addFinalRampartRoad(fromRoomIndex(tileIndex), roadMask, roads);
+    }
+
+    const remainingIndex = remainingComponents.indexOf(target.componentIndex);
+    remainingComponents.splice(remainingIndex, 1);
+  }
+
+  return { roads };
+}
+
+function buildFinalRampartRoadDistanceMap(
+  terrain: RoomTerrain,
+  coreRoads: readonly RoomCoordinate[],
+  rampartPlan: OuterRampartPlan,
+  blockedMask: Uint8Array,
+  roadMask: Uint8Array,
+): Int32Array {
+  return dijkstraMap(
+    terrain,
+    coreRoads,
+    (x, y, terrainType) =>
+      getFinalRampartRoadCost(toRoomIndex(x, y), terrainType, roadMask),
+    (x, y) => {
+      const index = toRoomIndex(x, y);
+      return !!(
+        (rampartPlan.insideMask[index] || rampartPlan.rampartMask[index]) &&
+        !blockedMask[index]
+      );
+    },
+  );
+}
+
+function findClosestFinalRampartRoadTarget(
+  components: readonly RampartComponent[],
+  remainingComponents: readonly number[],
+  distanceMap: Int32Array,
+): FinalRampartRoadTarget | undefined {
+  let bestTarget: FinalRampartRoadTarget | undefined;
+
+  for (const componentIndex of remainingComponents) {
+    const component = components[componentIndex];
+
+    for (const tileIndex of component.tileIndices) {
+      const distance = distanceMap[tileIndex];
+
+      if (distance < 0) {
+        continue;
+      }
+
+      if (
+        bestTarget &&
+        (distance > bestTarget.distance ||
+          (distance === bestTarget.distance &&
+            (componentIndex > bestTarget.componentIndex ||
+              (componentIndex === bestTarget.componentIndex &&
+                tileIndex >=
+                  toRoomIndex(
+                    bestTarget.coordinate.x,
+                    bestTarget.coordinate.y,
+                  )))))
+      ) {
+        continue;
+      }
+
+      bestTarget = {
+        componentIndex,
+        coordinate: fromRoomIndex(tileIndex),
+        distance,
+      };
+    }
+  }
+
+  return bestTarget;
+}
+
+function traceFinalRampartRoadPath(
+  terrain: RoomTerrain,
+  start: RoomCoordinate,
+  distanceMap: Int32Array,
+  roadMask: Uint8Array,
+): RoomCoordinate[] | undefined {
+  let currentIndex = toRoomIndex(start.x, start.y);
+
+  if (distanceMap[currentIndex] < 0) {
+    return;
+  }
+
+  const path: RoomCoordinate[] = [];
+
+  while (!roadMask[currentIndex]) {
+    const current = fromRoomIndex(currentIndex);
+    const currentDistance = distanceMap[currentIndex];
+
+    if (currentDistance <= 0) {
+      return;
+    }
+
+    path.push(current);
+
+    const currentCost = getFinalRampartRoadCost(
+      currentIndex,
+      terrain.get(current.x, current.y),
+      roadMask,
+    );
+    let bestRoadIndex = -1;
+    let bestIndex = -1;
+
+    for (const offset of NEIGHBOR_OFFSETS) {
+      const x = current.x + offset.x;
+      const y = current.y + offset.y;
+
+      if (!isInsideRoom(x, y)) {
+        continue;
+      }
+
+      const neighborIndex = toRoomIndex(x, y);
+      const neighborDistance = distanceMap[neighborIndex];
+
+      if (
+        neighborDistance < 0 ||
+        neighborDistance + currentCost !== currentDistance
+      ) {
+        continue;
+      }
+
+      if (roadMask[neighborIndex]) {
+        if (bestRoadIndex < 0 || neighborIndex < bestRoadIndex) {
+          bestRoadIndex = neighborIndex;
+        }
+        continue;
+      }
+
+      if (bestIndex < 0 || neighborIndex < bestIndex) {
+        bestIndex = neighborIndex;
+      }
+    }
+
+    const nextIndex = bestRoadIndex >= 0 ? bestRoadIndex : bestIndex;
+
+    if (nextIndex < 0) {
+      return;
+    }
+
+    currentIndex = nextIndex;
+  }
+
+  return path;
+}
+
+function addFinalRampartRoad(
+  coordinate: RoomCoordinate,
+  roadMask: Uint8Array,
+  roads: RoomCoordinate[],
+): void {
+  const index = toRoomIndex(coordinate.x, coordinate.y);
+
+  if (roadMask[index]) {
+    return;
+  }
+
+  roadMask[index] = 1;
+  roads.push(coordinate);
+}
+
+function getFinalRampartRoadCost(
+  index: number,
+  terrainType: number,
+  roadMask: Uint8Array,
+): number {
+  if (roadMask[index]) {
+    return EXISTING_RAMPART_ROAD_COST;
+  }
+
+  return terrainType === TERRAIN_MASK_SWAMP
+    ? SWAMP_RAMPART_ROAD_COST
+    : PLAIN_RAMPART_ROAD_COST;
 }
 
 function planFinalRamparts(
@@ -638,7 +906,7 @@ function assembleFinalStructures(
   provisionalStructures: readonly PlannedStructure[],
   baseStructures: readonly PlannedStructure[],
   civilRoads: readonly RoomCoordinate[],
-  repairRoads: readonly RoomCoordinate[],
+  defenseRoads: readonly RoomCoordinate[],
   outerRamparts: readonly RoomCoordinate[],
   dangerRamparts: readonly RoomCoordinate[],
 ): PlannedStructure[] {
@@ -673,7 +941,7 @@ function assembleFinalStructures(
     structures.push({ structureType, coordinate, rcl });
   };
 
-  for (const road of [...civilRoads, ...repairRoads]) {
+  for (const road of [...civilRoads, ...defenseRoads]) {
     add(STRUCTURE_ROAD, road, roadRcl);
   }
 
