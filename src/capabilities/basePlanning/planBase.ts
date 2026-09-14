@@ -21,8 +21,15 @@ import { planResourceTree } from "./planResourceTree";
 import { planStructureSlots } from "./planStructureSlots";
 import { createBaseRegionSelection } from "./selectBaseRegions";
 
+export interface PlanBaseOptions {
+  readonly visualizeIntermediate?: boolean;
+}
+
 /**
  * Base planner entry point for the Screeps runtime.
+ *
+ * Intermediate planning visuals are disabled by default. The final successful
+ * base plan is always visualized.
  */
 export function planBase(
   roomName: string,
@@ -30,6 +37,7 @@ export function planBase(
   controller: StructureController,
   sources: Source[],
   minerals: Mineral[],
+  options: PlanBaseOptions = {},
 ): BasePlan | undefined {
   const distances = distanceTransform(terrain);
   const { regionByTile, regions } = findTerrainRegions(terrain, distances);
@@ -38,13 +46,17 @@ export function planBase(
     regionByTile,
     regions,
   );
-  const visual = new RoomVisual(roomName);
+  const finalVisual = new RoomVisual(roomName);
+  const visualizeIntermediate = options.visualizeIntermediate ?? false;
+  const planningVisual = visualizeIntermediate
+    ? finalVisual
+    : createNoopVisual(roomName);
 
   let attempt = 0;
 
   while (true) {
-    if (attempt > 0) {
-      visual.clear();
+    if (attempt > 0 && visualizeIntermediate) {
+      clearVisual(finalVisual);
     }
 
     const basePlan = tryPlanBaseWithRegions(
@@ -56,7 +68,9 @@ export function planBase(
       regionSelection.selectedRegionIds,
       regionByTile,
       regions,
-      visual,
+      planningVisual,
+      finalVisual,
+      visualizeIntermediate,
     );
 
     if (basePlan !== undefined) {
@@ -81,6 +95,8 @@ function tryPlanBaseWithRegions(
   regionByTile: Int16Array,
   regions: readonly TerrainRegion[],
   visual: RoomVisual,
+  finalVisual: RoomVisual,
+  visualizeIntermediate: boolean,
 ): BasePlan | undefined {
   visualizeSelectedRegions(selectedRegionIds, regions, visual);
 
@@ -254,6 +270,11 @@ function tryPlanBaseWithRegions(
     return;
   }
 
+  // structure(ROAD) stores road coordinates on RoomVisual separately from the
+  // actual draw commands. Drop any intermediate cache before the final pass so
+  // connectRoads() can only connect roads in the final plan.
+  finalVisual.roads = [];
+
   const structures = finalizeDefensePlan(
     terrain,
     controller,
@@ -261,16 +282,18 @@ function tryPlanBaseWithRegions(
     minerals,
     provisionalStructures,
     bestCorePlan,
-    visual,
+    finalVisual,
   );
 
   if (!structures) {
     return;
   }
 
-  Game.map.visual.text("SUCCESS", new RoomPosition(25, 25, roomName));
+  if (visualizeIntermediate) {
+    Game.map.visual.text("SUCCESS", new RoomPosition(25, 25, roomName));
+  }
 
-  visual.connectRoads();
+  finalVisual.connectRoads();
 
   return {
     version: 1,
@@ -364,6 +387,32 @@ function visualizeUpgradePath(
       stroke: "black",
     });
   });
+}
+
+function clearVisual(visual: RoomVisual): void {
+  visual.clear();
+  visual.roads = [];
+}
+
+function createNoopVisual(roomName: string): RoomVisual {
+  let visual: RoomVisual;
+
+  const noop = (): RoomVisual => visual;
+
+  visual = {
+    roomName,
+    structure: noop,
+    text: noop,
+    rect: noop,
+    arrow: noop,
+    line: noop,
+    circle: noop,
+    poly: noop,
+    clear: noop,
+    connectRoads: noop,
+  } as unknown as RoomVisual;
+
+  return visual;
 }
 
 function getRegionColor(regionId: number, regionCount: number): string {
