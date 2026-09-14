@@ -64,12 +64,21 @@ export function planRampartRepairRoads(
   const selectedRepairMask = new Uint8Array(ROOM_AREA);
   const repairCounts = new Uint8Array(ROOM_AREA);
   const additions: RoomCoordinate[] = [];
+  const initialDistances = buildRepairRoadDistanceMap(
+    terrain,
+    coreRoads,
+    rampartPlan,
+    defensiveTiles.dangerousMask,
+    blockedMask,
+    roadMask,
+  );
 
   seedExistingRepairRoads(
     rampartPlan,
     defensiveTiles.repairMask,
     blockedMask,
     roadMask,
+    initialDistances,
     selectedRepairMask,
     repairCounts,
   );
@@ -118,6 +127,7 @@ function seedExistingRepairRoads(
   repairMask: Uint8Array,
   blockedMask: Uint8Array,
   roadMask: Uint8Array,
+  distances: Int32Array,
   selectedRepairMask: Uint8Array,
   repairCounts: Uint8Array,
 ): void {
@@ -126,7 +136,8 @@ function seedExistingRepairRoads(
       !roadMask[index] ||
       !repairMask[index] ||
       blockedMask[index] ||
-      rampartPlan.rampartMask[index]
+      rampartPlan.rampartMask[index] ||
+      distances[index] < 0
     ) {
       continue;
     }
