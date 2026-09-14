@@ -26,7 +26,7 @@ main{max-width:1500px;margin:auto;padding:14px 16px 30px}.controls{display:flex;
     <button id="planBtn" class="primary">Plan</button>
     <button id="prevBtn" title="Previous room">◀</button><button id="nextBtn" title="Next room">▶</button>
     <button id="randomBtn">Random controller</button>
-    <label class="toggle"><input id="controllerOnly" type="checkbox" checked> navigation: controller rooms only</label>
+    <label class="toggle"><input id="controllerOnly" type="checkbox" checked> navigation: seed rooms</label>
     <label class="toggle"><input id="centralTowerOverlay" type="checkbox" checked> central</label>
     <label class="toggle"><input id="distributedTowerOverlay" type="checkbox" checked> distributed</label>
     <label class="toggle"><input id="milpTowerOverlay" type="checkbox" checked> MILP</label>
@@ -52,10 +52,20 @@ main{max-width:1500px;margin:auto;padding:14px 16px 30px}.controls{display:flex;
     <div class="section"><h3>Notes</h3><div class="note">Runs the browser port of harabibot v2 base planner snapshot <b>7187a457</b>. Tower comparison reuses the exact v2 tower candidate collector and slot/spawn capacity limits. Central uses the theoretical perimeter center; its weak-rampart upper bound follows decision 0004. Distributed is evaluated only when central is not certified. Its two diameter seeds ignore the center filter; the remaining four greedy picks exclude candidates closer to the theoretical center than the candidate-distance median. MILP uses the same feasible candidate model with 30 s primary / 3 s tie-break limits.</div></div>
   </div>
 </div>
-<div class="footer">Map data: shardSeason 8 snapshot. Structure sprites: admon84/screeps-room-planner (MIT). Extension rendering uses the official Screeps renderer extension texture/border assets and falls back to the same circle geometry if those assets cannot load.</div>
+<div class="footer">Map data: live shardSeason room API. Structure sprites: admon84/screeps-room-planner (MIT). Extension rendering uses the official Screeps renderer extension texture/border assets and falls back to the same circle geometry if those assets cannot load.</div>
 </main>
-<script src="./planner-core.js"></script>
-<script src="./planner-layout.js"></script>
+<script src="./planner-core-part-1.js"></script>
+<script src="./planner-core-part-2.js"></script>
+<script src="./planner-core-part-3.js"></script>
+<script src="./planner-core-part-4.js"></script>
+<script src="./planner-core-part-5.js"></script>
+<script src="./planner-layout-part-1.js"></script>
+<script src="./planner-layout-part-2.js"></script>
+<script src="./planner-layout-part-3.js"></script>
+<script src="./planner-layout-part-4.js"></script>
+<script src="./planner-layout-part-5.js"></script>
+<script src="./planner-layout-part-6.js"></script>
 <script src="./rooms.js"></script>
-<script src="./app.js"></script>
+<script src="./app-core.js"></script>
+<script src="./app-ui.js"></script>
 </body></html>
