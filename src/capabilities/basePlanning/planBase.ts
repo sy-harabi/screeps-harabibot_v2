@@ -18,7 +18,7 @@ import { planOuterRampartRoads } from "./planOuterRampartRoads";
 import { planOuterRamparts } from "./planOuterRamparts";
 import { planResourceTree } from "./planResourceTree";
 import { planStructureSlots } from "./planStructureSlots";
-import { selectBaseRegions } from "./selectBaseRegions";
+import { createBaseRegionSelection } from "./selectBaseRegions";
 
 /**
  * Base planner entry point for the Screeps runtime.
@@ -31,17 +31,56 @@ export function planBase(
   minerals: Mineral[],
 ): BasePlan | undefined {
   const distances = distanceTransform(terrain);
-
   const { regionByTile, regions } = findTerrainRegions(terrain, distances);
-
-  const visual = new RoomVisual(roomName);
-
-  const selectedRegionIds = selectBaseRegions(
+  const regionSelection = createBaseRegionSelection(
     controller,
     regionByTile,
     regions,
   );
+  const visual = new RoomVisual(roomName);
 
+  let attempt = 0;
+
+  while (true) {
+    if (attempt > 0) {
+      visual.clear();
+    }
+
+    const basePlan = tryPlanBaseWithRegions(
+      roomName,
+      terrain,
+      controller,
+      sources,
+      minerals,
+      regionSelection.selectedRegionIds,
+      regionByTile,
+      regions,
+      visual,
+    );
+
+    if (basePlan !== undefined) {
+      return basePlan;
+    }
+
+    if (!regionSelection.addNextRegion()) {
+      return;
+    }
+
+    attempt++;
+  }
+}
+
+function tryPlanBaseWithRegions(
+  roomName: string,
+  terrain: RoomTerrain,
+  controller: StructureController,
+  sources: Source[],
+  minerals: Mineral[],
+  selectedRegionIds: ReadonlySet<number>,
+  regionByTile: Int16Array,
+  regions: readonly TerrainRegion[],
+  visual: RoomVisual,
+): BasePlan | undefined {
   visualizeSelectedRegions(selectedRegionIds, regions, visual);
 
   const outerRampartPlan = planOuterRamparts(
@@ -243,7 +282,7 @@ function buildSafePlanningMask(
 }
 
 function visualizeSelectedRegions(
-  selectedRegionIds: Set<number>,
+  selectedRegionIds: ReadonlySet<number>,
   regions: readonly TerrainRegion[],
   visual: RoomVisual,
 ) {
