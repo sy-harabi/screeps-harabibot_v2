@@ -21,6 +21,6 @@ cd experiment/tower-placement-comparison
 python -m http.server 8000
 ```
 
-Then open `http://localhost:8000`. Room terrain and room objects are fetched on demand from the public Screeps API for `shardSeason`; the indexed controller-room list is retained locally for navigation. Internet access is also required for structure image assets and GLPK.js.
+Then open `http://localhost:8000`. Room terrain and room objects are fetched on demand from the public Screeps API for `shardSeason`. `rooms.js` only contains a small representative seed list for Prev / Next / Random navigation; any valid room name can still be entered manually. Internet access is also required for structure image assets and GLPK.js.
 
 The original development artifact was a self-contained ~9 MB HTML snapshot. This repo version intentionally keeps the experiment source small by loading room data on demand instead of committing the full shard terrain snapshot.
