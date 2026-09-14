@@ -7,11 +7,12 @@ import {
 } from "../../world/map/terrainRegions";
 import type { BasePlan } from "./basePlan";
 import { classifyDefensiveTiles } from "./classifyDefensiveTiles";
+import { finalizeBasePlanStructures } from "./finalizeBasePlan";
+import { finalizeDefensePlan } from "./finalizeDefensePlan";
 import {
   ControllerAreaCandidate,
   findControllerAreaCandidates,
 } from "./findControllerAreaCandidates";
-import { finalizeBasePlanStructures } from "./finalizeBasePlan";
 import { CorePlan, findCorePlans } from "./findCorePlans";
 import { planLabs } from "./planLabs";
 import { planOuterRampartRoads } from "./planOuterRampartRoads";
@@ -236,7 +237,7 @@ function tryPlanBaseWithRegions(
     return;
   }
 
-  const structures = finalizeBasePlanStructures(
+  const provisionalStructures = finalizeBasePlanStructures(
     sources,
     minerals,
     bestControllerArea,
@@ -246,6 +247,20 @@ function tryPlanBaseWithRegions(
     rampartRoadPlan,
     labPlan,
     slotPlan,
+    visual,
+  );
+
+  if (!provisionalStructures) {
+    return;
+  }
+
+  const structures = finalizeDefensePlan(
+    terrain,
+    controller,
+    sources,
+    minerals,
+    provisionalStructures,
+    bestCorePlan,
     visual,
   );
 
