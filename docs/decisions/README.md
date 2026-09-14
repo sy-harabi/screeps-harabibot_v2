@@ -22,3 +22,10 @@ Date: YYYY-MM-DD
 
 ## Alternatives considered
 ```
+
+## Records
+
+- [0001: Base planner core layout](0001-base-planner-core-layout.md)
+- [0002: Extension layout packing](0002-extension-layout-packing.md)
+- [0003: Dynamic lab placement](0003-dynamic-lab-placement.md)
+- [0004: Central-first tower placement with a greedy fallback](0004-tower-placement-central-first-greedy.md)
