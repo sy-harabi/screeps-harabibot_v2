@@ -142,8 +142,14 @@ function seedExistingRepairRoads(
       continue;
     }
 
-    selectedRepairMask[index] = 1;
-    addRepairCoverage(fromRoomIndex(index), rampartPlan, repairCounts);
+    registerRepairRoad(
+      fromRoomIndex(index),
+      rampartPlan,
+      repairMask,
+      blockedMask,
+      selectedRepairMask,
+      repairCounts,
+    );
   }
 }
 
@@ -197,10 +203,49 @@ function extendRepairCoverage(
 
     addRoadPath(path, roadMask, additions);
 
-    const targetIndex = toRoomIndex(target.coordinate.x, target.coordinate.y);
-    selectedRepairMask[targetIndex] = 1;
-    addRepairCoverage(target.coordinate, rampartPlan, repairCounts);
+    for (const coordinate of path) {
+      registerRepairRoad(
+        coordinate,
+        rampartPlan,
+        repairMask,
+        blockedMask,
+        selectedRepairMask,
+        repairCounts,
+      );
+    }
+
+    registerRepairRoad(
+      target.coordinate,
+      rampartPlan,
+      repairMask,
+      blockedMask,
+      selectedRepairMask,
+      repairCounts,
+    );
   }
+}
+
+function registerRepairRoad(
+  coordinate: RoomCoordinate,
+  rampartPlan: OuterRampartPlan,
+  repairMask: Uint8Array,
+  blockedMask: Uint8Array,
+  selectedRepairMask: Uint8Array,
+  repairCounts: Uint8Array,
+): void {
+  const index = toRoomIndex(coordinate.x, coordinate.y);
+
+  if (
+    !repairMask[index] ||
+    blockedMask[index] ||
+    rampartPlan.rampartMask[index] ||
+    selectedRepairMask[index]
+  ) {
+    return;
+  }
+
+  selectedRepairMask[index] = 1;
+  addRepairCoverage(coordinate, rampartPlan, repairCounts);
 }
 
 function hasRampartBelowCoverage(
