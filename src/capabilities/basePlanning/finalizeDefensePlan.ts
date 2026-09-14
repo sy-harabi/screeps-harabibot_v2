@@ -16,6 +16,7 @@ import type { PlannedStructure } from "./basePlan";
 import { classifyDefensiveTiles } from "./classifyDefensiveTiles";
 import type { CorePlan } from "./findCorePlans";
 import type { OuterRampartPlan } from "./planOuterRamparts";
+import { planRampartRepairRoads } from "./planRampartRepairRoads";
 
 const PROTECTION_RANGE = 3;
 const REPAIR_RANGE = 3;
@@ -113,40 +114,28 @@ export function finalizeDefensePlan(
     // Only the internal part is used as the seed for final defense roads.
     const internalCivilRoads = civilRoads.filter(({ x, y }) => {
       const index = toRoomIndex(x, y);
-      return !!(
-        rampartPlan.insideMask[index] || rampartPlan.rampartMask[index]
-      );
+      return !!rampartPlan.insideMask[index];
     });
 
-    const defenseRoads = planFinalDefenseRoads(
+    const repairRoadPlan = planRampartRepairRoads(
       terrain,
       controller,
       sources,
       minerals,
       baseStructures,
+      corePlan.roads,
       internalCivilRoads,
       rampartPlan,
     );
 
-    if (!defenseRoads) {
+    if (!repairRoadPlan) {
       return;
     }
 
+    const defenseRoads = repairRoadPlan.roads;
     const finalRoads = [...civilRoads, ...defenseRoads];
-    const repairRoadMask = buildCoordinateMask([
-      ...internalCivilRoads,
-      ...defenseRoads,
-    ]);
-    const repairPlan = planRepairStations(
-      controller,
-      sources,
-      minerals,
-      baseStructures,
-      rampartPlan,
-      repairRoadMask,
-    );
 
-    if (repairPlan.unresolvedRamparts.length === 0) {
+    if (repairRoadPlan.unresolvedRamparts.length === 0) {
       const dangerousMask = classifyDefensiveTiles(rampartPlan).dangerousMask;
       const dangerRamparts = collectDangerOverlayRamparts(
         baseStructures,
@@ -159,7 +148,7 @@ export function finalizeDefensePlan(
         civilRoads,
         defenseRoads,
         rampartPlan.ramparts,
-        repairPlan.ramparts,
+        [],
         dangerRamparts,
       );
 
@@ -169,7 +158,7 @@ export function finalizeDefensePlan(
 
     // Only reachable outer-rampart tiles that still cannot be repaired force
     // the cut outward. Inaccessible natural-wall islands were already removed.
-    for (const { x, y } of repairPlan.unresolvedRamparts) {
+    for (const { x, y } of repairRoadPlan.unresolvedRamparts) {
       forcedInsideMask[toRoomIndex(x, y)] = 1;
     }
   }
