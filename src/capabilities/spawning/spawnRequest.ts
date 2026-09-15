@@ -1,7 +1,6 @@
 import type { SpawnPriority } from "./spawnPriority";
 
 export interface SpawnRequest {
-  readonly id: string;
   readonly requesterId: string;
   readonly roomName: string;
   readonly role: string;
@@ -11,7 +10,6 @@ export interface SpawnRequest {
 }
 
 export interface RenewRequest {
-  readonly id: string;
   readonly requesterId: string;
   readonly creepName: string;
   readonly roomName: string;

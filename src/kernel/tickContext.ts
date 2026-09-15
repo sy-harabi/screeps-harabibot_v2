@@ -1,18 +1,8 @@
-import type {
-  RenewRequest,
-  SpawnRequest,
-} from "../capabilities/spawning/spawnRequest";
-
-export interface SpawnRoomState {
-  readonly freeSpawns: readonly StructureSpawn[];
-}
+import { SpawnRoomState } from "../capabilities/spawning/spawnQueue";
 
 export interface TickContext {
   readonly ownedRooms: readonly Room[];
   readonly spawnRooms: ReadonlyMap<string, SpawnRoomState>;
-
-  readonly spawnRequests: SpawnRequest[];
-  readonly renewRequests: RenewRequest[];
 }
 
 export function createTickContext(): TickContext {
@@ -26,13 +16,15 @@ export function createTickContext(): TickContext {
     const freeSpawns = room
       .find(FIND_MY_SPAWNS)
       .filter((spawn) => spawn.isActive() && !spawn.spawning);
-    spawnRooms.set(room.name, { freeSpawns });
+    spawnRooms.set(room.name, {
+      freeSpawns,
+      spawnRequests: [],
+      renewRequests: [],
+    });
   }
 
   return {
     ownedRooms,
     spawnRooms,
-    spawnRequests: [],
-    renewRequests: [],
   };
 }

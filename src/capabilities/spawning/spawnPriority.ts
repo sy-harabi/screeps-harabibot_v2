@@ -19,6 +19,7 @@ export interface SpawnPriority {
   readonly operationOrder?: number;
   readonly requestOrder?: number;
 }
+
 const priorityIndex = new Map<SpawnPriorityType, number>(
   SPAWN_PRIORITY_ORDER.map((type, index) => [type, index]),
 );
