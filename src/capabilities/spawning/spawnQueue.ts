@@ -10,7 +10,7 @@ export interface SpawnRequestContext {
   readonly roomName: string;
   readonly priorityType: SpawnPriorityType;
   readonly operationOrder: number;
-  readonly roleOrder: readonly string[];
+  readonly rolesByPriority: readonly string[];
 }
 
 export interface SpawnRoomState {
@@ -88,7 +88,7 @@ export function requestRenew(
 }
 
 function getRoleOrder(context: SpawnRequestContext, role: string): number {
-  const roleOrder = context.roleOrder.indexOf(role);
+  const roleOrder = context.rolesByPriority.indexOf(role);
 
   if (roleOrder === -1) {
     throw new Error(
