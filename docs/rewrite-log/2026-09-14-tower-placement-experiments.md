@@ -100,6 +100,8 @@ Keeping the better complete result handled the central/distributed geometric spl
 
 A beam search around the central region and a diameter-seeded distributed branch were added to the browser experiment. A one-pass global one-tower refinement was then applied to both results.
 
+At this point it looked as if production tower placement would need to detect which geometric regime a room belonged to.
+
 ## First 200-room benchmark
 
 A deterministic 200-controller-room sample produced 146 successful base plans.
@@ -189,7 +191,9 @@ Even a bad feasible seed was usually repaired. The simple global greedy seed was
 
 This changed the interpretation of the problem. The important structure was no longer "classify this base as central or distributed." It was:
 
-> find any strong feasible six-tower solution, then optimize it with one- and two-coordinate local search.
+> greedily choose six reasonable towers, then repair the result with one- and two-coordinate local search.
+
+The centered/distributed experiments were useful for understanding the geometry, but the classifier itself turned out to be unnecessary.
 
 ## Candidate shortlist experiment
 
@@ -224,8 +228,8 @@ Base planning succeeded in 155 rooms. Tower planning itself caused zero base-pla
 Using only:
 
 ```text
-global max-min greedy
--> single replacement to convergence
+global max-min greedy for all 6 towers
+-> single replacement until convergence
 -> full pair sweep
 -> full pair sweep
 ```
@@ -264,7 +268,18 @@ mean gap:                  1.40 DPS
 maximum gap:                 30 DPS
 ```
 
-This result is much stronger and much simpler than the central/distributed design that preceded it.
+So the final result is almost anticlimactic. After investigating centered layouts, distributed layouts, strip geometry, diamonds, diameter thresholds, and candidate classification, the production-quality heuristic ended up being only:
+
+```text
+6-tower global greedy
+-> single refinement until convergence
+-> pair refinement sweep
+-> pair refinement sweep
+```
+
+That simple sequence reached the exact optimal minimum damage in 95.3% of the 301 validated rooms. In the remaining 4.7%, it missed by only 30 DPS. No tested room was more than 30 DPS below the exact MILP result.
+
+The geometric experiments were not wasted: they explained why the original greedy algorithm failed and exposed the existence of multi-tower interactions. But they were ultimately more useful for understanding the problem than for deciding the final production algorithm.
 
 ## CPU observations
 
@@ -317,7 +332,7 @@ The lexicographic objective is:
 3. maximum total rampart damage,
 4. deterministic room-index tie.
 
-The centered/distributed experiment remains valuable as the reasoning path that exposed the geometry, but it is no longer required in production.
+There is no centered/distributed branch in the final production direction. The experiments remain in this log because they were the path that revealed the geometry and eventually showed that the simpler local-search formulation was enough.
 
 ## Blog narrative notes
 
@@ -332,7 +347,7 @@ A future article can preserve the actual discovery path:
 7. Show the remaining 120-150 DPS outliers.
 8. Explain one-tower local minima and why two towers sometimes have to move together.
 9. Introduce full pair sweeps.
-10. Reveal the surprising result: once pair search exists, the central/distributed classifier can be deleted.
+10. Reveal the slightly anticlimactic result: after all the geometry work, `6 greedy -> single refinement to convergence -> 2 pair sweeps` is enough.
 11. End with the two disjoint benchmarks: `287 / 301` exact, every remaining case only 30 DPS below exact.
 
-That story preserves both the geometric insight and the engineering lesson: a more complicated initialization was eventually replaced by a simpler search because the local optimizer turned out to be strong enough.
+That story preserves both the geometric insight and the engineering lesson: understanding the geometry was useful, but a sufficiently strong and still-simple local optimizer made the complicated initialization unnecessary.
