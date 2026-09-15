@@ -2,6 +2,7 @@
 
 Status: accepted
 Date: 2026-09-14
+Updated: 2026-09-15
 Supersedes: [0004: Central-first tower placement with a greedy fallback](0004-tower-placement-central-first-greedy.md)
 
 ## Context
@@ -22,9 +23,7 @@ Placement comparison is lexicographic:
 3. higher total damage summed over all outer ramparts,
 4. deterministic room-index tie break.
 
-The earlier design generated a compact central placement and a diameter-seeded distributed placement, then retained the better result. That was motivated by experiments showing a central regime for smaller perimeters and a distributed regime for larger perimeters.
-
-Further exact-MILP comparisons showed that this classification is unnecessary for production. Once a completed six-tower placement is locally optimized by one- and two-tower replacement, the starting geometry matters much less than expected. A simple global max-min greedy seed is cheaper and at least as effective as the central/distributed construction.
+The earlier design generated a compact central placement and a diameter-seeded distributed placement, then retained the better result. Shape experiments showed why both regimes exist, but exact-MILP comparisons later showed that this classification is unnecessary for production once pair local search is available.
 
 ## Decision
 
@@ -32,12 +31,11 @@ Production tower selection uses the following pipeline:
 
 ```text
 global max-min greedy seed
-        -> single-tower replacement to convergence
         -> full pair sweep
         -> full pair sweep
 ```
 
-There is no central/distributed shape classification in production.
+There is no central/distributed shape classification and no separate single-tower refinement stage in production.
 
 ### 1. Candidate set and feasibility
 
@@ -45,7 +43,7 @@ Candidate generation keeps the existing v2 base-planner rules. Candidates are co
 
 A candidate is rejected when it is outside the final inside topology, is wall terrain, is a road, is occupied, is reserved open space, or contains a room object. A dangerous tile is legal only when the finalized defense already placed an overlapping rampart there.
 
-Tower placement may consume structure slots, including spawn-capable slots, but must preserve enough capacity for the remaining non-tower structures. Selection-dependent slot limits are checked at every greedy/replacement step.
+Tower placement may consume structure slots, including spawn-capable slots, but must preserve enough capacity for the remaining non-tower structures. Selection-dependent slot limits are checked at every greedy and pair-replacement step.
 
 These candidate and slot constraints are part of the optimization problem. Offline MILP comparison must use the same candidate set and aggregate slot limits.
 
@@ -59,7 +57,7 @@ damage[candidate][rampart]
 
 The production implementation stores this as a flat `Uint16Array` and also caches each candidate's total rampart damage.
 
-This avoids repeated range and falloff calculations inside single- and pair-replacement loops.
+This avoids repeated range and falloff calculations inside the pair search.
 
 ### 3. Global max-min greedy seed
 
@@ -74,23 +72,7 @@ This is a global greedy step: every rampart is evaluated for every candidate. It
 
 The tie break for an otherwise equal candidate is lower `roomIndex`.
 
-### 4. Single-tower replacement to convergence
-
-After six towers exist, repeatedly sweep through the six tower positions.
-
-For each position:
-
-1. remove that tower,
-2. keep the other five fixed,
-3. search every legal candidate not occupied by those five,
-4. choose the replacement that produces the best complete six-tower score,
-5. replace the tower immediately if the score improves, or if the score is identical and the replacement has a lower deterministic room-index tie.
-
-Later positions in the same sweep see improvements made by earlier positions.
-
-Repeat sweeps until no tower changes. Production includes a defensive maximum of 20 single-replacement sweeps; the tested rooms converged well before that bound.
-
-### 5. Two full pair sweeps
+### 4. Two full pair sweeps
 
 A full pair sweep considers every pair of tower positions:
 
@@ -108,69 +90,49 @@ For each pair:
 
 The next tower pair is evaluated from the already-updated placement.
 
-Run the entire 15-pair sweep exactly twice. Experiments showed a large improvement from the second sweep, while additional sweeps produced no meaningful minimum-DPS improvement in the tested sample.
+Run the entire 15-pair sweep exactly twice. The second sweep matters because a replacement made late in the first sweep can make a pair visited early in that sweep worth reconsidering.
 
 Pair ties use the two candidate room indices in sorted order, preserving deterministic output independent of pair ordering.
 
 ## Why the earlier central/distributed branch was removed
 
-Two observations changed the design.
+Local pair search is much stronger than expected. Once completed placements can be repaired by replacing two tower positions at once, the starting geometry matters much less than it did under the original weak-rampart greedy algorithm.
 
-First, local pair search is much stronger than expected. On the first 146 successful real-room plans, even a deliberately poor feasible six-tower seed was usually repaired by single/pair replacement. A simple global greedy seed performed better than the more complicated central/distributed initialization after the same refinement.
+A simple global greedy seed therefore gives a cheaper and cleaner starting point than maintaining separate central and distributed constructors.
 
-Second, the central beam search itself was not cheap. In local Node benchmarks, constructing the central beam seed cost on the order of the later local-search stages, while providing no final quality advantage once pair replacement was enabled.
+The geometry research remains useful for understanding the problem. Small perimeters often favor compact central coverage, while long strips and some diamonds favor distribution because tower damage is bounded between 150 and 600. However, that distinction no longer needs to become a production branch.
 
-The important optimization structure is therefore better described as a six-point max-min problem followed by one- and two-coordinate local search, not as a binary central-vs-distributed classification problem.
+## Why there is no single-tower refinement stage
 
-## Validation
+A pair replacement neighborhood already includes single-tower moves whenever one of the two selected replacement positions stays unchanged.
 
-All validation below used the exact same legal candidate set and aggregate slot/spawn-slot constraints as the heuristic, with a SciPy HiGHS MILP as the exact max-min reference.
+A follow-up comparison on 400 evenly sampled controller rooms from the shardSeason snapshot produced 301 successful base plans and compared three refinements from the same global greedy seed:
 
-Two disjoint samples of controller rooms were drawn from the embedded shardSeason map snapshot.
+| Refinement | Exact MILP | Mean gap | Max gap | Mean local time | Worst local time |
+| --- | ---: | ---: | ---: | ---: | ---: |
+| pair sweep x2 | **283 / 301** | **2.59 DPS** | 210 DPS | 14.72 ms | 100.01 ms |
+| single convergence + pair sweep x2 | 282 / 301 | 2.69 DPS | 210 DPS | **14.67 ms** | **98.51 ms** |
+| pair sweeps to convergence | 284 / 301 | 2.49 DPS | 210 DPS | 17.30 ms | 197.86 ms |
 
-### Sample A
+The separate single stage provided no quality advantage and no meaningful runtime advantage. It was therefore removed.
 
-- 200 controller rooms sampled.
-- 146 base plans succeeded and were eligible for tower comparison.
-- `global greedy -> single convergence -> pair sweep x2` matched exact MILP minimum damage in `140 / 146` rooms (`95.9%`).
-- The remaining 6 rooms were all exactly 30 DPS below optimum.
-- Mean gap: `1.23 DPS`.
-- Maximum gap: `30 DPS`.
+Running pair sweeps to convergence gained only one additional exact result while increasing mean time and roughly doubling the observed worst case. Production keeps the bounded two-sweep version.
 
-### Sample B
+These timings are local JavaScript wall-clock measurements for relative development comparison, not Screeps CPU measurements.
 
-A second set of 200 controller rooms was drawn with zero overlap with sample A.
+## Validation history
 
-- 155 base plans succeeded.
-- Exact MILP match: `147 / 155` (`94.8%`).
-- The remaining 8 rooms were all exactly 30 DPS below optimum.
-- Mean gap: `1.55 DPS`.
-- Maximum gap: `30 DPS`.
+Earlier experiments on two disjoint 200-controller-room samples used the intermediate pipeline `global greedy -> single convergence -> pair sweep x2`. Across the 301 successful plans in those samples, that pipeline reached the exact MILP minimum in 287 rooms and was at most 30 DPS below exact in the other 14.
 
-### Combined
+Those historical numbers remain useful evidence that pair local search is strong, but they are not directly comparable to the later 301-room follow-up because the room samples differ.
 
-Across the two disjoint successful-plan sets:
+The current decision to remove single refinement is based on the direct same-sample comparison above.
 
-```text
-287 / 301 exact = 95.3%
-14 / 301 gap 30 DPS
-0 / 301 gap > 30 DPS
-mean gap = 1.40 DPS
-```
+## Exact reference
 
-This is materially stronger than the earlier central/distributed-plus-one-pass result, which matched exact minimum DPS in 46.6% of the first sample and had a maximum observed gap of 150 DPS.
+MILP remains an offline development oracle only. It selects six legal candidates while maximizing the minimum tower damage over every outer rampart using the same aggregate slot constraints as production.
 
-### Diameter behavior
-
-The earlier geometric transition near rampart diameter 25 still appears in the data, but it no longer needs to control the production algorithm.
-
-With the final local-search pipeline:
-
-- small perimeters are almost always exact,
-- diameter 26 remains a transition region,
-- larger perimeters are harder, but pair search removes nearly all of the previous large errors.
-
-The geometry remains useful for understanding and benchmarking, not for selecting a production branch.
+The exact solver can require seconds to complete, so it is not suitable as a runtime planner dependency. Its purpose is to measure heuristic quality and expose failure cases.
 
 ## Cost
 
@@ -181,33 +143,31 @@ Let:
 
 Damage-cache construction is `O(n * m)`.
 
-Global greedy and single replacement are roughly linear in `n * m` per candidate sweep.
-
 One full pair sweep examines 15 existing tower-position pairs. For each fixed four-tower set it considers roughly `C(n - 4, 2)` candidate pairs, giving the dominant term:
 
 ```text
 O(15 * n^2 * m)
 ```
 
-The pair stage is intentionally bounded to two sweeps rather than run to unconstrained convergence.
+The pair stage is intentionally bounded to two sweeps rather than run to convergence.
 
-Local Node timings are useful only as relative development measurements, not as Screeps CPU claims. On the second 155-room comparison set, the complete heuristic averaged about 16.5 ms locally, with each full pair sweep averaging about 8 ms. Actual Screeps runtime CPU must be measured separately.
+Future CPU work should focus on safe pair pruning, early rejection, or distributing planner work across the existing planning budget. Naive candidate shortlists were already tested and rejected because they frequently remove complementary candidate pairs.
 
 ## Consequences
 
-- Production logic becomes conceptually simpler: there is one optimization path instead of central and distributed branches.
+- Production logic is one path: global greedy plus two pair sweeps.
 - The optimizer is deterministic under a fixed candidate set.
-- Pair search is the dominant planning cost, so future CPU work should optimize evaluation/pruning rather than reintroduce shape classification.
-- Candidate/rampart damage caching is part of the production design, not an optional benchmark optimization.
-- MILP remains a development oracle only and is not a runtime dependency.
+- Pair search is the dominant planning cost.
+- Candidate/rampart damage caching is part of the production design.
+- MILP is only an offline validation tool.
 - The planner still returns failure rather than weakening slot or construction constraints when six legal towers cannot be selected.
 
 ## Alternatives considered
 
-- **Central beam + distributed fallback:** superseded. It helped before pair search, but final quality did not justify the extra branch and seed cost.
-- **Diameter/shape classification:** useful for analysis, not required for the final search pipeline.
-- **Candidate shortlist before pair search:** rejected. Even fairly large shortlists frequently removed complementary pairs where one tower supports one weak sector and the other supports another.
-- **Weak-rampart grouping as the primary objective:** not needed. Rampart count is much smaller than the candidate-pair count; grouping may still be useful later as a safe pruning stage.
-- **Only one pair sweep:** cheaper, but the second disjoint sample improved from 134/155 exact after one sweep to 147/155 after two, and reduced the maximum gap from 120 to 30 DPS.
-- **Pair sweeps to full convergence:** unnecessary in current data; two sweeps reached the same minimum-DPS quality as further sweeps in the first benchmark.
-- **Exact MILP in production:** retained only for offline validation because runtime dependency/CPU complexity is unnecessary for the observed heuristic quality.
+- **Central beam + distributed fallback:** superseded. Useful during research, but unnecessary once pair local search is enabled.
+- **Diameter/shape classification:** useful for analysis, not required for production.
+- **Single-tower refinement before pair search:** removed. Same-sample benchmarking showed no quality or meaningful runtime advantage.
+- **Candidate shortlist before pair search:** rejected. Good tower pairs are often complementary and are damaged by individual-candidate filtering.
+- **Only one pair sweep:** rejected. Sequential replacements mean early pairs can become worth revisiting after later changes.
+- **Pair sweeps to full convergence:** rejected for production. The measured quality gain was negligible compared with the larger worst-case runtime.
+- **Exact MILP in production:** rejected. It is too expensive for runtime planning and unnecessary for the observed heuristic quality.
