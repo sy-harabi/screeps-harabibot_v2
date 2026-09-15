@@ -6,6 +6,7 @@ import {
 import { createEmpireOperation } from "./operations/empire/empireOperation";
 import { ensureOperation } from "./operations/operationStore";
 import "./visuals/roomVisual";
+import "./console/consoleApi";
 
 export function loop(): void {
   const context = createTickContext();
