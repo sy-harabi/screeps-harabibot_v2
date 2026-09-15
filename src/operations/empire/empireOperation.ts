@@ -1,4 +1,3 @@
-import type { TickContext } from "../../kernel/tickContext";
 import { createColonyOperation } from "../colony/colonyOperation";
 import { OperationBase } from "../operation";
 import type { OperationHandler } from "../operationHandler";
