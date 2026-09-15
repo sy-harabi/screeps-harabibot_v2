@@ -57,9 +57,22 @@ export const colonyOperationHandler: OperationHandler<ColonyOperationRecord> = {
     if (basePlan) {
       const packedBasePlan = packBasePlan(basePlan);
       const unpackedBasePlan = unpackBasePlan(packedBasePlan);
-      console.log(
-        JSON.stringify(basePlan) === JSON.stringify(unpackedBasePlan),
-      );
+
+      for (let i = 0; i < basePlan.structures.length; i++) {
+        const a = basePlan.structures[i];
+        const b = unpackedBasePlan.structures[i];
+
+        if (
+          a.structureType !== b.structureType ||
+          a.coordinate.x !== b.coordinate.x ||
+          a.coordinate.y !== b.coordinate.y ||
+          a.rcl !== b.rcl ||
+          JSON.stringify(a.tag) !== JSON.stringify(b.tag)
+        ) {
+          console.log("mismatch", i, JSON.stringify(a), JSON.stringify(b));
+          break;
+        }
+      }
 
       const rawSize = JSON.stringify(basePlan).length;
       const packedSize = JSON.stringify(packedBasePlan).length;
