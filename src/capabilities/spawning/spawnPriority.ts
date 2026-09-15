@@ -16,8 +16,7 @@ export type SpawnPriorityType = (typeof SPAWN_PRIORITY_ORDER)[number];
 
 export interface SpawnPriority {
   readonly type: SpawnPriorityType;
-  readonly operationOrder?: number;
-  readonly requestOrder?: number;
+  readonly order?: number;
 }
 
 const priorityIndex = new Map<SpawnPriorityType, number>(
@@ -34,11 +33,5 @@ export function compareSpawnPriority(
     return typeOrder;
   }
 
-  const operationOrder = (a.operationOrder ?? 0) - (b.operationOrder ?? 0);
-
-  if (operationOrder !== 0) {
-    return operationOrder;
-  }
-
-  return (a.requestOrder ?? 0) - (b.requestOrder ?? 0);
+  return (a.order ?? 0) - (b.order ?? 0);
 }

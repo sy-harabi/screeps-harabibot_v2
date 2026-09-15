@@ -1,30 +1,33 @@
-import { SpawnRoomState } from "../capabilities/spawning/spawnQueue";
-
 export interface TickContext {
-  readonly ownedRooms: readonly Room[];
-  readonly spawnRooms: ReadonlyMap<string, SpawnRoomState>;
+  readonly tick: number;
+  readonly ownedRooms: ReadonlyMap<string, Room>;
 }
 
+let currentContext: TickContext | undefined;
+
 export function createTickContext(): TickContext {
-  const ownedRooms = Object.values(Game.rooms).filter(
-    (room) => room.controller?.my === true,
-  );
+  const ownedRooms = new Map<string, Room>();
 
-  const spawnRooms = new Map<string, SpawnRoomState>();
-
-  for (const room of ownedRooms) {
-    const freeSpawns = room
-      .find(FIND_MY_SPAWNS)
-      .filter((spawn) => spawn.isActive() && !spawn.spawning);
-    spawnRooms.set(room.name, {
-      freeSpawns,
-      spawnRequests: [],
-      renewRequests: [],
-    });
+  for (const room of Object.values(Game.rooms)) {
+    if (room.controller?.my === true) {
+      ownedRooms.set(room.name, room);
+    }
   }
 
-  return {
+  const context: TickContext = {
+    tick: Game.time,
     ownedRooms,
-    spawnRooms,
   };
+
+  currentContext = context;
+
+  return context;
+}
+
+export function getTickContext(): TickContext {
+  if (currentContext === undefined || currentContext.tick !== Game.time) {
+    throw new Error("TickContext is not initialized for this tick");
+  }
+
+  return currentContext;
 }

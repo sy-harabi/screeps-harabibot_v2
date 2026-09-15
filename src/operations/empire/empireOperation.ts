@@ -21,7 +21,7 @@ export function createEmpireOperation(): EmpireOperationRecord {
 
 export const empireOperationHandler: OperationHandler<EmpireOperationRecord> = {
   plan(operation, context): void {
-    for (const room of context.ownedRooms) {
+    for (const room of context.ownedRooms.values()) {
       ensureOperation(createColonyOperation(room.name));
     }
   },
