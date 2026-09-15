@@ -1,6 +1,7 @@
 # Tower placement experiments: from greedy placement to pair local search
 
 Date: 2026-09-14
+Updated: 2026-09-15
 
 ## Goal
 
@@ -46,13 +47,7 @@ When the protected perimeter is small enough, a compact central cluster is stron
 
 Once extreme ramparts become far enough apart, distribution can win. A tower near one end can deal maximum damage to that side while still contributing the long-range floor to the opposite side.
 
-For example, on a sufficiently long span:
-
-```text
-300 + 300 < 600 + 150
-```
-
-Balancing range is no longer equivalent to maximizing the sum of support at the bottleneck.
+Tower attack damage is bounded between 150 and 600. That gives a useful intuition for a long strip: a tower specialized toward one end can contribute `600` there and still contribute at least `150` to the far end, giving a `750` two-end baseline. If a more centered placement leaves the relevant endpoint support below that level, moving outward can improve the bottleneck.
 
 ## Why diameter 25 appeared
 
@@ -87,7 +82,7 @@ subject to
 
 The comparison also preserved the planner's aggregate structure-slot and spawn-slot limits. Therefore a heuristic gap means a placement-search gap, not a mismatch in candidate feasibility.
 
-MILP is used only as an offline answer key.
+MILP is used only as an offline answer key. Exact solves can require seconds, which is far too expensive for the runtime planner.
 
 ## First major heuristic: centered vs distributed
 
@@ -156,7 +151,7 @@ The first fix was simple: keep doing one-tower replacement sweeps until no tower
 
 On the original 146 successful rooms, this alone changed exact-match count from 68 to 93 and reduced mean gap from about 29 DPS to about 15 DPS when applied to the previous heuristic paths.
 
-This confirmed that the one-pass stopping rule was unnecessarily weak.
+This was useful as a research step because it confirmed that the one-pass stopping rule was unnecessarily weak.
 
 ## Full pair replacement
 
@@ -178,7 +173,7 @@ The high-gap test rooms all reached the exact MILP minimum after repeated single
 
 Once pair search was available, I tested deliberately different starting placements.
 
-On the original 146-room sample, after single replacement and pair refinement:
+On the original 146-room sample, after the then-current refinement pipeline:
 
 | Initial placement | Exact matches | Mean final gap | Maximum final gap |
 | --- | ---: | ---: | ---: |
@@ -191,7 +186,7 @@ Even a bad feasible seed was usually repaired. The simple global greedy seed was
 
 This changed the interpretation of the problem. The important structure was no longer "classify this base as central or distributed." It was:
 
-> greedily choose six reasonable towers, then repair the result with one- and two-coordinate local search.
+> greedily choose six reasonable towers, then repair the result with pair local search.
 
 The centered/distributed experiments were useful for understanding the geometry, but the classifier itself turned out to be unnecessary.
 
@@ -207,17 +202,9 @@ The better simplification was not to shrink the candidate set, but to cap the nu
 
 ## Why exactly two pair sweeps
 
-On the first sample, global greedy followed by converged single replacement and two full pair sweeps gave:
-
-```text
-exact:       140 / 146 = 95.9%
-mean gap:      1.23 DPS
-max gap:      30 DPS
-```
-
-Further pair sweeps did not improve minimum DPS in that benchmark.
-
 The second sweep matters because the 15 pair replacements are applied sequentially. A pair changed late in sweep 1 can make a pair visited early in sweep 1 worth revisiting. Sweep 2 captures that dependency.
+
+The pair stage is therefore deliberately bounded rather than run to convergence.
 
 ## Independent second 200-room sample
 
@@ -225,7 +212,7 @@ To test whether the result was overfit to the original rooms, I drew another 200
 
 Base planning succeeded in 155 rooms. Tower planning itself caused zero base-plan failures.
 
-Using only:
+The intermediate research pipeline at that point was:
 
 ```text
 global max-min greedy for all 6 towers
@@ -255,9 +242,9 @@ Diameter breakdown after pair sweep 2:
 
 The small-base regime is still easier, but no diameter-specific production branch is needed.
 
-## Combined validation
+## Combined validation of the intermediate pipeline
 
-The two room sets are disjoint. Across all successful base plans:
+The two room sets were disjoint. Across all successful base plans:
 
 ```text
 successful plans compared: 301
@@ -268,18 +255,39 @@ mean gap:                  1.40 DPS
 maximum gap:                 30 DPS
 ```
 
-So the final result is almost anticlimactic. After investigating centered layouts, distributed layouts, strip geometry, diamonds, diameter thresholds, and candidate classification, the production-quality heuristic ended up being only:
+These results established that strong pair refinement made the complicated initialization unnecessary.
+
+## Follow-up: removing single refinement
+
+The pair neighborhood already contains single-tower moves when one of the two replacement positions is left unchanged. This raised the question of whether the separate single-refinement stage was doing useful work at all.
+
+A follow-up benchmark used 400 evenly sampled controller rooms from the shardSeason snapshot. Base planning succeeded in 301 rooms. All three variants started from the same global greedy seed and used the same candidate set and MILP reference.
+
+| Refinement | Exact MILP | Mean gap | Max gap | Mean local time | Median | P95 | Worst |
+| --- | ---: | ---: | ---: | ---: | ---: | ---: | ---: |
+| pair sweep x2 | **283 / 301** | **2.59 DPS** | 210 DPS | 14.72 ms | 12.19 ms | 37.20 ms | 100.01 ms |
+| single convergence + pair sweep x2 | 282 / 301 | 2.69 DPS | 210 DPS | **14.67 ms** | **12.12 ms** | **37.13 ms** | **98.51 ms** |
+| pair sweeps to convergence | 284 / 301 | 2.49 DPS | 210 DPS | 17.30 ms | 12.81 ms | 43.05 ms | 197.86 ms |
+
+The separate single stage had no quality advantage and no meaningful runtime advantage. `pair sweep x2` was also much better bounded than running pair sweeps to convergence: convergence gained only one additional exact room while nearly doubling the observed worst-case local runtime.
+
+The production pipeline was therefore simplified again to just greedy seeding plus two pair sweeps.
+
+The new 301-room benchmark is a different room sample from the earlier two-sample validation, so `283 / 301` should not be compared directly with `287 / 301` as if it were a regression on the same rooms.
+
+## Final production result
+
+After all of the geometry and refinement experiments, the production algorithm is:
 
 ```text
 6-tower global greedy
--> single refinement until convergence
 -> pair refinement sweep
 -> pair refinement sweep
 ```
 
-That simple sequence reached the exact optimal minimum damage in 95.3% of the 301 validated rooms. In the remaining 4.7%, it missed by only 30 DPS. No tested room was more than 30 DPS below the exact MILP result.
+The geometric experiments were not wasted: they explained why the original greedy algorithm failed and exposed the importance of coordinated tower movement. But they were ultimately more useful for understanding the problem than for deciding the final production algorithm.
 
-The geometric experiments were not wasted: they explained why the original greedy algorithm failed and exposed the existence of multi-tower interactions. But they were ultimately more useful for understanding the problem than for deciding the final production algorithm.
+The final code does not classify a room as centered or distributed and does not run a separate single-tower refinement stage.
 
 ## CPU observations
 
@@ -305,20 +313,17 @@ baseDamage[r]
 
 without recalculating ranges or falloff.
 
-Local Node benchmark numbers are only relative development measurements, not Screeps CPU measurements. On the independent 155-room set, the complete final heuristic averaged about 16.5 ms locally, with each full pair sweep around 8 ms on average.
+Local benchmark numbers are only relative development measurements, not Screeps CPU measurements.
 
 Future CPU work should focus on safe pruning, early rejection, or scheduling the planner work across the existing planning budget rather than reintroducing central/distributed classification.
 
 ## Final production direction
-
-The production algorithm is now:
 
 ```text
 build legal candidate set
 precompute candidate x rampart damage
 
 selected = globalMaxMinGreedy(6)
-selected = singleReplacementUntilConverged(selected)
 selected = fullPairSweep(selected)
 selected = fullPairSweep(selected)
 
@@ -336,18 +341,17 @@ There is no centered/distributed branch in the final production direction. The e
 
 ## Blog narrative notes
 
-A future article can preserve the actual discovery path:
+A future article can preserve the useful discovery path without reproducing every intermediate optimizer variant:
 
 1. Start from the original weak-rampart greedy algorithm.
 2. Show why small squares make central clustering look obviously right.
 3. Introduce the long-strip/diamond counterexample.
-4. Explain the diameter-25 transition from the tower damage curve.
-5. Introduce MILP as an offline answer key.
+4. Explain the tower-damage floor and the diameter-25 transition.
+5. Introduce MILP as an offline answer key and explain why it is too slow for production.
 6. Show the central-vs-distributed heuristic and its improvement over the old greedy path.
 7. Show the remaining 120-150 DPS outliers.
 8. Explain one-tower local minima and why two towers sometimes have to move together.
 9. Introduce full pair sweeps.
-10. Reveal the slightly anticlimactic result: after all the geometry work, `6 greedy -> single refinement to convergence -> 2 pair sweeps` is enough.
-11. End with the two disjoint benchmarks: `287 / 301` exact, every remaining case only 30 DPS below exact.
+10. Reveal the final simplification: `6 greedy -> 2 pair sweeps`.
 
-That story preserves both the geometric insight and the engineering lesson: understanding the geometry was useful, but a sufficiently strong and still-simple local optimizer made the complicated initialization unnecessary.
+The article does not need to discuss the later single-vs-pair benchmark. That comparison was useful for simplifying production code, but it is not necessary to understand the main tower-placement story.
