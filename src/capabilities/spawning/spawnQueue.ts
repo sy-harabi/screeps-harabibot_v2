@@ -59,7 +59,7 @@ export function requestSpawn(
       operationOrder: context.operationOrder,
       roleOrder,
     },
-    memory: options.memory ?? {},
+    memory: { ...options.memory, role },
   });
 }
 
