@@ -1,3 +1,7 @@
+import {
+  packBasePlan,
+  unpackBasePlan,
+} from "../../capabilities/basePlanning/basePlanCodec";
 import { planBase } from "../../capabilities/basePlanning/planBase";
 import type { EmpireOperationRecord } from "../empire/empireOperation";
 import { OperationBase } from "../operation";
@@ -49,6 +53,21 @@ export const colonyOperationHandler: OperationHandler<ColonyOperationRecord> = {
       sources,
       minerals,
     );
+
+    if (basePlan) {
+      const packedBasePlan = packBasePlan(basePlan);
+      const unpackedBasePlan = unpackBasePlan(packedBasePlan);
+      console.log(
+        JSON.stringify(basePlan) === JSON.stringify(unpackedBasePlan),
+      );
+
+      const rawSize = JSON.stringify(basePlan).length;
+      const packedSize = JSON.stringify(packedBasePlan).length;
+
+      console.log(
+        `basePlan raw=${rawSize}, packed=${packedSize}, ratio=${packedSize / rawSize}`,
+      );
+    }
 
     console.log(Game.cpu.getUsed() - cpuBefore);
   },
