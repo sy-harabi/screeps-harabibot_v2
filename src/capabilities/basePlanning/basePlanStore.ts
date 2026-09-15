@@ -4,7 +4,7 @@ import { BasePlan } from "./basePlan";
 import { packBasePlan, PackedBasePlan, unpackBasePlan } from "./basePlanCodec";
 
 interface BasePlanSegment {
-  version?: 1;
+  version: 1;
   plans: Record<string, PackedBasePlan>;
 }
 
@@ -24,7 +24,7 @@ export const basePlanStore = {
   set,
 };
 
-function set(roomName: string, plan: BasePlan): boolean {
+function set(roomName: string, plan: BasePlan): void {
   const segmentId = getBasePlanSegmentId(roomName);
 
   const result = segmentManager.getSegment<BasePlanSegment>(segmentId);
@@ -47,8 +47,6 @@ function set(roomName: string, plan: BasePlan): boolean {
   segmentManager.setSegment(segmentId, segment);
 
   basePlanCache.set(roomName, plan);
-
-  return true;
 }
 
 function get(roomName: string): BasePlanReadResult {
@@ -69,7 +67,9 @@ function get(roomName: string): BasePlanReadResult {
     return { status: "loading" };
   }
 
-  const packed = segmentResult.value.plans?.[roomName];
+  const plans = getPlans(segmentResult.value);
+
+  const packed = plans[roomName];
 
   if (packed === undefined) {
     return { status: "missing" };

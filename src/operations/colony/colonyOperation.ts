@@ -52,11 +52,15 @@ export const colonyOperationHandler: OperationHandler<ColonyOperationRecord> = {
 
     const basePlanResult = basePlanStore.get(roomName);
 
+    let basePlan: BasePlan | undefined;
+
     if (basePlanResult.status === "loading") {
       return;
     }
 
-    if (basePlanResult.status === "missing") {
+    if (basePlanResult.status === "ready") {
+      basePlan = basePlanResult.value;
+    } else if (basePlanResult.status === "missing") {
       const plan = planBase(
         roomName,
         terrain,
@@ -66,41 +70,19 @@ export const colonyOperationHandler: OperationHandler<ColonyOperationRecord> = {
         { existingSpawn: existingSpawn?.pos },
       );
 
+      if (plan === undefined) {
+        return;
+      }
+
       if (plan !== undefined) {
         basePlanStore.set(roomName, plan);
       }
 
-      return;
+      basePlan = plan;
     }
 
-    const basePlan = basePlanResult.value;
-
-    if (basePlan) {
-      const packedBasePlan = packBasePlan(basePlan);
-      const unpackedBasePlan = unpackBasePlan(packedBasePlan);
-
-      for (let i = 0; i < basePlan.structures.length; i++) {
-        const a = basePlan.structures[i];
-        const b = unpackedBasePlan.structures[i];
-
-        if (
-          a.structureType !== b.structureType ||
-          a.coordinate.x !== b.coordinate.x ||
-          a.coordinate.y !== b.coordinate.y ||
-          a.rcl !== b.rcl ||
-          JSON.stringify(a.tag) !== JSON.stringify(b.tag)
-        ) {
-          console.log("mismatch", i, JSON.stringify(a), JSON.stringify(b));
-          break;
-        }
-      }
-
-      const rawSize = JSON.stringify(basePlan).length;
-      const packedSize = JSON.stringify(packedBasePlan).length;
-
-      console.log(
-        `basePlan raw=${rawSize}, packed=${packedSize}, ratio=${packedSize / rawSize}`,
-      );
+    if (!basePlan) {
+      return;
     }
 
     if (Memory.options?.visuals?.basePlan) {
