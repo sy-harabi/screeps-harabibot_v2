@@ -16,8 +16,6 @@ function allocateRoomSpawns(roomName: string, state: SpawnRoomState): void {
     compareSpawnPriority(left.priority, right.priority),
   );
 
-  const freeSpawns = [...state.freeSpawns];
-
   const room = getTickContext().ownedRooms.get(roomName);
 
   if (!room) {
