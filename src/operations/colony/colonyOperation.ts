@@ -24,8 +24,8 @@ export function createColonyOperation(roomName: string): ColonyOperationRecord {
   };
 }
 
-export const colonyOperationHandler: OperationHandler = {
-  execute(operation: ColonyOperationRecord, context): void {
+export const colonyOperationHandler: OperationHandler<ColonyOperationRecord> = {
+  execute(operation, context): void {
     const { roomName } = operation;
 
     const terrain = Game.map.getRoomTerrain(roomName);

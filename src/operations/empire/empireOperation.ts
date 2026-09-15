@@ -19,12 +19,8 @@ export function createEmpireOperation(): EmpireOperationRecord {
   };
 }
 
-export const empireOperationHandler: OperationHandler = {
+export const empireOperationHandler: OperationHandler<EmpireOperationRecord> = {
   plan(operation, context): void {
-    if (operation.type !== "empire") {
-      return;
-    }
-
     for (const room of context.ownedRooms) {
       ensureOperation(createColonyOperation(room.name));
     }

@@ -1,19 +1,43 @@
 import { colonyOperationHandler } from "../operations/colony/colonyOperation";
 import { empireOperationHandler } from "../operations/empire/empireOperation";
 import type { OperationRecord } from "../operations/operation";
-import type { OperationHandler } from "../operations/operationHandler";
 import { getChildOperations } from "../operations/operationStore";
 import type { TickContext } from "./tickContext";
 
-function getOperationHandler(operation: OperationRecord): OperationHandler {
+function planOperation(
+  operation: OperationRecord,
+  context: TickContext,
+): void {
   switch (operation.type) {
     case "empire":
-      return empireOperationHandler;
+      empireOperationHandler.plan?.(operation, context);
+      return;
     case "colony":
-      return colonyOperationHandler;
-    default:
-      throw new Error("Unknown operation type");
+      colonyOperationHandler.plan?.(operation, context);
+      return;
   }
+
+  assertUnreachable(operation);
+}
+
+function executeOperation(
+  operation: OperationRecord,
+  context: TickContext,
+): void {
+  switch (operation.type) {
+    case "empire":
+      empireOperationHandler.execute?.(operation, context);
+      return;
+    case "colony":
+      colonyOperationHandler.execute?.(operation, context);
+      return;
+  }
+
+  assertUnreachable(operation);
+}
+
+function assertUnreachable(operation: never): never {
+  throw new Error("Unknown operation type");
 }
 
 export function planOperationTree(
@@ -24,7 +48,7 @@ export function planOperationTree(
     return;
   }
 
-  getOperationHandler(operation).plan?.(operation, context);
+  planOperation(operation, context);
 
   for (const child of getChildOperations(operation.id)) {
     planOperationTree(child, context);
@@ -39,7 +63,7 @@ export function executeOperationTree(
     return;
   }
 
-  getOperationHandler(operation).execute?.(operation, context);
+  executeOperation(operation, context);
 
   for (const child of getChildOperations(operation.id)) {
     executeOperationTree(child, context);
