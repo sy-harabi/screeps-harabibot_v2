@@ -7,7 +7,7 @@ import { createEmpireOperation } from "./operations/empire/empireOperation";
 import { ensureOperation } from "./operations/operationStore";
 import "./visuals/roomVisual";
 import "./console/consoleApi";
-import { segmentManager } from "./persistance/segmentManager";
+import { segmentManager } from "./persistence/segmentManager";
 
 export function loop(): void {
   segmentManager.pretick();
