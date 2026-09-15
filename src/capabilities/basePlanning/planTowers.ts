@@ -20,7 +20,6 @@ const NUM_TOWERS = 6;
 const NUM_EXTENSIONS = 60;
 const NUM_OTHER_SLOT_STRUCTURES = 2;
 const FULL_PAIR_SWEEPS = 2;
-const MAX_SINGLE_REFINEMENT_SWEEPS = 20;
 
 interface TowerCandidate {
   readonly coordinate: RoomCoordinate;
@@ -256,16 +255,8 @@ function selectTowerCandidates(
     return;
   }
 
-  const singleRefined = refineSingleTowersToConvergence(
-    greedy,
-    candidates,
-    cache,
-    maxSlotTowers,
-    maxSpawnSlotTowers,
-  );
-
   return refineTowerPairs(
-    singleRefined,
+    greedy,
     candidates,
     cache,
     maxSlotTowers,
@@ -373,80 +364,6 @@ function buildGlobalGreedyPlacement(
     totalDamage += cache.totalDamage[bestCandidate];
     slotTowers += candidates[bestCandidate].usesStructureSlot ? 1 : 0;
     spawnSlotTowers += candidates[bestCandidate].usesSpawnSlot ? 1 : 0;
-  }
-
-  return selected;
-}
-
-function refineSingleTowersToConvergence(
-  initial: readonly number[],
-  candidates: readonly TowerCandidate[],
-  cache: DamageCache,
-  maxSlotTowers: number,
-  maxSpawnSlotTowers: number,
-): number[] {
-  const selected = [...initial];
-
-  for (let sweep = 0; sweep < MAX_SINGLE_REFINEMENT_SWEEPS; sweep++) {
-    let changed = false;
-
-    for (let replaceIndex = 0; replaceIndex < NUM_TOWERS; replaceIndex++) {
-      const fixed = selected.filter((_, index) => index !== replaceIndex);
-      const fixedSet = buildSelectedMask(fixed, candidates.length);
-      const fixedUsage = getSelectionUsage(fixed, candidates);
-      const fixedDamage = buildSelectionDamage(fixed, cache);
-      const fixedTotalDamage = getSelectionTotalDamage(fixed, cache);
-      let bestCandidate = selected[replaceIndex];
-      let bestScore = scoreSelection(selected, cache);
-
-      for (
-        let candidateIndex = 0;
-        candidateIndex < candidates.length;
-        candidateIndex++
-      ) {
-        if (fixedSet[candidateIndex]) {
-          continue;
-        }
-
-        if (
-          !canAddCandidate(
-            candidates[candidateIndex],
-            fixedUsage.slotTowers,
-            fixedUsage.spawnSlotTowers,
-            maxSlotTowers,
-            maxSpawnSlotTowers,
-          )
-        ) {
-          continue;
-        }
-
-        const score = scoreAddedCandidate(
-          fixedDamage,
-          fixedTotalDamage,
-          candidateIndex,
-          cache,
-        );
-
-        if (
-          isPrimaryScoreBetter(score, bestScore) ||
-          (isSamePrimaryScore(score, bestScore) &&
-            candidates[candidateIndex].roomIndex <
-              candidates[bestCandidate].roomIndex)
-        ) {
-          bestCandidate = candidateIndex;
-          bestScore = score;
-        }
-      }
-
-      if (bestCandidate !== selected[replaceIndex]) {
-        selected[replaceIndex] = bestCandidate;
-        changed = true;
-      }
-    }
-
-    if (!changed) {
-      break;
-    }
   }
 
   return selected;
