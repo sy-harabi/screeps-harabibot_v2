@@ -2,6 +2,10 @@ import { getTickContext } from "../../kernel/tickContext";
 import type { SpawnPriorityType } from "./spawnPriority";
 import type { RenewRequest, SpawnRequest } from "./spawnRequest";
 
+export type SpawnBody =
+  | readonly BodyPartConstant[]
+  | (() => readonly BodyPartConstant[] | undefined);
+
 export interface SpawnRequestContext {
   readonly requesterId: string;
   readonly roomName: string;
@@ -27,7 +31,7 @@ export function getSpawnRoomStates(): ReadonlyMap<string, SpawnRoomState> {
 
 export function requestSpawn(
   context: SpawnRequestContext,
-  body: readonly BodyPartConstant[],
+  body: SpawnBody,
   role: string,
   options: {
     memory?: CreepMemory;
@@ -40,11 +44,17 @@ export function requestSpawn(
     return;
   }
 
+  const resolvedBody = typeof body === "function" ? body() : body;
+
+  if (resolvedBody === undefined || resolvedBody.length === 0) {
+    return;
+  }
+
   state.spawnRequests.push({
     requesterId: context.requesterId,
     roomName: context.roomName,
     role,
-    body,
+    body: resolvedBody,
     priority: {
       type: context.priorityType,
       operationOrder: context.operationOrder,
