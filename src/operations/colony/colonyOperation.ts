@@ -1,7 +1,9 @@
+import { BasePlan } from "../../capabilities/basePlanning/basePlan";
 import {
   packBasePlan,
   unpackBasePlan,
 } from "../../capabilities/basePlanning/basePlanCodec";
+import { basePlanStore } from "../../capabilities/basePlanning/basePlanStore";
 import { planBase } from "../../capabilities/basePlanning/planBase";
 import type { EmpireOperationRecord } from "../empire/empireOperation";
 import { OperationBase } from "../operation";
@@ -48,14 +50,30 @@ export const colonyOperationHandler: OperationHandler<ColonyOperationRecord> = {
 
     let cpuBefore = Game.cpu.getUsed();
 
-    const basePlan = planBase(
-      roomName,
-      terrain,
-      room.controller,
-      sources,
-      minerals,
-      { existingSpawn: existingSpawn?.pos },
-    );
+    const basePlanResult = basePlanStore.get(roomName);
+
+    if (basePlanResult.status === "loading") {
+      return;
+    }
+
+    if (basePlanResult.status === "missing") {
+      const plan = planBase(
+        roomName,
+        terrain,
+        room.controller,
+        sources,
+        minerals,
+        { existingSpawn: existingSpawn?.pos },
+      );
+
+      if (plan !== undefined) {
+        basePlanStore.set(roomName, plan);
+      }
+
+      return;
+    }
+
+    const basePlan = basePlanResult.value;
 
     if (basePlan) {
       const packedBasePlan = packBasePlan(basePlan);
@@ -85,6 +103,25 @@ export const colonyOperationHandler: OperationHandler<ColonyOperationRecord> = {
       );
     }
 
+    if (Memory.options?.visuals?.basePlan) {
+      visualizeFinalPlan(basePlan, new RoomVisual(roomName));
+    }
+
     console.log(Game.cpu.getUsed() - cpuBefore);
   },
 };
+
+function visualizeFinalPlan(basePlan: BasePlan, visual: RoomVisual): void {
+  visual.clear();
+  visual.roads = [];
+
+  for (const structure of basePlan.structures) {
+    visual.structure(
+      structure.coordinate.x,
+      structure.coordinate.y,
+      structure.structureType,
+    );
+  }
+
+  visual.connectRoads();
+}

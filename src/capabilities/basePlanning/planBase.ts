@@ -183,39 +183,6 @@ function tryPlanBaseWithRegions(
     return;
   }
 
-  visual.structure(
-    bestControllerArea.storage.x,
-    bestControllerArea.storage.y,
-    STRUCTURE_STORAGE,
-  );
-
-  visual.text("M", bestCorePlan.manager.x, bestCorePlan.manager.y);
-  visual.structure(
-    bestCorePlan.terminal.x,
-    bestCorePlan.terminal.y,
-    STRUCTURE_TERMINAL,
-  );
-  visual.structure(bestCorePlan.link.x, bestCorePlan.link.y, STRUCTURE_LINK);
-  visual.structure(
-    bestCorePlan.firstSpawn.x,
-    bestCorePlan.firstSpawn.y,
-    STRUCTURE_SPAWN,
-  );
-  visual.structure(
-    bestCorePlan.factory.x,
-    bestCorePlan.factory.y,
-    STRUCTURE_FACTORY,
-  );
-  visual.structure(
-    bestCorePlan.powerSpawn.x,
-    bestCorePlan.powerSpawn.y,
-    STRUCTURE_POWER_SPAWN,
-  );
-
-  bestCorePlan.roads.forEach((road) =>
-    visual.structure(road.x, road.y, STRUCTURE_ROAD),
-  );
-
   const resourceTree = planResourceTree(
     terrain,
     sources,

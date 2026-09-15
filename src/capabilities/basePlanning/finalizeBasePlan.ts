@@ -77,11 +77,7 @@ export function buildProvisionalBasePlanStructures(
   // civil-road pruning, and repair-road routing to respect the complete future
   // structure footprint before towers receive priority over those slots.
   for (const { coordinate } of slotPlan.slots) {
-    addStructure(
-      STRUCTURE_EXTENSION,
-      coordinate,
-      PROVISIONAL_SLOT_RCL,
-    );
+    addStructure(STRUCTURE_EXTENSION, coordinate, PROVISIONAL_SLOT_RCL);
   }
 
   const roads = [
@@ -208,7 +204,6 @@ export function finalizeBasePlanStructures(
     ),
   );
 
-  visualizeFinalPlan(structures, visual);
   return structures;
 }
 
@@ -524,20 +519,4 @@ function getStructureRcl(
   throw new Error(
     `No RCL available for ${structureType} structure ordinal ${ordinal}`,
   );
-}
-
-function visualizeFinalPlan(
-  structures: readonly PlannedStructure[],
-  visual: RoomVisual,
-): void {
-  visual.clear();
-  visual.roads = [];
-
-  for (const structure of structures) {
-    visual.structure(
-      structure.coordinate.x,
-      structure.coordinate.y,
-      structure.structureType,
-    );
-  }
 }

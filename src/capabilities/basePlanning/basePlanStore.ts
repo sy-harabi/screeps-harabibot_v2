@@ -1,14 +1,10 @@
 import { segmentManager } from "../../persistence/segmentManager";
 import { runtimeRegistry } from "../../runtime/runtimeRegisty";
 import { BasePlan } from "./basePlan";
-import { PackedBasePlan, unpackBasePlan } from "./basePlanCodec";
-
-const basePlanCache = runtimeRegistry.createCache<string, BasePlan>(
-  "basePlans",
-);
+import { packBasePlan, PackedBasePlan, unpackBasePlan } from "./basePlanCodec";
 
 interface BasePlanSegment {
-  version: 1;
+  version?: 1;
   plans: Record<string, PackedBasePlan>;
 }
 
@@ -19,15 +15,41 @@ export type BasePlanReadResult =
   | { status: "missing" }
   | { status: "ready"; value: BasePlan };
 
+const basePlanCache = runtimeRegistry.createCache<string, BasePlan>(
+  "basePlans",
+);
+
 export const basePlanStore = {
   get,
   set,
-  delete: deleteBasePlan,
 };
 
-function deleteBasePlan(roomName: string): void {}
+function set(roomName: string, plan: BasePlan): boolean {
+  const segmentId = getBasePlanSegmentId(roomName);
 
-function set(roomName: string, plan: BasePlan): void {}
+  const result = segmentManager.getSegment<BasePlanSegment>(segmentId);
+
+  if (result.status === "loading") {
+    throw new Error(
+      `Cannot save base plan before segment ${segmentId} is loaded`,
+    );
+  }
+
+  const segment =
+    result.value.version === 1 && result.value.plans
+      ? result.value
+      : {
+          version: 1 as const,
+          plans: {},
+        };
+
+  segment.plans[roomName] = packBasePlan(plan);
+  segmentManager.setSegment(segmentId, segment);
+
+  basePlanCache.set(roomName, plan);
+
+  return true;
+}
 
 function get(roomName: string): BasePlanReadResult {
   const cached = basePlanCache.get(roomName);
@@ -61,6 +83,12 @@ function get(roomName: string): BasePlanReadResult {
     status: "ready",
     value: plan,
   };
+}
+
+function getPlans(
+  segment: Partial<BasePlanSegment>,
+): Record<string, PackedBasePlan> {
+  return segment.version === 1 && segment.plans ? segment.plans : {};
 }
 
 function getBasePlanSegmentId(roomName: string): number {
