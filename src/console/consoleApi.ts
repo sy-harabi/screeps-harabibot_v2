@@ -1,5 +1,11 @@
+import {
+  BotOptionsConsoleApi,
+  botOptionsConsoleApi,
+} from "./optionsConsoleApi";
+
 export interface BotConsoleApi {
   help(): void;
+  options: BotOptionsConsoleApi;
 }
 
 export const botConsoleApi: BotConsoleApi = {
@@ -7,12 +13,13 @@ export const botConsoleApi: BotConsoleApi = {
     console.log(`
 bot.help()
 
-Available namespaces:
-  bot.options
-  bot.basePlan
-  bot.operations
+bot.options.show()
+bot.options.setBasePlanVisual(true | false)
+bot.options.clearBasePlanVisual()
 `);
   },
+
+  options: botOptionsConsoleApi,
 };
 
 globalThis.bot = botConsoleApi;
