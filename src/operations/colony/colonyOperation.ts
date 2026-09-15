@@ -68,6 +68,8 @@ export const colonyOperationHandler: OperationHandler<ColonyOperationRecord> = {
         return;
       }
 
+      basePlanStore.set(roomName, plan);
+
       basePlan = plan;
     }
 
