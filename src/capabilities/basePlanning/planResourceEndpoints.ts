@@ -37,6 +37,7 @@ export function planResourceEndpoints(
   minerals: readonly Mineral[],
   controllerArea: ControllerAreaCandidate,
   corePlan: CorePlan,
+  existingSpawn?: RoomCoordinate,
 ): ResourceEndpointPlanResult | undefined {
   const targets = buildResourceTargets(sources, minerals);
   const resourceRoadBlockedMask = buildResourceRoadBlockedMask(
@@ -44,6 +45,7 @@ export function planResourceEndpoints(
     minerals,
     controllerArea,
     corePlan,
+    existingSpawn,
   );
   const coreRoadMask = buildCoordinateMask(corePlan.roads);
   const endpoints = findResourceEndpointPlan(
@@ -87,6 +89,7 @@ function buildResourceRoadBlockedMask(
   minerals: readonly Mineral[],
   controllerArea: ControllerAreaCandidate,
   corePlan: CorePlan,
+  existingSpawn?: RoomCoordinate,
 ): Uint8Array {
   const resourceRoadBlockedMask = new Uint8Array(ROOM_AREA);
   const block = ({ x, y }: RoomCoordinate): void => {
@@ -104,6 +107,10 @@ function buildResourceRoadBlockedMask(
   block(corePlan.link);
   block(corePlan.manager);
   corePlan.parking.forEach(block);
+
+  if (existingSpawn) {
+    block(existingSpawn);
+  }
 
   for (const resource of [...sources, ...minerals]) {
     block(resource.pos);

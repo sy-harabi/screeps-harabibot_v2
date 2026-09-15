@@ -11,13 +11,11 @@ import type { LabPlan } from "./planLabs";
 import type { OuterRampartPlan } from "./planOuterRamparts";
 import type { RegionBoundaryRoadPlan } from "./planRegionBoundaryRoads";
 import type { ResourceTreePlan } from "./planResourceTree";
+import { getSpawnPlanningInfo } from "./spawnPlanning";
 import type { StructureSlot, StructureSlotPlan } from "./planStructureSlots";
 
-const NUM_ADDITIONAL_SPAWNS = 2;
 const NUM_EXTENSIONS = 60;
 const NUM_OTHER_SLOT_STRUCTURES = 2;
-const REQUIRED_NON_TOWER_SLOTS =
-  NUM_ADDITIONAL_SPAWNS + NUM_EXTENSIONS + NUM_OTHER_SLOT_STRUCTURES;
 const PROVISIONAL_SLOT_RCL = 8;
 
 interface RankedSlot {
@@ -43,6 +41,7 @@ export function buildProvisionalBasePlanStructures(
   boundaryRoadPlan: RegionBoundaryRoadPlan,
   labPlan: LabPlan,
   slotPlan: StructureSlotPlan,
+  existingSpawn?: RoomCoordinate,
 ): PlannedStructure[] {
   const structures: PlannedStructure[] = [];
   const seen = new Set<string>();
@@ -70,6 +69,7 @@ export function buildProvisionalBasePlanStructures(
     corePlan,
     resourceTree,
     labPlan,
+    existingSpawn,
     addStructure,
   );
 
@@ -118,7 +118,12 @@ export function finalizeBasePlanStructures(
   slotPlan: StructureSlotPlan,
   towers: readonly RoomCoordinate[],
   visual: RoomVisual,
+  existingSpawn?: RoomCoordinate,
 ): PlannedStructure[] | undefined {
+  const spawnPlanning = getSpawnPlanningInfo(
+    existingSpawn,
+    corePlan.firstSpawn,
+  );
   const slotMask = buildSlotMask(slotPlan.slots);
   const towerMask = buildCoordinateMask(towers);
   const structures = defenseStructures.filter((structure) => {
@@ -136,6 +141,7 @@ export function finalizeBasePlanStructures(
     corePlan,
     towerMask,
     roadMask,
+    spawnPlanning.requiredSlotSpawns,
   );
 
   if (!assigned) {
@@ -176,7 +182,10 @@ export function finalizeBasePlanStructures(
     addStructure(
       STRUCTURE_SPAWN,
       rankedSlot.slot.coordinate,
-      getStructureRcl(STRUCTURE_SPAWN, index + 1),
+      getStructureRcl(
+        STRUCTURE_SPAWN,
+        spawnPlanning.slotSpawnOrdinalStart + index,
+      ),
     ),
   );
 
@@ -210,6 +219,7 @@ function addFixedStructures(
   corePlan: CorePlan,
   resourceTree: ResourceTreePlan,
   labPlan: LabPlan,
+  existingSpawn: RoomCoordinate | undefined,
   addStructure: (
     structureType: BuildableStructureConstant,
     coordinate: RoomCoordinate,
@@ -217,10 +227,23 @@ function addFixedStructures(
     tag?: PlannedStructureTag,
   ) => void,
 ): void {
+  const spawnPlanning = getSpawnPlanningInfo(
+    existingSpawn,
+    corePlan.firstSpawn,
+  );
+
+  if (existingSpawn) {
+    addStructure(
+      STRUCTURE_SPAWN,
+      existingSpawn,
+      getStructureRcl(STRUCTURE_SPAWN, 0),
+    );
+  }
+
   addStructure(
     STRUCTURE_SPAWN,
     corePlan.firstSpawn,
-    getStructureRcl(STRUCTURE_SPAWN, 0),
+    getStructureRcl(STRUCTURE_SPAWN, spawnPlanning.coreSpawnOrdinal),
   );
   addStructure(
     STRUCTURE_STORAGE,
@@ -297,18 +320,21 @@ function assignStructureSlots(
   corePlan: CorePlan,
   towerMask: Uint8Array,
   roadMask: Uint8Array,
+  requiredSlotSpawns: number,
 ): AssignedSlotStructures | undefined {
   const slots = rankSlots(slotPlan.slots, controllerArea, corePlan).filter(
     ({ roomIndex }) => !towerMask[roomIndex],
   );
+  const requiredNonTowerSlots =
+    requiredSlotSpawns + NUM_EXTENSIONS + NUM_OTHER_SLOT_STRUCTURES;
 
-  if (slots.length < REQUIRED_NON_TOWER_SLOTS) {
+  if (slots.length < requiredNonTowerSlots) {
     return;
   }
 
   const spawns: RankedSlot[] = [];
 
-  for (let i = 0; i < NUM_ADDITIONAL_SPAWNS; i++) {
+  for (let i = 0; i < requiredSlotSpawns; i++) {
     const spawn = takeFirstMatching(
       slots,
       ({ slot }) => countAdjacentRoads(slot.coordinate, roadMask) >= 2,

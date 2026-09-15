@@ -18,6 +18,8 @@ const REQUIRED_STRUCTURE_SLOTS = 70;
 const MAX_BRANCH_LENGTH = 3;
 const SERVICE_DISTANCE_STEP = MAX_BRANCH_LENGTH;
 const MAX_SERVICE_DISTANCE = ROOM_SIZE;
+const SPAWN_ACCESS_PLAIN_COST = 5;
+const SPAWN_ACCESS_SWAMP_COST = 6;
 
 interface BranchCandidate {
   readonly newRoadIndices: number[];
@@ -44,6 +46,7 @@ export function planStructureSlots(
   boundaryRoadPlan: RegionBoundaryRoadPlan,
   labPlan: LabPlan,
   visual: RoomVisual,
+  existingSpawn?: RoomCoordinate,
 ): StructureSlotPlan | undefined {
   const mandatoryRoadMask = buildRoadMask(
     corePlan,
@@ -57,19 +60,157 @@ export function planStructureSlots(
     corePlan,
     resourceTree,
     labPlan,
+    existingSpawn,
   );
 
-  const plan = findGreedySlotPlan(
+  const spawnAccessRoads = existingSpawn
+    ? planExistingSpawnAccessRoads(
+        terrain,
+        existingSpawn,
+        mandatoryRoadMask,
+        blockedMask,
+        planningMask,
+      )
+    : [];
+
+  if (spawnAccessRoads === undefined) {
+    return;
+  }
+
+  for (const road of spawnAccessRoads) {
+    mandatoryRoadMask[toRoomIndex(road.x, road.y)] = 1;
+  }
+
+  const slotPlan = findGreedySlotPlan(
     terrain,
     mandatoryRoadMask,
     blockedMask,
     planningMask,
     corePlan,
   );
+  const plan: StructureSlotPlan = {
+    ...slotPlan,
+    roads: [...spawnAccessRoads, ...slotPlan.roads],
+  };
 
   visualizeStructureSlotPlan(plan, visual);
 
   return plan;
+}
+
+function planExistingSpawnAccessRoads(
+  terrain: RoomTerrain,
+  existingSpawn: RoomCoordinate,
+  mandatoryRoadMask: Uint8Array,
+  blockedMask: Uint8Array,
+  planningMask: Uint8Array,
+): RoomCoordinate[] | undefined {
+  const roadRoots = collectCoordinates(mandatoryRoadMask);
+
+  if (roadRoots.length === 0) {
+    return;
+  }
+
+  const distanceMap = dijkstraMap(
+    terrain,
+    roadRoots,
+    (_x, _y, terrainType) => getSpawnAccessRoadCost(terrainType),
+    (x, y) => {
+      const index = toRoomIndex(x, y);
+      return planningMask[index] === 1 && blockedMask[index] === 0;
+    },
+  );
+
+  let targetIndex = -1;
+  let targetDistance = Infinity;
+
+  for (const offset of NEIGHBOR_OFFSETS) {
+    const x = existingSpawn.x + offset.x;
+    const y = existingSpawn.y + offset.y;
+
+    if (!isInsideRoom(x, y)) {
+      continue;
+    }
+
+    const index = toRoomIndex(x, y);
+    const distance = distanceMap[index];
+
+    if (distance < 0) {
+      continue;
+    }
+
+    if (
+      distance < targetDistance ||
+      (distance === targetDistance && (targetIndex < 0 || index < targetIndex))
+    ) {
+      targetIndex = index;
+      targetDistance = distance;
+    }
+  }
+
+  if (targetIndex < 0) {
+    return;
+  }
+
+  const path: RoomCoordinate[] = [];
+  let currentIndex = targetIndex;
+
+  while (!mandatoryRoadMask[currentIndex]) {
+    const current = fromRoomIndex(currentIndex);
+    const currentDistance = distanceMap[currentIndex];
+
+    if (currentDistance <= 0) {
+      return;
+    }
+
+    path.push(current);
+
+    const currentCost = getSpawnAccessRoadCost(
+      terrain.get(current.x, current.y),
+    );
+    let nextIndex = -1;
+
+    for (const offset of NEIGHBOR_OFFSETS) {
+      const x = current.x + offset.x;
+      const y = current.y + offset.y;
+
+      if (!isInsideRoom(x, y)) {
+        continue;
+      }
+
+      const neighborIndex = toRoomIndex(x, y);
+      const neighborDistance = distanceMap[neighborIndex];
+
+      if (
+        neighborDistance < 0 ||
+        neighborDistance + currentCost !== currentDistance
+      ) {
+        continue;
+      }
+
+      if (
+        nextIndex < 0 ||
+        mandatoryRoadMask[neighborIndex] ||
+        (!mandatoryRoadMask[nextIndex] && neighborIndex < nextIndex)
+      ) {
+        nextIndex = neighborIndex;
+      }
+    }
+
+    if (nextIndex < 0) {
+      return;
+    }
+
+    currentIndex = nextIndex;
+  }
+
+  return path;
+}
+
+function getSpawnAccessRoadCost(terrainType: number): number {
+  return terrainType === TERRAIN_MASK_SWAMP
+    ? SPAWN_ACCESS_SWAMP_COST
+    : SPAWN_ACCESS_PLAIN_COST;
 }
 
 function findGreedySlotPlan(
@@ -423,6 +564,7 @@ function buildStructureSlotBlockedMask(
   corePlan: CorePlan,
   resourceTree: ResourceTreePlan,
   labPlan: LabPlan,
+  existingSpawn?: RoomCoordinate,
 ): Uint8Array {
   const blockedMask = new Uint8Array(ROOM_AREA);
 
@@ -459,6 +601,10 @@ function buildStructureSlotBlockedMask(
 
   corePlan.parking.forEach(block);
 
+  if (existingSpawn) {
+    block(existingSpawn);
+  }
+
   resourceTree.branches.forEach((branch) => {
     block(branch.container);
 
@@ -477,7 +623,7 @@ function visualizeStructureSlotPlan(
   plan: StructureSlotPlan,
   visual: RoomVisual,
 ): void {
-  plan.roads.forEach((road, index) => {
+  plan.roads.forEach((road) => {
     visual.structure(road.x, road.y, STRUCTURE_ROAD);
   });
 }

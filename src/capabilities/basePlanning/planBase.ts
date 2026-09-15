@@ -1,6 +1,10 @@
 import { distanceTransform } from "../../world/map/distanceTransform";
 import { getRange, RoomCoordinate } from "../../world/map/roomCoordinate";
-import { fromRoomIndex, ROOM_AREA } from "../../world/map/roomGrid";
+import {
+  fromRoomIndex,
+  ROOM_AREA,
+  toRoomIndex,
+} from "../../world/map/roomGrid";
 import {
   findTerrainRegions,
   TerrainRegion,
@@ -27,6 +31,7 @@ import { createBaseRegionSelection } from "./selectBaseRegions";
 
 export interface PlanBaseOptions {
   readonly visualizeIntermediate?: boolean;
+  readonly existingSpawn?: RoomCoordinate;
 }
 
 /**
@@ -50,6 +55,17 @@ export function planBase(
     regionByTile,
     regions,
   );
+  const existingSpawn = options.existingSpawn;
+
+  if (existingSpawn) {
+    const spawnRegionId =
+      regionByTile[toRoomIndex(existingSpawn.x, existingSpawn.y)];
+
+    if (spawnRegionId >= 0) {
+      regionSelection.selectedRegionIds.add(spawnRegionId);
+    }
+  }
+
   const finalVisual = new RoomVisual(roomName);
   const visualizeIntermediate = options.visualizeIntermediate ?? false;
   const planningVisual = visualizeIntermediate
@@ -75,6 +91,7 @@ export function planBase(
       planningVisual,
       finalVisual,
       visualizeIntermediate,
+      existingSpawn,
     );
 
     if (basePlan !== undefined) {
@@ -101,6 +118,7 @@ function tryPlanBaseWithRegions(
   visual: RoomVisual,
   finalVisual: RoomVisual,
   visualizeIntermediate: boolean,
+  existingSpawn?: RoomCoordinate,
 ): BasePlan | undefined {
   visualizeSelectedRegions(selectedRegionIds, regions, visual);
 
@@ -110,6 +128,7 @@ function tryPlanBaseWithRegions(
     selectedRegionIds,
     regionByTile,
     visual,
+    existingSpawn,
   );
 
   if (!outerRampartPlan) {
@@ -124,6 +143,7 @@ function tryPlanBaseWithRegions(
     outerRampartPlan.insideMask,
     defensiveTiles.dangerousMask,
     defensiveTiles.repairMask,
+    existingSpawn,
   );
 
   const planningCenter = getMaskCenter(outerRampartPlan.insideMask);
@@ -203,6 +223,7 @@ function tryPlanBaseWithRegions(
     bestControllerArea,
     bestCorePlan,
     visual,
+    existingSpawn,
   );
 
   if (resourceTree === undefined) {
@@ -219,6 +240,7 @@ function tryPlanBaseWithRegions(
     bestCorePlan,
     resourceTree,
     visual,
+    existingSpawn,
   );
 
   if (!rampartRoadPlan) {
@@ -251,6 +273,7 @@ function tryPlanBaseWithRegions(
     rampartRoadPlan,
     labPlan,
     visual,
+    existingSpawn,
   );
 
   if (!slotPlan || !slotPlan.complete) {
@@ -267,6 +290,7 @@ function tryPlanBaseWithRegions(
     rampartRoadPlan,
     labPlan,
     slotPlan,
+    existingSpawn,
   );
 
   // structure(ROAD) stores road coordinates on RoomVisual separately from the
@@ -297,6 +321,7 @@ function tryPlanBaseWithRegions(
     bestCorePlan,
     slotPlan,
     defenseStructures,
+    existingSpawn,
   );
 
   if (!towers) {
@@ -310,6 +335,7 @@ function tryPlanBaseWithRegions(
     slotPlan,
     towers,
     finalVisual,
+    existingSpawn,
   );
 
   if (!structures) {
@@ -334,6 +360,7 @@ function buildSafePlanningMask(
   insideMask: Uint8Array,
   dangerousMask: Uint8Array,
   repairMask: Uint8Array,
+  existingSpawn?: RoomCoordinate,
 ): Uint8Array {
   const result = insideMask.slice();
 
@@ -341,6 +368,10 @@ function buildSafePlanningMask(
     if (dangerousMask[index] || repairMask[index]) {
       result[index] = 0;
     }
+  }
+
+  if (existingSpawn) {
+    result[toRoomIndex(existingSpawn.x, existingSpawn.y)] = 0;
   }
 
   return result;

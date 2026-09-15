@@ -13,10 +13,12 @@ import { classifyDefensiveTiles } from "./classifyDefensiveTiles";
 import type { ControllerAreaCandidate } from "./findControllerAreaCandidates";
 import type { CorePlan } from "./findCorePlans";
 import type { OuterRampartPlan } from "./planOuterRamparts";
+import { getSpawnPlanningInfo } from "./spawnPlanning";
 import type { StructureSlotPlan } from "./planStructureSlots";
 
 const NUM_TOWERS = 6;
-const REQUIRED_NON_TOWER_SLOTS = 64;
+const NUM_EXTENSIONS = 60;
+const NUM_OTHER_SLOT_STRUCTURES = 2;
 const FULL_PAIR_SWEEPS = 2;
 const MAX_SINGLE_REFINEMENT_SWEEPS = 20;
 
@@ -53,8 +55,18 @@ export function planTowers(
   corePlan: CorePlan,
   slotPlan: StructureSlotPlan,
   structures: readonly PlannedStructure[],
+  existingSpawn?: RoomCoordinate,
 ): RoomCoordinate[] | undefined {
-  if (slotPlan.slots.length < REQUIRED_NON_TOWER_SLOTS) {
+  const spawnPlanning = getSpawnPlanningInfo(
+    existingSpawn,
+    corePlan.firstSpawn,
+  );
+  const requiredNonTowerSlots =
+    spawnPlanning.requiredSlotSpawns +
+    NUM_EXTENSIONS +
+    NUM_OTHER_SLOT_STRUCTURES;
+
+  if (slotPlan.slots.length < requiredNonTowerSlots) {
     return;
   }
 
@@ -68,7 +80,7 @@ export function planTowers(
   const roadMask = buildRoadMask(structures);
   const spawnSlotCount = countSpawnSlots(slotPlan, roadMask);
 
-  if (spawnSlotCount < 2) {
+  if (spawnSlotCount < spawnPlanning.requiredSlotSpawns) {
     return;
   }
 
@@ -87,13 +99,13 @@ export function planTowers(
   );
   const maxSlotTowers = Math.max(
     0,
-    slotPlan.slots.length - REQUIRED_NON_TOWER_SLOTS,
+    slotPlan.slots.length - requiredNonTowerSlots,
   );
   const selected = selectTowerCandidates(
     candidates,
     topology.ramparts,
     maxSlotTowers,
-    spawnSlotCount - 2,
+    spawnSlotCount - spawnPlanning.requiredSlotSpawns,
   );
 
   if (!selected || selected.length !== NUM_TOWERS) {

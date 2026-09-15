@@ -40,6 +40,7 @@ export function planResourceTree(
   controllerArea: ControllerAreaCandidate,
   corePlan: CorePlan,
   visual: RoomVisual,
+  existingSpawn?: RoomCoordinate,
 ): ResourceTreePlan | undefined {
   const endpointPlanningResult = planResourceEndpoints(
     terrain,
@@ -47,6 +48,7 @@ export function planResourceTree(
     minerals,
     controllerArea,
     corePlan,
+    existingSpawn,
   );
 
   if (!endpointPlanningResult) {

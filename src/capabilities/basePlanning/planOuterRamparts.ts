@@ -37,6 +37,7 @@ export function planOuterRamparts(
   selectedRegionIds: ReadonlySet<number>,
   regionByTile: Int16Array,
   visual: RoomVisual,
+  existingSpawn?: RoomCoordinate,
 ): OuterRampartPlan | undefined {
   const selectedMask = buildSelectedRegionMask(
     terrain,
@@ -45,6 +46,15 @@ export function planOuterRamparts(
   );
   const sourceMask = shrinkSelectedRegion(terrain, selectedMask);
   const sinkMask = buildExitSinkMask(terrain);
+
+  if (existingSpawn) {
+    const spawnIndex = toRoomIndex(existingSpawn.x, existingSpawn.y);
+
+    if (!sinkMask[spawnIndex]) {
+      sourceMask[spawnIndex] = 1;
+    }
+  }
+
   const tileCosts = buildControllerDistanceCosts(terrain, controller.pos);
 
   const result = findMinimumTileCut(terrain, sourceMask, sinkMask, tileCosts);

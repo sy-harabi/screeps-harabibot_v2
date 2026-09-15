@@ -44,6 +44,8 @@ export const colonyOperationHandler: OperationHandler<ColonyOperationRecord> = {
 
     const minerals = room.find(FIND_MINERALS);
 
+    const existingSpawn = room.find(FIND_MY_SPAWNS)[0];
+
     let cpuBefore = Game.cpu.getUsed();
 
     const basePlan = planBase(
@@ -52,6 +54,7 @@ export const colonyOperationHandler: OperationHandler<ColonyOperationRecord> = {
       room.controller,
       sources,
       minerals,
+      { existingSpawn: existingSpawn?.pos },
     );
 
     if (basePlan) {

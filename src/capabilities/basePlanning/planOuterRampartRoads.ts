@@ -36,6 +36,7 @@ export function planOuterRampartRoads(
   corePlan: CorePlan,
   resourceTree: ResourceTreePlan,
   visual: RoomVisual,
+  existingSpawn?: RoomCoordinate,
 ): OuterRampartRoadPlan | undefined {
   const roadNetworkMask = new Uint8Array(ROOM_AREA);
 
@@ -50,6 +51,7 @@ export function planOuterRampartRoads(
     controllerArea,
     corePlan,
     resourceTree,
+    existingSpawn,
   );
   const upgradeChainCostMap = buildUpgradeChainCostMap(controllerArea);
   const components = findRampartComponents(outerRampartPlan.rampartMask);
@@ -156,6 +158,7 @@ function buildRampartRoadBlockedMask(
   controllerArea: ControllerAreaCandidate,
   corePlan: CorePlan,
   resourceTree: ResourceTreePlan,
+  existingSpawn?: RoomCoordinate,
 ): Uint8Array {
   const blockedMask = new Uint8Array(ROOM_AREA);
   const block = ({ x, y }: RoomCoordinate): void => {
@@ -171,6 +174,10 @@ function buildRampartRoadBlockedMask(
   block(corePlan.factory);
   block(corePlan.powerSpawn);
   corePlan.parking.forEach(block);
+
+  if (existingSpawn) {
+    block(existingSpawn);
+  }
 
   for (const resource of [...sources, ...minerals]) {
     block(resource.pos);
