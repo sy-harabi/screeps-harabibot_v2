@@ -24,9 +24,9 @@ export function requestSpawn(
   role: string,
   priorityType: SpawnPriorityType,
   options: {
-    order: 0;
+    order?: number;
     memory?: CreepMemory;
-  },
+  } = {},
 ): void {
   const state = getSpawnRoomState(roomName);
 
@@ -53,8 +53,8 @@ export function requestRenew(
   creepName: string,
   priorityType: SpawnPriorityType,
   options: {
-    order: 0;
-  },
+    order?: number;
+  } = {},
 ): void {
   const state = getSpawnRoomState(roomName);
 
