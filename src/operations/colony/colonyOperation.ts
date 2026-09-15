@@ -1,8 +1,4 @@
 import { BasePlan } from "../../capabilities/basePlanning/basePlan";
-import {
-  packBasePlan,
-  unpackBasePlan,
-} from "../../capabilities/basePlanning/basePlanCodec";
 import { basePlanStore } from "../../capabilities/basePlanning/basePlanStore";
 import { planBase } from "../../capabilities/basePlanning/planBase";
 import type { EmpireOperationRecord } from "../empire/empireOperation";
@@ -48,8 +44,6 @@ export const colonyOperationHandler: OperationHandler<ColonyOperationRecord> = {
 
     const existingSpawn = room.find(FIND_MY_SPAWNS)[0];
 
-    let cpuBefore = Game.cpu.getUsed();
-
     const basePlanResult = basePlanStore.get(roomName);
 
     let basePlan: BasePlan | undefined;
@@ -74,10 +68,6 @@ export const colonyOperationHandler: OperationHandler<ColonyOperationRecord> = {
         return;
       }
 
-      if (plan !== undefined) {
-        basePlanStore.set(roomName, plan);
-      }
-
       basePlan = plan;
     }
 
@@ -88,8 +78,6 @@ export const colonyOperationHandler: OperationHandler<ColonyOperationRecord> = {
     if (Memory.options?.visuals?.basePlan) {
       visualizeFinalPlan(basePlan, new RoomVisual(roomName));
     }
-
-    console.log(Game.cpu.getUsed() - cpuBefore);
   },
 };
 
