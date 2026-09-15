@@ -1,8 +1,9 @@
 export type SegmentReadResult<T> =
-  | { status: "loading" }
-  | { status: "ready"; value: T };
+  { status: "loading" } | { status: "ready"; value: T };
 
 const MAX_ACTIVE_SEGMENTS = 10;
+
+const MAX_SEGMENT_LENGTH = 100 * 1024;
 
 const loadedSegments = new Map<number, unknown>();
 const requestedSegments = new Set<number>();
@@ -64,7 +65,14 @@ function endTick(): void {
       throw new Error(`Dirty segment ${id} is not loaded`);
     }
 
-    RawMemory.segments[id] = JSON.stringify(loadedSegments.get(id));
+    const serialized = JSON.stringify(loadedSegments.get(id));
+
+    if (serialized.length > MAX_SEGMENT_LENGTH) {
+      throw new Error(`Segment ${id} exceeds max size: ${serialized.length}`);
+    }
+
+    RawMemory.segments[id] = serialized;
+
     dirtySegments.delete(id);
 
     if (!alreadyQueued) {
