@@ -21,17 +21,5 @@ export function loop(): void {
 
   executeOperationTree(rootOperation, context);
 
-  const result = segmentManager.getSegment<Record<string, unknown>>(0);
-
-  if (result.status === "ready") {
-    if (!result.value.hello) {
-      segmentManager.setSegment(0, {
-        hello: Game.time,
-      });
-    }
-  }
-
-  console.log(result.status);
-
   segmentManager.endTick();
 }
