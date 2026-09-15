@@ -2,7 +2,7 @@
 
 Browser experiment for comparing the tower-placement strategies explored during the v2 base-planner research.
 
-> Production note (2026-09-14): the production planner no longer chooses between centered and distributed branches. It now uses global max-min greedy seeding, single-tower replacement to convergence, and two full pair sweeps. See [ADR 0005](../../docs/decisions/0005-tower-placement-local-search.md) and the [tower placement experiment log](../../docs/rewrite-log/2026-09-14-tower-placement-experiments.md). The centered/distributed views below are retained as historical research tools.
+> Production note (2026-09-15): the production planner no longer chooses between centered and distributed branches. It now uses global max-min greedy seeding followed by two full pair sweeps. See [ADR 0005](../../docs/decisions/0005-tower-placement-local-search.md) and the [tower placement experiment log](../../docs/rewrite-log/2026-09-14-tower-placement-experiments.md). The centered/distributed views below are retained as historical research tools.
 
 It shows:
 
