@@ -4,6 +4,8 @@ import { planBase } from "../../capabilities/basePlanning/planBase";
 import type { EmpireOperationRecord } from "../empire/empireOperation";
 import { OperationBase } from "../operation";
 import type { OperationHandler } from "../operationHandler";
+import { ensureOperation } from "../operationStore";
+import { createOwnedSourceOperation } from "../ownedSource/ownedSourceOperation";
 
 export interface ColonyOperationRecord extends OperationBase {
   readonly id: string;
@@ -79,6 +81,12 @@ export const colonyOperationHandler: OperationHandler<ColonyOperationRecord> = {
 
     if (Memory.options?.visuals?.basePlan) {
       visualizeFinalPlan(basePlan, new RoomVisual(roomName));
+    }
+
+    for (const source of sources) {
+      ensureOperation(
+        createOwnedSourceOperation(operation.id, roomName, source.id),
+      );
     }
   },
 };
