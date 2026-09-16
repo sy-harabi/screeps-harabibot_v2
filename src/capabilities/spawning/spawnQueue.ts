@@ -33,7 +33,7 @@ export function requestSpawn(
   body: SpawnBody,
   role: string,
   options: {
-    memory?: CreepMemory;
+    memory?: Partial<CreepMemory>;
   } = {},
 ): void {
   const roleOrder = getRoleOrder(context, role);
