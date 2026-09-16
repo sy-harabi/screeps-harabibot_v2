@@ -1,0 +1,11 @@
+{
+  "private": {
+    "email": "YOUR_USERNAME",
+    "password": "YOUR_PASSWORD",
+    "protocol": "http",
+    "hostname": "127.0.0.1",
+    "port": 21025,
+    "path": "/",
+    "branch": "default"
+  }
+}
