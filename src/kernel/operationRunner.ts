@@ -1,19 +1,24 @@
 import { colonyOperationHandler } from "../operations/colony/colonyOperation";
 import { empireOperationHandler } from "../operations/empire/empireOperation";
 import type { OperationRecord } from "../operations/operation";
-import { operationHandlers } from "../operations/operationRegistry";
 import { getChildOperations } from "../operations/operationStore";
 import { ownedSourceOperationHandler } from "../operations/ownedSource/ownedSourceOperation";
 import type { TickContext } from "./tickContext";
 
 function planOperation(operation: OperationRecord, context: TickContext): void {
-  for (const type in operationHandlers) {
-    const handler = operationHandlers[type];
-    if (!handler) {
-      continue;
-    }
-    handler.plan?.(operation, context);
+  switch (operation.type) {
+    case "empire":
+      empireOperationHandler.plan?.(operation, context);
+      return;
+    case "colony":
+      colonyOperationHandler.plan?.(operation, context);
+      return;
+    case "ownedSource":
+      ownedSourceOperationHandler.plan?.(operation, context);
+      return;
   }
+
+  assertUnreachable(operation);
 }
 
 function executeOperation(
