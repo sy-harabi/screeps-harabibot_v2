@@ -6,6 +6,9 @@ declare global {
     operations?: OperationsMemory;
     options?: BotOptionsOverride;
   }
-}
 
-export {};
+  interface CreepMemory {
+    operationId: string;
+    role: string;
+  }
+}
