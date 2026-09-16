@@ -4,7 +4,8 @@ export interface TickContext {
   readonly creepsByOperation: ReadonlyMap<string, CreepsByRole>;
 }
 
-type CreepsByRole = Map<string, Creep[]>;
+type CreepsByRole = ReadonlyMap<string, readonly Creep[]>;
+type MutableCreepsByRole = Map<string, Creep[]>;
 
 let currentContext: TickContext | undefined;
 
@@ -25,10 +26,15 @@ export function createTickContext(): TickContext {
     }
   }
 
-  const creepsByOperation = new Map<string, CreepsByRole>();
+  const creepsByOperation = new Map<string, MutableCreepsByRole>();
 
   for (const creep of Object.values(Game.creeps)) {
     const { operationId, role } = creep.memory;
+
+    if (!operationId || !role) {
+      continue;
+    }
+
     let creepsByRole = creepsByOperation.get(operationId);
 
     if (creepsByRole === undefined) {
