@@ -41,11 +41,7 @@ const DIRECTIONS: readonly (Coordinate | undefined)[] = [
   { x: -1, y: -1 },
 ]
 
-export function registerMove(
-  creep: Creep | PowerCreep,
-  target: RoomPosition | DirectionConstant,
-  score = 1,
-): void {
+export function registerMove(creep: Creep | PowerCreep, target: RoomPosition | DirectionConstant, score = 1): void {
   const trafficCreep = creep as TrafficCreep
   const targetCoordinate = typeof target === "number" ? getDirectionTarget(creep.pos, target) : target
 
