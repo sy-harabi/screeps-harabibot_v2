@@ -167,9 +167,7 @@ function createSignature(structures: AnyStructure[]): RoomStructureSignature {
   return {
     count: structures.length,
     lastId:
-      structures.length > 0
-        ? structures[structures.length - 1].id
-        : undefined,
+      structures.length > 0 ? structures[structures.length - 1].id : undefined,
   };
 }
 

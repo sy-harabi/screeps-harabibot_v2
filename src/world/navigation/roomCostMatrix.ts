@@ -135,9 +135,7 @@ function createSignature(
   return {
     structureCount: structures.length,
     lastStructureId:
-      structures.length > 0
-        ? structures[structures.length - 1].id
-        : undefined,
+      structures.length > 0 ? structures[structures.length - 1].id : undefined,
     constructionSiteCount: constructionSites.length,
     lastConstructionSiteId:
       constructionSites.length > 0
