@@ -1,4 +1,5 @@
 import { runtimeRegistry } from "../../runtime/runtimeRegistry";
+import { getRoomStructures } from "../roomStructures";
 
 interface RoomCostMatrixSignature {
   structureCount: number;
@@ -16,9 +17,7 @@ interface RoomCostMatrixCacheEntry {
 const CACHE_MAX_UNUSED_TICKS = 1000;
 const CACHE_CLEANUP_INTERVAL = 100;
 
-const obstacleStructureTypes = new Set<StructureConstant>(
-  OBSTACLE_OBJECT_TYPES,
-);
+const obstacleObjectTypes = new Set<string>(OBSTACLE_OBJECT_TYPES);
 
 const cache = runtimeRegistry.createCache<string, RoomCostMatrixCacheEntry>(
   "roomCostMatrix",
@@ -51,7 +50,7 @@ export function getRoomCostMatrix(roomName: string): CostMatrix | undefined {
     return undefined;
   }
 
-  const structures = room.find(FIND_STRUCTURES);
+  const structures = getRoomStructures(room);
   const constructionSites = room.find(FIND_MY_CONSTRUCTION_SITES);
 
   const signature = createSignature(structures, constructionSites);
@@ -76,7 +75,7 @@ export function getRoomCostMatrix(roomName: string): CostMatrix | undefined {
 }
 
 function buildRoomCostMatrix(
-  structures: Structure[],
+  structures: AnyStructure[],
   constructionSites: ConstructionSite[],
 ): CostMatrix | undefined {
   if (structures.length === 0 && constructionSites.length === 0) {
@@ -92,7 +91,7 @@ function buildRoomCostMatrix(
   }
 
   for (const site of constructionSites) {
-    if (obstacleStructureTypes.has(site.structureType)) {
+    if (obstacleObjectTypes.has(site.structureType)) {
       matrix.set(site.pos.x, site.pos.y, 255);
     }
   }
@@ -109,12 +108,12 @@ function buildRoomCostMatrix(
   return matrix;
 }
 
-function isBlockingStructure(structure: Structure): boolean {
+function isBlockingStructure(structure: AnyStructure): boolean {
   if (structure.structureType === STRUCTURE_RAMPART) {
     return !structure.my && !structure.isPublic;
   }
 
-  return obstacleStructureTypes.has(structure.structureType);
+  return obstacleObjectTypes.has(structure.structureType);
 }
 
 function signaturesEqual(
@@ -130,7 +129,7 @@ function signaturesEqual(
 }
 
 function createSignature(
-  structures: Structure[],
+  structures: AnyStructure[],
   constructionSites: ConstructionSite[],
 ): RoomCostMatrixSignature {
   return {
