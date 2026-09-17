@@ -1,31 +1,30 @@
-import { getTickContext } from "../../kernel/tickContext";
-import type { SpawnPriorityType } from "./spawnPriority";
-import type { RenewRequest, SpawnRequest } from "./spawnRequest";
+import { getTickContext } from "../../kernel/tickContext"
+import type { SpawnPriorityType } from "./spawnPriority"
+import type { RenewRequest, SpawnRequest } from "./spawnRequest"
 
-export type SpawnBody =
-  readonly BodyPartConstant[] | (() => readonly BodyPartConstant[] | undefined);
+export type SpawnBody = readonly BodyPartConstant[] | (() => readonly BodyPartConstant[] | undefined)
 
 export interface SpawnRequestContext {
-  readonly requesterId: string;
-  readonly roomName: string;
-  readonly priorityType: SpawnPriorityType;
-  readonly operationOrder: number;
-  readonly rolesByPriority: readonly string[];
+  readonly requesterId: string
+  readonly roomName: string
+  readonly priorityType: SpawnPriorityType
+  readonly operationOrder: number
+  readonly rolesByPriority: readonly string[]
 }
 
 export interface SpawnRoomState {
-  readonly freeSpawns: readonly StructureSpawn[];
-  readonly spawnRequests: SpawnRequest[];
-  readonly renewRequests: RenewRequest[];
+  readonly freeSpawns: readonly StructureSpawn[]
+  readonly spawnRequests: SpawnRequest[]
+  readonly renewRequests: RenewRequest[]
 }
 
-const roomStates = new Map<string, SpawnRoomState>();
+const roomStates = new Map<string, SpawnRoomState>()
 
-let stateTick: number | undefined;
+let stateTick: number | undefined
 
 export function getSpawnRoomStates(): ReadonlyMap<string, SpawnRoomState> {
-  prepareState();
-  return roomStates;
+  prepareState()
+  return roomStates
 }
 
 export function requestSpawn(
@@ -33,20 +32,20 @@ export function requestSpawn(
   body: SpawnBody,
   role: string,
   options: {
-    memory?: Partial<CreepMemory>;
+    memory?: Partial<CreepMemory>
   } = {},
 ): void {
-  const roleOrder = getRoleOrder(context, role);
-  const state = getSpawnRoomState(context.roomName);
+  const roleOrder = getRoleOrder(context, role)
+  const state = getSpawnRoomState(context.roomName)
 
   if (state === undefined || state.freeSpawns.length === 0) {
-    return;
+    return
   }
 
-  const resolvedBody = typeof body === "function" ? body() : body;
+  const resolvedBody = typeof body === "function" ? body() : body
 
   if (resolvedBody === undefined || resolvedBody.length === 0) {
-    return;
+    return
   }
 
   state.spawnRequests.push({
@@ -60,19 +59,15 @@ export function requestSpawn(
       roleOrder,
     },
     memory: { ...options.memory, operationId: context.requesterId, role },
-  });
+  })
 }
 
-export function requestRenew(
-  context: SpawnRequestContext,
-  creepName: string,
-  role: string,
-): void {
-  const roleOrder = getRoleOrder(context, role);
-  const state = getSpawnRoomState(context.roomName);
+export function requestRenew(context: SpawnRequestContext, creepName: string, role: string): void {
+  const roleOrder = getRoleOrder(context, role)
+  const state = getSpawnRoomState(context.roomName)
 
   if (state === undefined || state.freeSpawns.length === 0) {
-    return;
+    return
   }
 
   state.renewRequests.push({
@@ -84,56 +79,52 @@ export function requestRenew(
       operationOrder: context.operationOrder,
       roleOrder,
     },
-  });
+  })
 }
 
 function getRoleOrder(context: SpawnRequestContext, role: string): number {
-  const roleOrder = context.rolesByPriority.indexOf(role);
+  const roleOrder = context.rolesByPriority.indexOf(role)
 
   if (roleOrder === -1) {
-    throw new Error(
-      `Role ${role} is not registered for spawn requester ${context.requesterId}`,
-    );
+    throw new Error(`Role ${role} is not registered for spawn requester ${context.requesterId}`)
   }
 
-  return roleOrder;
+  return roleOrder
 }
 
 function getSpawnRoomState(roomName: string): SpawnRoomState | undefined {
-  prepareState();
+  prepareState()
 
-  const existing = roomStates.get(roomName);
+  const existing = roomStates.get(roomName)
 
   if (existing !== undefined) {
-    return existing;
+    return existing
   }
 
-  const context = getTickContext();
-  const room = context.ownedRooms.get(roomName);
+  const context = getTickContext()
+  const room = context.ownedRooms.get(roomName)
 
   if (room === undefined) {
-    return undefined;
+    return undefined
   }
 
   const state: SpawnRoomState = {
-    freeSpawns: room
-      .find(FIND_MY_SPAWNS)
-      .filter((spawn) => spawn.isActive() && !spawn.spawning),
+    freeSpawns: room.find(FIND_MY_SPAWNS).filter((spawn) => spawn.isActive() && !spawn.spawning),
 
     spawnRequests: [],
     renewRequests: [],
-  };
+  }
 
-  roomStates.set(roomName, state);
+  roomStates.set(roomName, state)
 
-  return state;
+  return state
 }
 
 function prepareState(): void {
   if (stateTick === Game.time) {
-    return;
+    return
   }
 
-  roomStates.clear();
-  stateTick = Game.time;
+  roomStates.clear()
+  stateTick = Game.time
 }

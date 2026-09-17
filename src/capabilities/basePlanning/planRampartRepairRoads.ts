@@ -1,5 +1,5 @@
-import { dijkstraMap } from "../../world/map/dijkstraMap";
-import type { RoomCoordinate } from "../../world/map/roomCoordinate";
+import { dijkstraMap } from "../../world/map/dijkstraMap"
+import type { RoomCoordinate } from "../../world/map/roomCoordinate"
 import {
   forEachCoordinateInRange,
   fromRoomIndex,
@@ -7,28 +7,28 @@ import {
   NEIGHBOR_OFFSETS,
   ROOM_AREA,
   toRoomIndex,
-} from "../../world/map/roomGrid";
-import type { PlannedStructure } from "./basePlan";
-import { classifyDefensiveTiles } from "./classifyDefensiveTiles";
-import type { OuterRampartPlan } from "./planOuterRamparts";
+} from "../../world/map/roomGrid"
+import type { PlannedStructure } from "./basePlan"
+import { classifyDefensiveTiles } from "./classifyDefensiveTiles"
+import type { OuterRampartPlan } from "./planOuterRamparts"
 
-const REPAIR_RANGE = 3;
-const EXISTING_ROAD_COST = 3;
-const PLAIN_COST = 5;
-const SWAMP_COST = 6;
-const DANGER_COST = 15;
-const REQUIRED_REPAIR_POSITIONS = 1;
-const DESIRED_REPAIR_POSITIONS = 2;
+const REPAIR_RANGE = 3
+const EXISTING_ROAD_COST = 3
+const PLAIN_COST = 5
+const SWAMP_COST = 6
+const DANGER_COST = 15
+const REQUIRED_REPAIR_POSITIONS = 1
+const DESIRED_REPAIR_POSITIONS = 2
 
 export interface RampartRepairRoadPlan {
-  readonly roads: RoomCoordinate[];
-  readonly unresolvedRamparts: RoomCoordinate[];
+  readonly roads: RoomCoordinate[]
+  readonly unresolvedRamparts: RoomCoordinate[]
 }
 
 interface RepairRoadCandidate {
-  readonly coordinate: RoomCoordinate;
-  readonly distance: number;
-  readonly coverage: number;
+  readonly coordinate: RoomCoordinate
+  readonly distance: number
+  readonly coverage: number
 }
 
 /**
@@ -50,20 +50,15 @@ export function planRampartRepairRoads(
   rampartPlan: OuterRampartPlan,
 ): RampartRepairRoadPlan | undefined {
   if (coreRoads.length === 0) {
-    return;
+    return
   }
 
-  const blockedMask = buildStandingBlockedMask(
-    controller,
-    sources,
-    minerals,
-    structures,
-  );
-  const defensiveTiles = classifyDefensiveTiles(rampartPlan);
-  const roadMask = buildCoordinateMask(existingRoads);
-  const selectedRepairMask = new Uint8Array(ROOM_AREA);
-  const repairCounts = new Uint8Array(ROOM_AREA);
-  const additions: RoomCoordinate[] = [];
+  const blockedMask = buildStandingBlockedMask(controller, sources, minerals, structures)
+  const defensiveTiles = classifyDefensiveTiles(rampartPlan)
+  const roadMask = buildCoordinateMask(existingRoads)
+  const selectedRepairMask = new Uint8Array(ROOM_AREA)
+  const repairCounts = new Uint8Array(ROOM_AREA)
+  const additions: RoomCoordinate[] = []
   const initialDistances = buildRepairRoadDistanceMap(
     terrain,
     coreRoads,
@@ -71,7 +66,7 @@ export function planRampartRepairRoads(
     defensiveTiles.dangerousMask,
     blockedMask,
     roadMask,
-  );
+  )
 
   seedExistingRepairRoads(
     rampartPlan,
@@ -81,7 +76,7 @@ export function planRampartRepairRoads(
     initialDistances,
     selectedRepairMask,
     repairCounts,
-  );
+  )
 
   extendRepairCoverage(
     terrain,
@@ -95,14 +90,14 @@ export function planRampartRepairRoads(
     repairCounts,
     additions,
     REQUIRED_REPAIR_POSITIONS,
-  );
+  )
 
   const unresolvedRamparts = rampartPlan.ramparts.filter(({ x, y }) => {
-    return repairCounts[toRoomIndex(x, y)] < REQUIRED_REPAIR_POSITIONS;
-  });
+    return repairCounts[toRoomIndex(x, y)] < REQUIRED_REPAIR_POSITIONS
+  })
 
   if (unresolvedRamparts.length > 0) {
-    return { roads: additions, unresolvedRamparts };
+    return { roads: additions, unresolvedRamparts }
   }
 
   extendRepairCoverage(
@@ -117,9 +112,9 @@ export function planRampartRepairRoads(
     repairCounts,
     additions,
     DESIRED_REPAIR_POSITIONS,
-  );
+  )
 
-  return { roads: additions, unresolvedRamparts: [] };
+  return { roads: additions, unresolvedRamparts: [] }
 }
 
 function seedExistingRepairRoads(
@@ -139,17 +134,10 @@ function seedExistingRepairRoads(
       rampartPlan.rampartMask[index] ||
       distances[index] < 0
     ) {
-      continue;
+      continue
     }
 
-    registerRepairRoad(
-      fromRoomIndex(index),
-      rampartPlan,
-      repairMask,
-      blockedMask,
-      selectedRepairMask,
-      repairCounts,
-    );
+    registerRepairRoad(fromRoomIndex(index), rampartPlan, repairMask, blockedMask, selectedRepairMask, repairCounts)
   }
 }
 
@@ -167,14 +155,7 @@ function extendRepairCoverage(
   targetCoverage: number,
 ): void {
   while (hasRampartBelowCoverage(rampartPlan, repairCounts, targetCoverage)) {
-    const distances = buildRepairRoadDistanceMap(
-      terrain,
-      coreRoads,
-      rampartPlan,
-      dangerousMask,
-      blockedMask,
-      roadMask,
-    );
+    const distances = buildRepairRoadDistanceMap(terrain, coreRoads, rampartPlan, dangerousMask, blockedMask, roadMask)
     const target = findBestRepairRoadTarget(
       rampartPlan,
       repairMask,
@@ -183,45 +164,25 @@ function extendRepairCoverage(
       repairCounts,
       targetCoverage,
       distances,
-    );
+    )
 
     if (!target) {
-      return;
+      return
     }
 
-    const path = traceRepairRoadPath(
-      terrain,
-      target.coordinate,
-      distances,
-      dangerousMask,
-      roadMask,
-    );
+    const path = traceRepairRoadPath(terrain, target.coordinate, distances, dangerousMask, roadMask)
 
     if (!path) {
-      return;
+      return
     }
 
-    addRoadPath(path, roadMask, additions);
+    addRoadPath(path, roadMask, additions)
 
     for (const coordinate of path) {
-      registerRepairRoad(
-        coordinate,
-        rampartPlan,
-        repairMask,
-        blockedMask,
-        selectedRepairMask,
-        repairCounts,
-      );
+      registerRepairRoad(coordinate, rampartPlan, repairMask, blockedMask, selectedRepairMask, repairCounts)
     }
 
-    registerRepairRoad(
-      target.coordinate,
-      rampartPlan,
-      repairMask,
-      blockedMask,
-      selectedRepairMask,
-      repairCounts,
-    );
+    registerRepairRoad(target.coordinate, rampartPlan, repairMask, blockedMask, selectedRepairMask, repairCounts)
   }
 }
 
@@ -233,19 +194,14 @@ function registerRepairRoad(
   selectedRepairMask: Uint8Array,
   repairCounts: Uint8Array,
 ): void {
-  const index = toRoomIndex(coordinate.x, coordinate.y);
+  const index = toRoomIndex(coordinate.x, coordinate.y)
 
-  if (
-    !repairMask[index] ||
-    blockedMask[index] ||
-    rampartPlan.rampartMask[index] ||
-    selectedRepairMask[index]
-  ) {
-    return;
+  if (!repairMask[index] || blockedMask[index] || rampartPlan.rampartMask[index] || selectedRepairMask[index]) {
+    return
   }
 
-  selectedRepairMask[index] = 1;
-  addRepairCoverage(coordinate, rampartPlan, repairCounts);
+  selectedRepairMask[index] = 1
+  addRepairCoverage(coordinate, rampartPlan, repairCounts)
 }
 
 function hasRampartBelowCoverage(
@@ -254,8 +210,8 @@ function hasRampartBelowCoverage(
   targetCoverage: number,
 ): boolean {
   return rampartPlan.ramparts.some(({ x, y }) => {
-    return repairCounts[toRoomIndex(x, y)] < targetCoverage;
-  });
+    return repairCounts[toRoomIndex(x, y)] < targetCoverage
+  })
 }
 
 function buildRepairRoadDistanceMap(
@@ -269,22 +225,12 @@ function buildRepairRoadDistanceMap(
   return dijkstraMap(
     terrain,
     coreRoads,
-    (x, y, terrainType) =>
-      getRepairRoadCost(
-        toRoomIndex(x, y),
-        terrainType,
-        dangerousMask,
-        roadMask,
-      ),
+    (x, y, terrainType) => getRepairRoadCost(toRoomIndex(x, y), terrainType, dangerousMask, roadMask),
     (x, y) => {
-      const index = toRoomIndex(x, y);
-      return !!(
-        rampartPlan.insideMask[index] &&
-        !rampartPlan.rampartMask[index] &&
-        !blockedMask[index]
-      );
+      const index = toRoomIndex(x, y)
+      return !!(rampartPlan.insideMask[index] && !rampartPlan.rampartMask[index] && !blockedMask[index])
     },
-  );
+  )
 }
 
 function findBestRepairRoadTarget(
@@ -296,67 +242,51 @@ function findBestRepairRoadTarget(
   targetCoverage: number,
   distances: Int32Array,
 ): RepairRoadCandidate | undefined {
-  let best: RepairRoadCandidate | undefined;
+  let best: RepairRoadCandidate | undefined
 
   for (let index = 0; index < ROOM_AREA; index++) {
-    if (
-      !repairMask[index] ||
-      blockedMask[index] ||
-      selectedRepairMask[index] ||
-      distances[index] < 0
-    ) {
-      continue;
+    if (!repairMask[index] || blockedMask[index] || selectedRepairMask[index] || distances[index] < 0) {
+      continue
     }
 
-    const coordinate = fromRoomIndex(index);
-    const coverage = countNeededRampartsInRange(
-      coordinate,
-      rampartPlan,
-      repairCounts,
-      targetCoverage,
-    );
+    const coordinate = fromRoomIndex(index)
+    const coverage = countNeededRampartsInRange(coordinate, rampartPlan, repairCounts, targetCoverage)
 
     if (coverage === 0) {
-      continue;
+      continue
     }
 
     const candidate: RepairRoadCandidate = {
       coordinate,
       distance: distances[index],
       coverage,
-    };
+    }
 
     if (!best || isBetterRepairRoadCandidate(candidate, best)) {
-      best = candidate;
+      best = candidate
     }
   }
 
-  return best;
+  return best
 }
 
-function isBetterRepairRoadCandidate(
-  candidate: RepairRoadCandidate,
-  best: RepairRoadCandidate,
-): boolean {
-  const candidateWeightedDistance = candidate.distance * best.coverage;
-  const bestWeightedDistance = best.distance * candidate.coverage;
+function isBetterRepairRoadCandidate(candidate: RepairRoadCandidate, best: RepairRoadCandidate): boolean {
+  const candidateWeightedDistance = candidate.distance * best.coverage
+  const bestWeightedDistance = best.distance * candidate.coverage
 
   if (candidateWeightedDistance !== bestWeightedDistance) {
-    return candidateWeightedDistance < bestWeightedDistance;
+    return candidateWeightedDistance < bestWeightedDistance
   }
 
   if (candidate.coverage !== best.coverage) {
-    return candidate.coverage > best.coverage;
+    return candidate.coverage > best.coverage
   }
 
   if (candidate.distance !== best.distance) {
-    return candidate.distance < best.distance;
+    return candidate.distance < best.distance
   }
 
-  return (
-    toRoomIndex(candidate.coordinate.x, candidate.coordinate.y) <
-    toRoomIndex(best.coordinate.x, best.coordinate.y)
-  );
+  return toRoomIndex(candidate.coordinate.x, candidate.coordinate.y) < toRoomIndex(best.coordinate.x, best.coordinate.y)
 }
 
 function countNeededRampartsInRange(
@@ -365,37 +295,27 @@ function countNeededRampartsInRange(
   repairCounts: Uint8Array,
   targetCoverage: number,
 ): number {
-  let coverage = 0;
+  let coverage = 0
 
   forEachCoordinateInRange(coordinate, REPAIR_RANGE, (x, y) => {
-    const index = toRoomIndex(x, y);
+    const index = toRoomIndex(x, y)
 
-    if (
-      rampartPlan.rampartMask[index] &&
-      repairCounts[index] < targetCoverage
-    ) {
-      coverage++;
+    if (rampartPlan.rampartMask[index] && repairCounts[index] < targetCoverage) {
+      coverage++
     }
-  });
+  })
 
-  return coverage;
+  return coverage
 }
 
-function addRepairCoverage(
-  coordinate: RoomCoordinate,
-  rampartPlan: OuterRampartPlan,
-  repairCounts: Uint8Array,
-): void {
+function addRepairCoverage(coordinate: RoomCoordinate, rampartPlan: OuterRampartPlan, repairCounts: Uint8Array): void {
   forEachCoordinateInRange(coordinate, REPAIR_RANGE, (x, y) => {
-    const index = toRoomIndex(x, y);
+    const index = toRoomIndex(x, y)
 
-    if (
-      rampartPlan.rampartMask[index] &&
-      repairCounts[index] < DESIRED_REPAIR_POSITIONS
-    ) {
-      repairCounts[index]++;
+    if (rampartPlan.rampartMask[index] && repairCounts[index] < DESIRED_REPAIR_POSITIONS) {
+      repairCounts[index]++
     }
-  });
+  })
 }
 
 function traceRepairRoadPath(
@@ -405,87 +325,75 @@ function traceRepairRoadPath(
   dangerousMask: Uint8Array,
   roadMask: Uint8Array,
 ): RoomCoordinate[] | undefined {
-  let currentIndex = toRoomIndex(start.x, start.y);
+  let currentIndex = toRoomIndex(start.x, start.y)
 
   if (distances[currentIndex] < 0) {
-    return;
+    return
   }
 
-  const path: RoomCoordinate[] = [];
+  const path: RoomCoordinate[] = []
 
   while (distances[currentIndex] > 0) {
-    const current = fromRoomIndex(currentIndex);
-    const currentDistance = distances[currentIndex];
+    const current = fromRoomIndex(currentIndex)
+    const currentDistance = distances[currentIndex]
 
     if (!roadMask[currentIndex]) {
-      path.push(current);
+      path.push(current)
     }
 
-    const currentCost = getRepairRoadCost(
-      currentIndex,
-      terrain.get(current.x, current.y),
-      dangerousMask,
-      roadMask,
-    );
-    let bestRoadIndex = -1;
-    let bestIndex = -1;
+    const currentCost = getRepairRoadCost(currentIndex, terrain.get(current.x, current.y), dangerousMask, roadMask)
+    let bestRoadIndex = -1
+    let bestIndex = -1
 
     for (const offset of NEIGHBOR_OFFSETS) {
-      const neighborX = current.x + offset.x;
-      const neighborY = current.y + offset.y;
+      const neighborX = current.x + offset.x
+      const neighborY = current.y + offset.y
 
       if (!isInsideRoom(neighborX, neighborY)) {
-        continue;
+        continue
       }
 
-      const neighborIndex = toRoomIndex(neighborX, neighborY);
-      const neighborDistance = distances[neighborIndex];
+      const neighborIndex = toRoomIndex(neighborX, neighborY)
+      const neighborDistance = distances[neighborIndex]
 
-      if (
-        neighborDistance < 0 ||
-        neighborDistance + currentCost !== currentDistance
-      ) {
-        continue;
+      if (neighborDistance < 0 || neighborDistance + currentCost !== currentDistance) {
+        continue
       }
 
       if (roadMask[neighborIndex]) {
         if (bestRoadIndex < 0 || neighborIndex < bestRoadIndex) {
-          bestRoadIndex = neighborIndex;
+          bestRoadIndex = neighborIndex
         }
-        continue;
+        continue
       }
 
       if (bestIndex < 0 || neighborIndex < bestIndex) {
-        bestIndex = neighborIndex;
+        bestIndex = neighborIndex
       }
     }
 
-    const nextIndex = bestRoadIndex >= 0 ? bestRoadIndex : bestIndex;
+    const nextIndex = bestRoadIndex >= 0 ? bestRoadIndex : bestIndex
 
     if (nextIndex < 0) {
-      return;
+      return
     }
 
-    currentIndex = nextIndex;
+    currentIndex = nextIndex
   }
 
-  return path;
+  return path
 }
 
-function addRoadPath(
-  path: readonly RoomCoordinate[],
-  roadMask: Uint8Array,
-  additions: RoomCoordinate[],
-): void {
+function addRoadPath(path: readonly RoomCoordinate[], roadMask: Uint8Array, additions: RoomCoordinate[]): void {
   for (const coordinate of path) {
-    const index = toRoomIndex(coordinate.x, coordinate.y);
+    const index = toRoomIndex(coordinate.x, coordinate.y)
 
     if (roadMask[index]) {
-      continue;
+      continue
     }
 
-    roadMask[index] = 1;
-    additions.push(coordinate);
+    roadMask[index] = 1
+    additions.push(coordinate)
   }
 }
 
@@ -496,14 +404,14 @@ function getRepairRoadCost(
   roadMask: Uint8Array,
 ): number {
   if (dangerousMask[index]) {
-    return DANGER_COST;
+    return DANGER_COST
   }
 
   if (roadMask[index]) {
-    return EXISTING_ROAD_COST;
+    return EXISTING_ROAD_COST
   }
 
-  return terrainType === TERRAIN_MASK_SWAMP ? SWAMP_COST : PLAIN_COST;
+  return terrainType === TERRAIN_MASK_SWAMP ? SWAMP_COST : PLAIN_COST
 }
 
 function buildStandingBlockedMask(
@@ -512,34 +420,32 @@ function buildStandingBlockedMask(
   minerals: readonly Mineral[],
   structures: readonly PlannedStructure[],
 ): Uint8Array {
-  const blockedMask = new Uint8Array(ROOM_AREA);
+  const blockedMask = new Uint8Array(ROOM_AREA)
   const block = ({ x, y }: RoomCoordinate): void => {
-    blockedMask[toRoomIndex(x, y)] = 1;
-  };
+    blockedMask[toRoomIndex(x, y)] = 1
+  }
 
-  block(controller.pos);
-  sources.forEach(({ pos }) => block(pos));
-  minerals.forEach(({ pos }) => block(pos));
+  block(controller.pos)
+  sources.forEach(({ pos }) => block(pos))
+  minerals.forEach(({ pos }) => block(pos))
 
   for (const structure of structures) {
     if (structure.structureType === STRUCTURE_CONTAINER) {
-      continue;
+      continue
     }
 
-    block(structure.coordinate);
+    block(structure.coordinate)
   }
 
-  return blockedMask;
+  return blockedMask
 }
 
-function buildCoordinateMask(
-  coordinates: readonly RoomCoordinate[],
-): Uint8Array {
-  const mask = new Uint8Array(ROOM_AREA);
+function buildCoordinateMask(coordinates: readonly RoomCoordinate[]): Uint8Array {
+  const mask = new Uint8Array(ROOM_AREA)
 
   for (const { x, y } of coordinates) {
-    mask[toRoomIndex(x, y)] = 1;
+    mask[toRoomIndex(x, y)] = 1
   }
 
-  return mask;
+  return mask
 }

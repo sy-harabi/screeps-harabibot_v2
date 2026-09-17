@@ -1,29 +1,23 @@
-import { dijkstraMap } from "../../world/map/dijkstraMap";
-import type { RoomCoordinate } from "../../world/map/roomCoordinate";
-import {
-  fromRoomIndex,
-  isInsideRoom,
-  NEIGHBOR_OFFSETS,
-  ROOM_AREA,
-  toRoomIndex,
-} from "../../world/map/roomGrid";
-import type { ControllerAreaCandidate } from "./findControllerAreaCandidates";
-import type { CorePlan } from "./findCorePlans";
-import type { OuterRampartPlan } from "./planOuterRamparts";
-import type { ResourceTreePlan } from "./planResourceTree";
+import { dijkstraMap } from "../../world/map/dijkstraMap"
+import type { RoomCoordinate } from "../../world/map/roomCoordinate"
+import { fromRoomIndex, isInsideRoom, NEIGHBOR_OFFSETS, ROOM_AREA, toRoomIndex } from "../../world/map/roomGrid"
+import type { ControllerAreaCandidate } from "./findControllerAreaCandidates"
+import type { CorePlan } from "./findCorePlans"
+import type { OuterRampartPlan } from "./planOuterRamparts"
+import type { ResourceTreePlan } from "./planResourceTree"
 
 export interface OuterRampartRoadPlan {
-  readonly roads: RoomCoordinate[];
+  readonly roads: RoomCoordinate[]
 }
 
 interface RampartComponent {
-  readonly tileIndices: readonly number[];
+  readonly tileIndices: readonly number[]
 }
 
 interface RampartTarget {
-  readonly componentIndex: number;
-  readonly coordinate: RoomCoordinate;
-  readonly distance: number;
+  readonly componentIndex: number
+  readonly coordinate: RoomCoordinate
+  readonly distance: number
 }
 
 export function planOuterRampartRoads(
@@ -38,10 +32,10 @@ export function planOuterRampartRoads(
   visual: RoomVisual,
   existingSpawn?: RoomCoordinate,
 ): OuterRampartRoadPlan | undefined {
-  const roadNetworkMask = new Uint8Array(ROOM_AREA);
+  const roadNetworkMask = new Uint8Array(ROOM_AREA)
 
   for (const { x, y } of [...corePlan.roads, ...resourceTree.roads]) {
-    roadNetworkMask[toRoomIndex(x, y)] = 1;
+    roadNetworkMask[toRoomIndex(x, y)] = 1
   }
 
   const blockedMask = buildRampartRoadBlockedMask(
@@ -52,11 +46,11 @@ export function planOuterRampartRoads(
     corePlan,
     resourceTree,
     existingSpawn,
-  );
-  const upgradeChainCostMap = buildUpgradeChainCostMap(controllerArea);
-  const components = findRampartComponents(outerRampartPlan.rampartMask);
-  const remainingComponents = components.map((_, index) => index);
-  const roads: RoomCoordinate[] = [];
+  )
+  const upgradeChainCostMap = buildUpgradeChainCostMap(controllerArea)
+  const components = findRampartComponents(outerRampartPlan.rampartMask)
+  const remainingComponents = components.map((_, index) => index)
+  const roads: RoomCoordinate[] = []
 
   while (remainingComponents.length > 0) {
     const distanceMap = buildRampartDistanceMap(
@@ -66,89 +60,79 @@ export function planOuterRampartRoads(
       blockedMask,
       upgradeChainCostMap,
       roadNetworkMask,
-    );
+    )
 
-    const target = findClosestRampartTarget(
-      components,
-      remainingComponents,
-      distanceMap,
-    );
+    const target = findClosestRampartTarget(components, remainingComponents, distanceMap)
 
     if (!target) {
-      return;
+      return
     }
 
-    const path = tracePathToExistingRoad(
-      terrain,
-      target.coordinate,
-      distanceMap,
-      upgradeChainCostMap,
-      roadNetworkMask,
-    );
+    const path = tracePathToExistingRoad(terrain, target.coordinate, distanceMap, upgradeChainCostMap, roadNetworkMask)
 
     if (!path) {
-      return;
+      return
     }
 
     for (const coordinate of path) {
-      const index = toRoomIndex(coordinate.x, coordinate.y);
+      const index = toRoomIndex(coordinate.x, coordinate.y)
 
       if (roadNetworkMask[index]) {
-        continue;
+        continue
       }
 
-      roadNetworkMask[index] = 1;
-      roads.push(coordinate);
-      visual.structure(coordinate.x, coordinate.y, STRUCTURE_ROAD);
+      roadNetworkMask[index] = 1
+      roads.push(coordinate)
+      visual.structure(coordinate.x, coordinate.y, STRUCTURE_ROAD)
     }
 
-    const remainingIndex = remainingComponents.indexOf(target.componentIndex);
-    remainingComponents.splice(remainingIndex, 1);
+    const remainingIndex = remainingComponents.indexOf(target.componentIndex)
+    remainingComponents.splice(remainingIndex, 1)
   }
 
-  return { roads };
+  return { roads }
 }
 
 function findRampartComponents(rampartMask: Uint8Array): RampartComponent[] {
-  const visited = new Uint8Array(ROOM_AREA);
-  const components: RampartComponent[] = [];
+  const visited = new Uint8Array(ROOM_AREA)
+  const components: RampartComponent[] = []
 
   for (let startIndex = 0; startIndex < ROOM_AREA; startIndex++) {
     if (!rampartMask[startIndex] || visited[startIndex]) {
-      continue;
+      continue
     }
 
-    const tileIndices = [startIndex];
-    visited[startIndex] = 1;
-    let queueHead = 0;
+    const tileIndices = [startIndex]
+    visited[startIndex] = 1
+    let queueHead = 0
 
     while (queueHead < tileIndices.length) {
-      const current = fromRoomIndex(tileIndices[queueHead]);
-      queueHead++;
+      const current = fromRoomIndex(tileIndices[queueHead])
+      queueHead++
 
       for (const offset of NEIGHBOR_OFFSETS) {
-        const x = current.x + offset.x;
-        const y = current.y + offset.y;
+        const x = current.x + offset.x
+        const y = current.y + offset.y
 
         if (!isInsideRoom(x, y)) {
-          continue;
+          continue
         }
 
-        const neighborIndex = toRoomIndex(x, y);
+        const neighborIndex = toRoomIndex(x, y)
 
         if (!rampartMask[neighborIndex] || visited[neighborIndex]) {
-          continue;
+          continue
         }
 
-        visited[neighborIndex] = 1;
-        tileIndices.push(neighborIndex);
+        visited[neighborIndex] = 1
+        tileIndices.push(neighborIndex)
       }
     }
 
-    components.push({ tileIndices });
+    components.push({ tileIndices })
   }
 
-  return components;
+  return components
 }
 
 function buildRampartRoadBlockedMask(
@@ -160,38 +144,38 @@ function buildRampartRoadBlockedMask(
   resourceTree: ResourceTreePlan,
   existingSpawn?: RoomCoordinate,
 ): Uint8Array {
-  const blockedMask = new Uint8Array(ROOM_AREA);
+  const blockedMask = new Uint8Array(ROOM_AREA)
   const block = ({ x, y }: RoomCoordinate): void => {
-    blockedMask[toRoomIndex(x, y)] = 1;
-  };
+    blockedMask[toRoomIndex(x, y)] = 1
+  }
 
-  block(controller.pos);
-  block(controllerArea.storage);
-  block(corePlan.manager);
-  block(corePlan.terminal);
-  block(corePlan.firstSpawn);
-  block(corePlan.link);
-  block(corePlan.factory);
-  block(corePlan.powerSpawn);
-  corePlan.parking.forEach(block);
+  block(controller.pos)
+  block(controllerArea.storage)
+  block(corePlan.manager)
+  block(corePlan.terminal)
+  block(corePlan.firstSpawn)
+  block(corePlan.link)
+  block(corePlan.factory)
+  block(corePlan.powerSpawn)
+  corePlan.parking.forEach(block)
 
   if (existingSpawn) {
-    block(existingSpawn);
+    block(existingSpawn)
   }
 
   for (const resource of [...sources, ...minerals]) {
-    block(resource.pos);
+    block(resource.pos)
   }
 
   for (const branch of resourceTree.branches) {
-    block(branch.container);
+    block(branch.container)
 
     if (branch.link) {
-      block(branch.link);
+      block(branch.link)
     }
   }
 
-  return blockedMask;
+  return blockedMask
 }
 
 function buildRampartDistanceMap(
@@ -205,23 +189,13 @@ function buildRampartDistanceMap(
   return dijkstraMap(
     terrain,
     corePlan.roads,
-    (x, y, terrainType) =>
-      getRampartRoadCost(
-        toRoomIndex(x, y),
-        terrainType,
-        upgradeChainCostMap,
-        roadNetworkMask,
-      ),
+    (x, y, terrainType) => getRampartRoadCost(toRoomIndex(x, y), terrainType, upgradeChainCostMap, roadNetworkMask),
     (x, y) => {
-      const index = toRoomIndex(x, y);
+      const index = toRoomIndex(x, y)
 
-      return !!(
-        (outerRampartPlan.insideMask[index] ||
-          outerRampartPlan.rampartMask[index]) &&
-        blockedMask[index] === 0
-      );
+      return !!((outerRampartPlan.insideMask[index] || outerRampartPlan.rampartMask[index]) && blockedMask[index] === 0)
     },
-  );
+  )
 }
 
 function findClosestRampartTarget(
@@ -229,16 +203,16 @@ function findClosestRampartTarget(
   remainingComponents: readonly number[],
   distanceMap: Int32Array,
 ): RampartTarget | undefined {
-  let bestTarget: RampartTarget | undefined;
+  let bestTarget: RampartTarget | undefined
 
   for (const componentIndex of remainingComponents) {
-    const component = components[componentIndex];
+    const component = components[componentIndex]
 
     for (const tileIndex of component.tileIndices) {
-      const distance = distanceMap[tileIndex];
+      const distance = distanceMap[tileIndex]
 
       if (distance < 0) {
-        continue;
+        continue
       }
 
       if (
@@ -247,41 +221,35 @@ function findClosestRampartTarget(
           (distance === bestTarget.distance &&
             (componentIndex > bestTarget.componentIndex ||
               (componentIndex === bestTarget.componentIndex &&
-                tileIndex >=
-                  toRoomIndex(
-                    bestTarget.coordinate.x,
-                    bestTarget.coordinate.y,
-                  )))))
+                tileIndex >= toRoomIndex(bestTarget.coordinate.x, bestTarget.coordinate.y)))))
       ) {
-        continue;
+        continue
       }
 
       bestTarget = {
         componentIndex,
         coordinate: fromRoomIndex(tileIndex),
         distance,
-      };
+      }
     }
   }
 
-  return bestTarget;
+  return bestTarget
 }
 
-function buildUpgradeChainCostMap(
-  controllerArea: ControllerAreaCandidate,
-): Int16Array {
-  const costMap = new Int16Array(ROOM_AREA);
-  costMap.fill(-1);
+function buildUpgradeChainCostMap(controllerArea: ControllerAreaCandidate): Int16Array {
+  const costMap = new Int16Array(ROOM_AREA)
+  costMap.fill(-1)
 
-  const { left, middle, right } = controllerArea.upgradeChains;
+  const { left, middle, right } = controllerArea.upgradeChains
 
   for (const chain of [left, middle, right]) {
     chain.forEach(({ x, y }, tileIndex) => {
-      costMap[toRoomIndex(x, y)] = 50 - tileIndex * 5;
-    });
+      costMap[toRoomIndex(x, y)] = 50 - tileIndex * 5
+    })
   }
 
-  return costMap;
+  return costMap
 }
 
 function tracePathToExistingRoad(
@@ -291,73 +259,70 @@ function tracePathToExistingRoad(
   upgradeChainCostMap: Int16Array,
   roadNetworkMask: Uint8Array,
 ): RoomCoordinate[] | undefined {
-  let currentIndex = toRoomIndex(start.x, start.y);
+  let currentIndex = toRoomIndex(start.x, start.y)
 
   if (distanceMap[currentIndex] < 0) {
-    return;
+    return
   }
 
-  const path: RoomCoordinate[] = [];
+  const path: RoomCoordinate[] = []
 
   while (!roadNetworkMask[currentIndex]) {
-    const current = fromRoomIndex(currentIndex);
-    const currentDistance = distanceMap[currentIndex];
+    const current = fromRoomIndex(currentIndex)
+    const currentDistance = distanceMap[currentIndex]
 
     if (currentDistance <= 0) {
-      return;
+      return
     }
 
-    path.push(current);
+    path.push(current)
 
     const currentCost = getRampartRoadCost(
       currentIndex,
       terrain.get(current.x, current.y),
       upgradeChainCostMap,
       roadNetworkMask,
-    );
-    let bestRoadIndex = -1;
-    let bestIndex = -1;
+    )
+    let bestRoadIndex = -1
+    let bestIndex = -1
 
     for (const offset of NEIGHBOR_OFFSETS) {
-      const x = current.x + offset.x;
-      const y = current.y + offset.y;
+      const x = current.x + offset.x
+      const y = current.y + offset.y
 
       if (!isInsideRoom(x, y)) {
-        continue;
+        continue
       }
 
-      const neighborIndex = toRoomIndex(x, y);
-      const neighborDistance = distanceMap[neighborIndex];
+      const neighborIndex = toRoomIndex(x, y)
+      const neighborDistance = distanceMap[neighborIndex]
 
-      if (
-        neighborDistance < 0 ||
-        neighborDistance + currentCost !== currentDistance
-      ) {
-        continue;
+      if (neighborDistance < 0 || neighborDistance + currentCost !== currentDistance) {
+        continue
       }
 
       if (roadNetworkMask[neighborIndex]) {
         if (bestRoadIndex < 0 || neighborIndex < bestRoadIndex) {
-          bestRoadIndex = neighborIndex;
+          bestRoadIndex = neighborIndex
         }
-        continue;
+        continue
       }
 
       if (bestIndex < 0 || neighborIndex < bestIndex) {
-        bestIndex = neighborIndex;
+        bestIndex = neighborIndex
       }
     }
 
-    const nextIndex = bestRoadIndex >= 0 ? bestRoadIndex : bestIndex;
+    const nextIndex = bestRoadIndex >= 0 ? bestRoadIndex : bestIndex
 
     if (nextIndex < 0) {
-      return;
+      return
     }
 
-    currentIndex = nextIndex;
+    currentIndex = nextIndex
   }
 
-  return path;
+  return path
 }
 
 function getRampartRoadCost(
@@ -366,15 +331,15 @@ function getRampartRoadCost(
   upgradeChainCostMap: Int16Array,
   roadNetworkMask: Uint8Array,
 ): number {
-  const upgradeChainCost = upgradeChainCostMap[index];
+  const upgradeChainCost = upgradeChainCostMap[index]
 
   if (upgradeChainCost >= 0) {
-    return upgradeChainCost;
+    return upgradeChainCost
   }
 
   if (roadNetworkMask[index]) {
-    return 3;
+    return 3
   }
 
-  return terrainType === TERRAIN_MASK_SWAMP ? 6 : 5;
+  return terrainType === TERRAIN_MASK_SWAMP ? 6 : 5
 }

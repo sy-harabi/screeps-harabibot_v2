@@ -1,42 +1,519 @@
-function buildPrimaryTowerModel(glpk,context){const binaries=context.candidates.map((_,i)=>'x'+i),subjectTo=[{name:'tower_count',vars:binaries.map(name=>({name,coef:1})),bnds:{type:glpk.GLP_FX,lb:6,ub:6}}];if(context.maxSlotTowers<6)subjectTo.push({name:'slot_budget',vars:context.candidates.map((c,i)=>({name:'x'+i,coef:c.usesStructureSlot?1:0})).filter(v=>v.coef),bnds:{type:glpk.GLP_UP,lb:0,ub:context.maxSlotTowers}});if(context.maxSpawnSlotTowers<6)subjectTo.push({name:'spawn_slot_budget',vars:context.candidates.map((c,i)=>({name:'x'+i,coef:c.usesSpawnSlot?1:0})).filter(v=>v.coef),bnds:{type:glpk.GLP_UP,lb:0,ub:context.maxSpawnSlotTowers}});for(let r=0;r<context.topology.ramparts.length;r++){const ramp=context.topology.ramparts[r],vars=context.candidates.map((c,i)=>({name:'x'+i,coef:towerDamageToRampart(c.coordinate,ramp)}));vars.push({name:'z',coef:-1});subjectTo.push({name:'ramp_'+r,vars,bnds:{type:glpk.GLP_LO,lb:0,ub:0}})}return{name:'optimal_towers_primary',objective:{direction:glpk.GLP_MAX,name:'min_rampart_damage',vars:[{name:'z',coef:1}]},subjectTo,bounds:[{name:'z',type:glpk.GLP_DB,lb:0,ub:3600}],binaries}}
-function buildSecondaryTowerModel(glpk,context,optMin){const binaries=context.candidates.map((_,i)=>'x'+i),subjectTo=[{name:'tower_count',vars:binaries.map(name=>({name,coef:1})),bnds:{type:glpk.GLP_FX,lb:6,ub:6}}],totalCoefs=new Float64Array(context.candidates.length);if(context.maxSlotTowers<6)subjectTo.push({name:'slot_budget',vars:context.candidates.map((c,i)=>({name:'x'+i,coef:c.usesStructureSlot?1:0})).filter(v=>v.coef),bnds:{type:glpk.GLP_UP,lb:0,ub:context.maxSlotTowers}});if(context.maxSpawnSlotTowers<6)subjectTo.push({name:'spawn_slot_budget',vars:context.candidates.map((c,i)=>({name:'x'+i,coef:c.usesSpawnSlot?1:0})).filter(v=>v.coef),bnds:{type:glpk.GLP_UP,lb:0,ub:context.maxSpawnSlotTowers}});for(let r=0;r<context.topology.ramparts.length;r++){const ramp=context.topology.ramparts[r],vars=[];for(let i=0;i<context.candidates.length;i++){const damage=towerDamageToRampart(context.candidates[i].coordinate,ramp);vars.push({name:'x'+i,coef:damage});totalCoefs[i]+=damage}subjectTo.push({name:'ramp_'+r,vars,bnds:{type:glpk.GLP_LO,lb:optMin,ub:0}})}return{name:'optimal_towers_secondary',objective:{direction:glpk.GLP_MAX,name:'total_rampart_damage',vars:binaries.map((name,i)=>({name,coef:totalCoefs[i]}))},subjectTo,binaries}}
-async function solveOptimalTowers(result,epoch){const context=result?.towerContext;if(!context)throw new Error('No shared planner tower candidate context');const glpk=await getGlpk(epoch);if(epoch!==solverEpoch)throw towerCancellationError();const first=await glpk.solve(buildPrimaryTowerModel(glpk,context),{msglev:glpk.GLP_MSG_OFF,presol:true,tmlim:30});if(epoch!==solverEpoch)throw towerCancellationError();const firstCoords=selectedTowerCoordinates(first,context.candidates);if(firstCoords.length!==6)throw new Error(`Primary MILP ended without a 6-tower solution (status ${first?.result?.status??'unknown'})`);const primaryExact=first?.result?.status===glpk.GLP_OPT,optMin=evaluateTowerPlacement(firstCoords,context.topology.ramparts).minDps;let finalCoords=firstCoords,secondaryStatus=null,secondaryExact=false;try{const second=await glpk.solve(buildSecondaryTowerModel(glpk,context,optMin),{msglev:glpk.GLP_MSG_OFF,presol:true,tmlim:3});if(epoch!==solverEpoch)throw towerCancellationError();secondaryStatus=second?.result?.status??null;secondaryExact=secondaryStatus===glpk.GLP_OPT;const secondCoords=selectedTowerCoordinates(second,context.candidates);if(secondCoords.length===6&&evaluateTowerPlacement(secondCoords,context.topology.ramparts).minDps>=optMin)finalCoords=secondCoords}catch(e){if(epoch!==solverEpoch||e?.name==='AbortError')throw e;console.warn('secondary tower optimization failed; using primary solution',e)}return{kind:'milp',coordinates:finalCoords,...evaluateTowerPlacement(finalCoords,context.topology.ramparts),candidateCount:context.candidates.length,rampartCount:context.topology.ramparts.length,primaryExact,primaryStatus:first?.result?.status??null,secondaryExact,secondaryStatus}}
-function optimalTowerEntry(name=currentName){return optimalTowerCache.get(name)}
-function towerAnalysisForCurrent(){if(!currentResult?.ok)return;return currentResult._towerComparison||(currentResult._towerComparison=buildFastTowerComparison(currentResult))}
-function drawTowerMarker(coordinates,style,labelPrefix){if(!coordinates?.length)return;ctx.save();ctx.strokeStyle=style.color;ctx.fillStyle=style.color;ctx.lineWidth=Math.max(1.6,cell*(style.lineWidth||.11));ctx.textAlign='center';ctx.textBaseline='middle';ctx.font=`700 ${Math.max(7,cell*.32)}px sans-serif`;for(let i=0;i<coordinates.length;i++){const c=coordinates[i],cx=(c.x+.5)*cell,cy=(c.y+.5)*cell,r=cell*(style.radius||.36);ctx.globalAlpha=.95;if(style.shape==='square'){ctx.strokeRect(cx-r,cy-r,2*r,2*r)}else if(style.shape==='diamond'){ctx.beginPath();ctx.moveTo(cx,cy-r);ctx.lineTo(cx+r,cy);ctx.lineTo(cx,cy+r);ctx.lineTo(cx-r,cy);ctx.closePath();ctx.stroke()}else if(style.shape==='cross'){ctx.beginPath();ctx.moveTo(cx-r,cy-r);ctx.lineTo(cx+r,cy+r);ctx.moveTo(cx+r,cy-r);ctx.lineTo(cx-r,cy+r);ctx.stroke()}else{ctx.beginPath();ctx.arc(cx,cy,r,0,Math.PI*2);ctx.stroke()}if(style.text){ctx.fillText(style.text,cx,cy)}}ctx.restore()}
-function formatPlacement(name,p){if(!p)return`${name}: —`;return`${name}: min ${p.minDps} · weak ${p.weakCount} · total ${p.totalDps.toLocaleString()}`}
-function towerOptimizationText(){if(!currentResult?.ok)return'planner result required';const a=towerAnalysisForCurrent();if(!a)return'tower analysis unavailable';const certCore=a.certificate.status==='certified'?`CERTIFIED OPTIMAL (upper ${a.certificate.integerUpper})`:a.certificate.status==='unknown'?`UNKNOWN (upper ${a.certificate.integerUpper})`:a.certificate.status.toUpperCase(),cert=`${certCore} · check ${a.certificate.weakCount??0} ramparts${a.certificate.exactWeakCount!==undefined?` (exact minima ${a.certificate.exactWeakCount})`:''}`;const preferred=a.preferred===a.central?'central':a.preferred===a.distributed?'distributed':'—',milp=optimalTowerEntry();let milpText='MILP: disabled';if(document.getElementById('milpTowerOverlay')?.checked){if(!milp)milpText='MILP: queued';else if(milp.status==='loading')milpText='MILP: loading solver…';else if(milp.status==='solving')milpText='MILP: solving… (30 s primary / 3 s tie-break)';else if(milp.status==='error')milpText=`MILP: ERROR · ${milp.error||'unknown'}`;else{const r=milp.result;milpText=`MILP: ${r.primaryExact?'EXACT':'BEST FOUND'} · min ${r.minDps} · weak ${r.weakCount} · total ${r.totalDps.toLocaleString()} · ${milp.elapsed.toFixed(0)} ms`}}const c=a.central?.center,centerRegion=c?`x ${c.minCenterX}..${c.maxCenterX}, y ${c.minCenterY}..${c.maxCenterY}`:'—';return`candidates: ${a.context.candidates.length}
+function buildPrimaryTowerModel(glpk, context) {
+  const binaries = context.candidates.map((_, i) => "x" + i),
+    subjectTo = [
+      {
+        name: "tower_count",
+        vars: binaries.map((name) => ({ name, coef: 1 })),
+        bnds: { type: glpk.GLP_FX, lb: 6, ub: 6 },
+      },
+    ]
+  if (context.maxSlotTowers < 6)
+    subjectTo.push({
+      name: "slot_budget",
+      vars: context.candidates
+        .map((c, i) => ({ name: "x" + i, coef: c.usesStructureSlot ? 1 : 0 }))
+        .filter((v) => v.coef),
+      bnds: { type: glpk.GLP_UP, lb: 0, ub: context.maxSlotTowers },
+    })
+  if (context.maxSpawnSlotTowers < 6)
+    subjectTo.push({
+      name: "spawn_slot_budget",
+      vars: context.candidates.map((c, i) => ({ name: "x" + i, coef: c.usesSpawnSlot ? 1 : 0 })).filter((v) => v.coef),
+      bnds: { type: glpk.GLP_UP, lb: 0, ub: context.maxSpawnSlotTowers },
+    })
+  for (let r = 0; r < context.topology.ramparts.length; r++) {
+    const ramp = context.topology.ramparts[r],
+      vars = context.candidates.map((c, i) => ({ name: "x" + i, coef: towerDamageToRampart(c.coordinate, ramp) }))
+    vars.push({ name: "z", coef: -1 })
+    subjectTo.push({ name: "ramp_" + r, vars, bnds: { type: glpk.GLP_LO, lb: 0, ub: 0 } })
+  }
+  return {
+    name: "optimal_towers_primary",
+    objective: { direction: glpk.GLP_MAX, name: "min_rampart_damage", vars: [{ name: "z", coef: 1 }] },
+    subjectTo,
+    bounds: [{ name: "z", type: glpk.GLP_DB, lb: 0, ub: 3600 }],
+    binaries,
+  }
+}
+function buildSecondaryTowerModel(glpk, context, optMin) {
+  const binaries = context.candidates.map((_, i) => "x" + i),
+    subjectTo = [
+      {
+        name: "tower_count",
+        vars: binaries.map((name) => ({ name, coef: 1 })),
+        bnds: { type: glpk.GLP_FX, lb: 6, ub: 6 },
+      },
+    ],
+    totalCoefs = new Float64Array(context.candidates.length)
+  if (context.maxSlotTowers < 6)
+    subjectTo.push({
+      name: "slot_budget",
+      vars: context.candidates
+        .map((c, i) => ({ name: "x" + i, coef: c.usesStructureSlot ? 1 : 0 }))
+        .filter((v) => v.coef),
+      bnds: { type: glpk.GLP_UP, lb: 0, ub: context.maxSlotTowers },
+    })
+  if (context.maxSpawnSlotTowers < 6)
+    subjectTo.push({
+      name: "spawn_slot_budget",
+      vars: context.candidates.map((c, i) => ({ name: "x" + i, coef: c.usesSpawnSlot ? 1 : 0 })).filter((v) => v.coef),
+      bnds: { type: glpk.GLP_UP, lb: 0, ub: context.maxSpawnSlotTowers },
+    })
+  for (let r = 0; r < context.topology.ramparts.length; r++) {
+    const ramp = context.topology.ramparts[r],
+      vars = []
+    for (let i = 0; i < context.candidates.length; i++) {
+      const damage = towerDamageToRampart(context.candidates[i].coordinate, ramp)
+      vars.push({ name: "x" + i, coef: damage })
+      totalCoefs[i] += damage
+    }
+    subjectTo.push({ name: "ramp_" + r, vars, bnds: { type: glpk.GLP_LO, lb: optMin, ub: 0 } })
+  }
+  return {
+    name: "optimal_towers_secondary",
+    objective: {
+      direction: glpk.GLP_MAX,
+      name: "total_rampart_damage",
+      vars: binaries.map((name, i) => ({ name, coef: totalCoefs[i] })),
+    },
+    subjectTo,
+    binaries,
+  }
+}
+async function solveOptimalTowers(result, epoch) {
+  const context = result?.towerContext
+  if (!context) throw new Error("No shared planner tower candidate context")
+  const glpk = await getGlpk(epoch)
+  if (epoch !== solverEpoch) throw towerCancellationError()
+  const first = await glpk.solve(buildPrimaryTowerModel(glpk, context), {
+    msglev: glpk.GLP_MSG_OFF,
+    presol: true,
+    tmlim: 30,
+  })
+  if (epoch !== solverEpoch) throw towerCancellationError()
+  const firstCoords = selectedTowerCoordinates(first, context.candidates)
+  if (firstCoords.length !== 6)
+    throw new Error(`Primary MILP ended without a 6-tower solution (status ${first?.result?.status ?? "unknown"})`)
+  const primaryExact = first?.result?.status === glpk.GLP_OPT,
+    optMin = evaluateTowerPlacement(firstCoords, context.topology.ramparts).minDps
+  let finalCoords = firstCoords,
+    secondaryStatus = null,
+    secondaryExact = false
+  try {
+    const second = await glpk.solve(buildSecondaryTowerModel(glpk, context, optMin), {
+      msglev: glpk.GLP_MSG_OFF,
+      presol: true,
+      tmlim: 3,
+    })
+    if (epoch !== solverEpoch) throw towerCancellationError()
+    secondaryStatus = second?.result?.status ?? null
+    secondaryExact = secondaryStatus === glpk.GLP_OPT
+    const secondCoords = selectedTowerCoordinates(second, context.candidates)
+    if (secondCoords.length === 6 && evaluateTowerPlacement(secondCoords, context.topology.ramparts).minDps >= optMin)
+      finalCoords = secondCoords
+  } catch (e) {
+    if (epoch !== solverEpoch || e?.name === "AbortError") throw e
+    console.warn("secondary tower optimization failed; using primary solution", e)
+  }
+  return {
+    kind: "milp",
+    coordinates: finalCoords,
+    ...evaluateTowerPlacement(finalCoords, context.topology.ramparts),
+    candidateCount: context.candidates.length,
+    rampartCount: context.topology.ramparts.length,
+    primaryExact,
+    primaryStatus: first?.result?.status ?? null,
+    secondaryExact,
+    secondaryStatus,
+  }
+}
+function optimalTowerEntry(name = currentName) {
+  return optimalTowerCache.get(name)
+}
+function towerAnalysisForCurrent() {
+  if (!currentResult?.ok) return
+  return currentResult._towerComparison || (currentResult._towerComparison = buildFastTowerComparison(currentResult))
+}
+function drawTowerMarker(coordinates, style, labelPrefix) {
+  if (!coordinates?.length) return
+  ctx.save()
+  ctx.strokeStyle = style.color
+  ctx.fillStyle = style.color
+  ctx.lineWidth = Math.max(1.6, cell * (style.lineWidth || 0.11))
+  ctx.textAlign = "center"
+  ctx.textBaseline = "middle"
+  ctx.font = `700 ${Math.max(7, cell * 0.32)}px sans-serif`
+  for (let i = 0; i < coordinates.length; i++) {
+    const c = coordinates[i],
+      cx = (c.x + 0.5) * cell,
+      cy = (c.y + 0.5) * cell,
+      r = cell * (style.radius || 0.36)
+    ctx.globalAlpha = 0.95
+    if (style.shape === "square") {
+      ctx.strokeRect(cx - r, cy - r, 2 * r, 2 * r)
+    } else if (style.shape === "diamond") {
+      ctx.beginPath()
+      ctx.moveTo(cx, cy - r)
+      ctx.lineTo(cx + r, cy)
+      ctx.lineTo(cx, cy + r)
+      ctx.lineTo(cx - r, cy)
+      ctx.closePath()
+      ctx.stroke()
+    } else if (style.shape === "cross") {
+      ctx.beginPath()
+      ctx.moveTo(cx - r, cy - r)
+      ctx.lineTo(cx + r, cy + r)
+      ctx.moveTo(cx + r, cy - r)
+      ctx.lineTo(cx - r, cy + r)
+      ctx.stroke()
+    } else {
+      ctx.beginPath()
+      ctx.arc(cx, cy, r, 0, Math.PI * 2)
+      ctx.stroke()
+    }
+    if (style.text) {
+      ctx.fillText(style.text, cx, cy)
+    }
+  }
+  ctx.restore()
+}
+function formatPlacement(name, p) {
+  if (!p) return `${name}: —`
+  return `${name}: min ${p.minDps} · weak ${p.weakCount} · total ${p.totalDps.toLocaleString()}`
+}
+function towerOptimizationText() {
+  if (!currentResult?.ok) return "planner result required"
+  const a = towerAnalysisForCurrent()
+  if (!a) return "tower analysis unavailable"
+  const certCore =
+      a.certificate.status === "certified"
+        ? `CERTIFIED OPTIMAL (upper ${a.certificate.integerUpper})`
+        : a.certificate.status === "unknown"
+          ? `UNKNOWN (upper ${a.certificate.integerUpper})`
+          : a.certificate.status.toUpperCase(),
+    cert = `${certCore} · check ${a.certificate.weakCount ?? 0} ramparts${a.certificate.exactWeakCount !== undefined ? ` (exact minima ${a.certificate.exactWeakCount})` : ""}`
+  const preferred = a.preferred === a.central ? "central" : a.preferred === a.distributed ? "distributed" : "—",
+    milp = optimalTowerEntry()
+  let milpText = "MILP: disabled"
+  if (document.getElementById("milpTowerOverlay")?.checked) {
+    if (!milp) milpText = "MILP: queued"
+    else if (milp.status === "loading") milpText = "MILP: loading solver…"
+    else if (milp.status === "solving") milpText = "MILP: solving… (30 s primary / 3 s tie-break)"
+    else if (milp.status === "error") milpText = `MILP: ERROR · ${milp.error || "unknown"}`
+    else {
+      const r = milp.result
+      milpText = `MILP: ${r.primaryExact ? "EXACT" : "BEST FOUND"} · min ${r.minDps} · weak ${r.weakCount} · total ${r.totalDps.toLocaleString()} · ${milp.elapsed.toFixed(0)} ms`
+    }
+  }
+  const c = a.central?.center,
+    centerRegion = c ? `x ${c.minCenterX}..${c.maxCenterX}, y ${c.minCenterY}..${c.maxCenterY}` : "—"
+  return `candidates: ${a.context.candidates.length}
 outer ramparts: ${a.context.topology.ramparts.length}
-rampart diameter: ${c?Math.max(c.maxX-c.minX,c.maxY-c.minY):'—'}
+rampart diameter: ${c ? Math.max(c.maxX - c.minX, c.maxY - c.minY) : "—"}
 center region: ${centerRegion}
 
-${formatPlacement('central',a.central)}${a.central?` · shell ${a.central.baseRadius}+3=${a.central.searchRadius} · pool ${a.central.centralCandidateCount} · beam ${a.central.beamWidth}`:''}
+${formatPlacement("central", a.central)}${a.central ? ` · shell ${a.central.baseRadius}+3=${a.central.searchRadius} · pool ${a.central.centralCandidateCount} · beam ${a.central.beamWidth}` : ""}
 central certificate: ${cert}
-${a.certificate.status==='certified'?'distributed: skipped (central certified)':formatPlacement('distributed',a.distributed)}
+${a.certificate.status === "certified" ? "distributed: skipped (central certified)" : formatPlacement("distributed", a.distributed)}
 heuristic winner: ${preferred}
-${formatPlacement('v2 planner',a.planner)}
-${milpText}`}
-async function ensureOptimalTowerOverlay(){const toggle=document.getElementById('milpTowerOverlay');if(!toggle?.checked||!currentResult?.ok)return;const name=currentName,result=currentResult,existing=optimalTowerCache.get(name);if(existing?.status==='ready'||existing?.status==='solving'||existing?.status==='loading'){renderCurrent();renderSide();return}const epoch=solverEpoch;optimalTowerCache.set(name,{status:'loading'});renderCurrent();renderSide();const t0=performance.now();try{optimalTowerCache.set(name,{status:'solving'});renderSide();const solved=await solveOptimalTowers(result,epoch);if(epoch!==solverEpoch)return;optimalTowerCache.set(name,{status:'ready',result:solved,elapsed:performance.now()-t0})}catch(e){if(epoch!==solverEpoch||e?.name==='AbortError')return;console.error(e);optimalTowerCache.set(name,{status:'error',error:e?.message||String(e)})}if(currentName===name&&epoch===solverEpoch){renderCurrent();renderSide()}}
+${formatPlacement("v2 planner", a.planner)}
+${milpText}`
+}
+async function ensureOptimalTowerOverlay() {
+  const toggle = document.getElementById("milpTowerOverlay")
+  if (!toggle?.checked || !currentResult?.ok) return
+  const name = currentName,
+    result = currentResult,
+    existing = optimalTowerCache.get(name)
+  if (existing?.status === "ready" || existing?.status === "solving" || existing?.status === "loading") {
+    renderCurrent()
+    renderSide()
+    return
+  }
+  const epoch = solverEpoch
+  optimalTowerCache.set(name, { status: "loading" })
+  renderCurrent()
+  renderSide()
+  const t0 = performance.now()
+  try {
+    optimalTowerCache.set(name, { status: "solving" })
+    renderSide()
+    const solved = await solveOptimalTowers(result, epoch)
+    if (epoch !== solverEpoch) return
+    optimalTowerCache.set(name, { status: "ready", result: solved, elapsed: performance.now() - t0 })
+  } catch (e) {
+    if (epoch !== solverEpoch || e?.name === "AbortError") return
+    console.error(e)
+    optimalTowerCache.set(name, { status: "error", error: e?.message || String(e) })
+  }
+  if (currentName === name && epoch === solverEpoch) {
+    renderCurrent()
+    renderSide()
+  }
+}
 
-function renderCurrent(){if(!currentRoom)return;setupCanvas();ctx.fillStyle='#0e1319';ctx.fillRect(0,0,cell*50,cell*50);renderTerrain(currentRoom);const structures=currentResult?.ok?currentResult.plan.structures:[];drawRoads(structures);drawRampartConnections(structures);
- if(currentRoom.controller)drawSprite('controller',currentRoom.controller.x,currentRoom.controller.y);for(const s of currentRoom.sources)drawSprite('source',s.x,s.y);for(const m of currentRoom.minerals)drawSprite('mineral',m.x,m.y,'mineral-'+(m.mineralType||'X'));
- for(const s of structures)if(!['road','rampart','extractor'].includes(s.structureType))drawSprite(s.structureType,s.coordinate.x,s.coordinate.y);for(const s of structures)if(s.structureType==='extractor')drawSprite('extractor',s.coordinate.x,s.coordinate.y);ctx.save();ctx.globalAlpha=.76;for(const s of structures)if(s.structureType==='rampart')drawSprite('rampart',s.coordinate.x,s.coordinate.y);ctx.restore();
- const a=towerAnalysisForCurrent(),milp=optimalTowerEntry();if(a&&document.getElementById('centralTowerOverlay')?.checked)drawTowerMarker(a.central?.coordinates,{color:'#6eb8ff',shape:'circle',radius:.34,text:'C'},'central');if(a?.distributed&&document.getElementById('distributedTowerOverlay')?.checked)drawTowerMarker(a.distributed.coordinates,{color:'#ff936b',shape:'diamond',radius:.38,text:'D'},'distributed');if(a&&document.getElementById('plannerTowerOverlay')?.checked)drawTowerMarker(a.planner.coordinates,{color:'#dbe5ef',shape:'square',radius:.30,text:'V'},'v2 planner');if(milp?.status==='ready'&&document.getElementById('milpTowerOverlay')?.checked)drawTowerMarker(milp.result.coordinates,{color:'#f2c55c',shape:'cross',radius:.40,lineWidth:.15},'MILP');
- ctx.strokeStyle='#ffffff0b';ctx.lineWidth=1;for(let i=0;i<=50;i++){ctx.beginPath();ctx.moveTo(i*cell,0);ctx.lineTo(i*cell,50*cell);ctx.stroke();ctx.beginPath();ctx.moveTo(0,i*cell);ctx.lineTo(50*cell,i*cell);ctx.stroke()}
- lastObjects=[...structures.map(s=>({type:s.structureType,x:s.coordinate.x,y:s.coordinate.y,label:`${s.structureType} · RCL ${s.rcl}`})),...(currentRoom.controller?[{type:'controller',x:currentRoom.controller.x,y:currentRoom.controller.y,label:'controller'}]:[]),...currentRoom.sources.map((s,i)=>({type:'source',x:s.x,y:s.y,label:`source ${i+1}`})),...currentRoom.minerals.map(m=>({type:'mineral',x:m.x,y:m.y,label:`mineral ${m.mineralType}`}))];if(a?.central?.coordinates)a.central.coordinates.forEach((c,i)=>lastObjects.push({type:'centralTower',x:c.x,y:c.y,label:`central tower ${i+1}`}));if(a?.distributed?.coordinates)a.distributed.coordinates.forEach((c,i)=>lastObjects.push({type:'distributedTower',x:c.x,y:c.y,label:`distributed tower ${i+1}`}));if(milp?.status==='ready')milp.result.coordinates.forEach((c,i)=>lastObjects.push({type:'milpTower',x:c.x,y:c.y,label:`MILP tower ${i+1}`}))}
-function structureCounts(plan){const a={};if(!plan)return a;for(const s of plan.structures)a[s.structureType]=(a[s.structureType]||0)+1;return a}
-function renderSide(){document.getElementById('roomTitle').textContent=currentName||'—';const st=document.getElementById('status'),dl=document.getElementById('downloadBtn'),cp=document.getElementById('copyBtn');let status='NOT PLANNED',klass='idle';if(currentResult){if(currentResult.ok){status='SUCCESS';klass='ok'}else{status='FAIL · '+(currentResult.failureStage||'unknown');klass='bad'}}st.textContent=status;st.className='pill '+klass;dl.disabled=cp.disabled=!(currentResult&&currentResult.ok);
- const d=currentResult?.diagnostics||currentResult||{},cnt=structureCounts(currentResult?.plan);const metrics=[['attempt',currentResult?((d.attempt??0)+1):'—'],['tier',d.tier??'—'],['slots',d.slots??'—'],['structures',currentResult?.plan?.structures.length??'—'],['roads',cnt.road??'—'],['ramparts',cnt.rampart??'—'],['extensions',cnt.extension??'—'],['towers',cnt.tower??'—'],['time',currentResult?(currentElapsed.toFixed(1)+' ms'):'—']];document.getElementById('metrics').innerHTML=metrics.map(([k,v])=>`<div class="metric"><b>${v}</b><span>${k}</span></div>`).join('');
- document.getElementById('roomInfo').textContent=currentRoom?`controller: ${currentRoom.controller?`(${currentRoom.controller.x},${currentRoom.controller.y})`:'none'}\nsources: ${currentRoom.sources.length}\nminerals: ${currentRoom.minerals.map(m=>`${m.mineralType}@${m.x},${m.y}`).join(' · ')||'none'}`:'—';
- document.getElementById('plannerInfo').textContent=!currentResult?'not run':currentResult.ok?`SUCCESS\nregion attempts: ${(d.attempt??0)+1}\nselected regions: ${(d.selectedRegions||[]).join(', ')}\nouter ramparts (planning): ${d.outerRamparts??'—'}\ncontroller candidates: ${d.controllerCandidates??'—'}\nanchor/storage: ${currentResult.plan.anchor.x},${currentResult.plan.anchor.y}`:`FAIL: ${currentResult.failureStage||'unknown'}\nregion attempts: ${(d.attempt??0)+1}\nselected regions: ${(d.selectedRegions||[]).join(', ')||'—'}\n${currentResult.message||''}`;
- document.getElementById('counts').textContent=currentResult?.ok?Object.entries(cnt).sort().map(([k,v])=>`${k.padEnd(12)} ${v}`).join('\n'):'—';document.getElementById('towerOptInfo').textContent=towerOptimizationText()}
-async function setRoom(name,autoPlan=true){name=(name||'').trim().toUpperCase();if(!/^[WE]\d+[NS]\d+$/.test(name)){alert(`Invalid room name: ${name}`);return}if(name!==currentName)cancelOptimalTowerSolve();const requestName=name;currentName=name;input.value=name;currentResult=planCache.get(name)?.result||null;currentElapsed=planCache.get(name)?.elapsed||0;wrap.classList.add('busy');document.getElementById('status').textContent='LOADING ROOM';document.getElementById('status').className='pill idle';try{currentRoom=await fetchRoomData(name)}catch(e){console.error(e);if(currentName===requestName){wrap.classList.remove('busy');currentRoom=null;currentResult=null;renderSide();alert(`Failed to load ${name}: ${e?.message||e}`)}return}if(currentName!==requestName)return;wrap.classList.remove('busy');renderCurrent();renderSide();if(autoPlan&&!currentResult)runPlan();else if(document.getElementById('milpTowerOverlay')?.checked&&currentResult?.ok)ensureOptimalTowerOverlay()}
-function runPlan(){if(!currentRoom)return;wrap.classList.add('busy');document.getElementById('status').textContent='PLANNING';document.getElementById('status').className='pill idle';setTimeout(()=>{const name=currentName,t0=performance.now();let result;try{result=planBaseOffline(currentRoom)}catch(e){console.error(e);result={ok:false,failureStage:'exception',message:e?.stack||String(e)}}const elapsed=performance.now()-t0;planCache.set(name,{result,elapsed});if(currentName!==name)return;currentResult=result;currentElapsed=elapsed;wrap.classList.remove('busy');renderCurrent();renderSide();if(document.getElementById('milpTowerOverlay')?.checked&&result?.ok)ensureOptimalTowerOverlay()},20)}
-function nav(delta){const list=document.getElementById('controllerOnly').checked?controllerNames:allNames;let i=list.indexOf(currentName);if(i<0)i=0;i=(i+delta+list.length)%list.length;setRoom(list[i],true)}
-function randomController(){setRoom(controllerNames[Math.floor(Math.random()*controllerNames.length)],true)}
-function downloadPlan(){if(!currentResult?.ok)return;const text=JSON.stringify(currentResult.plan,null,2),blob=new Blob([text],{type:'application/json'}),url=URL.createObjectURL(blob),a=document.createElement('a');a.href=url;a.download=`${currentName}-basePlan-v1.json`;document.body.appendChild(a);a.click();a.remove();setTimeout(()=>URL.revokeObjectURL(url),1000)}
-async function copyPlan(){if(!currentResult?.ok)return;const text=JSON.stringify(currentResult.plan,null,2);try{await navigator.clipboard.writeText(text);const b=document.getElementById('copyBtn'),old=b.textContent;b.textContent='Copied';setTimeout(()=>b.textContent=old,900)}catch(e){prompt('Copy BasePlan JSON',text)}}
-function updateAssetState(){}
-input.addEventListener('keydown',e=>{if(e.key==='Enter')setRoom(input.value,true)});input.addEventListener('change',()=>setRoom(input.value,true));document.getElementById('planBtn').onclick=()=>setRoom(input.value,true);document.getElementById('prevBtn').onclick=()=>nav(-1);document.getElementById('nextBtn').onclick=()=>nav(1);document.getElementById('randomBtn').onclick=randomController;document.getElementById('downloadBtn').onclick=downloadPlan;document.getElementById('copyBtn').onclick=copyPlan;for(const id of ['centralTowerOverlay','distributedTowerOverlay','plannerTowerOverlay'])document.getElementById(id).addEventListener('change',()=>{renderCurrent();renderSide()});document.getElementById('milpTowerOverlay').addEventListener('change',()=>{const enabled=document.getElementById('milpTowerOverlay').checked;if(!enabled)cancelOptimalTowerSolve();renderCurrent();renderSide();if(enabled)ensureOptimalTowerOverlay()});
-cv.addEventListener('mousemove',e=>{const r=cv.getBoundingClientRect(),x=Math.floor((e.clientX-r.left)/r.width*50),y=Math.floor((e.clientY-r.top)/r.height*50),here=lastObjects.filter(o=>o.x===x&&o.y===y).map(o=>o.label);tip.style.display='block';tip.style.left=(e.clientX-r.left+12)+'px';tip.style.top=(e.clientY-r.top+12)+'px';tip.textContent=`(${x},${y})${here.length?' · '+here.join(' + '):''}`});cv.addEventListener('mouseleave',()=>tip.style.display='none');window.addEventListener('resize',renderCurrent);
-const requested=new URLSearchParams(location.search).get('room');setRoom((requested||'E27N37').toUpperCase(),true);updateAssetState();
+function renderCurrent() {
+  if (!currentRoom) return
+  setupCanvas()
+  ctx.fillStyle = "#0e1319"
+  ctx.fillRect(0, 0, cell * 50, cell * 50)
+  renderTerrain(currentRoom)
+  const structures = currentResult?.ok ? currentResult.plan.structures : []
+  drawRoads(structures)
+  drawRampartConnections(structures)
+  if (currentRoom.controller) drawSprite("controller", currentRoom.controller.x, currentRoom.controller.y)
+  for (const s of currentRoom.sources) drawSprite("source", s.x, s.y)
+  for (const m of currentRoom.minerals) drawSprite("mineral", m.x, m.y, "mineral-" + (m.mineralType || "X"))
+  for (const s of structures)
+    if (!["road", "rampart", "extractor"].includes(s.structureType))
+      drawSprite(s.structureType, s.coordinate.x, s.coordinate.y)
+  for (const s of structures)
+    if (s.structureType === "extractor") drawSprite("extractor", s.coordinate.x, s.coordinate.y)
+  ctx.save()
+  ctx.globalAlpha = 0.76
+  for (const s of structures) if (s.structureType === "rampart") drawSprite("rampart", s.coordinate.x, s.coordinate.y)
+  ctx.restore()
+  const a = towerAnalysisForCurrent(),
+    milp = optimalTowerEntry()
+  if (a && document.getElementById("centralTowerOverlay")?.checked)
+    drawTowerMarker(a.central?.coordinates, { color: "#6eb8ff", shape: "circle", radius: 0.34, text: "C" }, "central")
+  if (a?.distributed && document.getElementById("distributedTowerOverlay")?.checked)
+    drawTowerMarker(
+      a.distributed.coordinates,
+      { color: "#ff936b", shape: "diamond", radius: 0.38, text: "D" },
+      "distributed",
+    )
+  if (a && document.getElementById("plannerTowerOverlay")?.checked)
+    drawTowerMarker(a.planner.coordinates, { color: "#dbe5ef", shape: "square", radius: 0.3, text: "V" }, "v2 planner")
+  if (milp?.status === "ready" && document.getElementById("milpTowerOverlay")?.checked)
+    drawTowerMarker(milp.result.coordinates, { color: "#f2c55c", shape: "cross", radius: 0.4, lineWidth: 0.15 }, "MILP")
+  ctx.strokeStyle = "#ffffff0b"
+  ctx.lineWidth = 1
+  for (let i = 0; i <= 50; i++) {
+    ctx.beginPath()
+    ctx.moveTo(i * cell, 0)
+    ctx.lineTo(i * cell, 50 * cell)
+    ctx.stroke()
+    ctx.beginPath()
+    ctx.moveTo(0, i * cell)
+    ctx.lineTo(50 * cell, i * cell)
+    ctx.stroke()
+  }
+  lastObjects = [
+    ...structures.map((s) => ({
+      type: s.structureType,
+      x: s.coordinate.x,
+      y: s.coordinate.y,
+      label: `${s.structureType} · RCL ${s.rcl}`,
+    })),
+    ...(currentRoom.controller
+      ? [{ type: "controller", x: currentRoom.controller.x, y: currentRoom.controller.y, label: "controller" }]
+      : []),
+    ...currentRoom.sources.map((s, i) => ({ type: "source", x: s.x, y: s.y, label: `source ${i + 1}` })),
+    ...currentRoom.minerals.map((m) => ({ type: "mineral", x: m.x, y: m.y, label: `mineral ${m.mineralType}` })),
+  ]
+  if (a?.central?.coordinates)
+    a.central.coordinates.forEach((c, i) =>
+      lastObjects.push({ type: "centralTower", x: c.x, y: c.y, label: `central tower ${i + 1}` }),
+    )
+  if (a?.distributed?.coordinates)
+    a.distributed.coordinates.forEach((c, i) =>
+      lastObjects.push({ type: "distributedTower", x: c.x, y: c.y, label: `distributed tower ${i + 1}` }),
+    )
+  if (milp?.status === "ready")
+    milp.result.coordinates.forEach((c, i) =>
+      lastObjects.push({ type: "milpTower", x: c.x, y: c.y, label: `MILP tower ${i + 1}` }),
+    )
+}
+function structureCounts(plan) {
+  const a = {}
+  if (!plan) return a
+  for (const s of plan.structures) a[s.structureType] = (a[s.structureType] || 0) + 1
+  return a
+}
+function renderSide() {
+  document.getElementById("roomTitle").textContent = currentName || "—"
+  const st = document.getElementById("status"),
+    dl = document.getElementById("downloadBtn"),
+    cp = document.getElementById("copyBtn")
+  let status = "NOT PLANNED",
+    klass = "idle"
+  if (currentResult) {
+    if (currentResult.ok) {
+      status = "SUCCESS"
+      klass = "ok"
+    } else {
+      status = "FAIL · " + (currentResult.failureStage || "unknown")
+      klass = "bad"
+    }
+  }
+  st.textContent = status
+  st.className = "pill " + klass
+  dl.disabled = cp.disabled = !(currentResult && currentResult.ok)
+  const d = currentResult?.diagnostics || currentResult || {},
+    cnt = structureCounts(currentResult?.plan)
+  const metrics = [
+    ["attempt", currentResult ? (d.attempt ?? 0) + 1 : "—"],
+    ["tier", d.tier ?? "—"],
+    ["slots", d.slots ?? "—"],
+    ["structures", currentResult?.plan?.structures.length ?? "—"],
+    ["roads", cnt.road ?? "—"],
+    ["ramparts", cnt.rampart ?? "—"],
+    ["extensions", cnt.extension ?? "—"],
+    ["towers", cnt.tower ?? "—"],
+    ["time", currentResult ? currentElapsed.toFixed(1) + " ms" : "—"],
+  ]
+  document.getElementById("metrics").innerHTML = metrics
+    .map(([k, v]) => `<div class="metric"><b>${v}</b><span>${k}</span></div>`)
+    .join("")
+  document.getElementById("roomInfo").textContent = currentRoom
+    ? `controller: ${currentRoom.controller ? `(${currentRoom.controller.x},${currentRoom.controller.y})` : "none"}\nsources: ${currentRoom.sources.length}\nminerals: ${currentRoom.minerals.map((m) => `${m.mineralType}@${m.x},${m.y}`).join(" · ") || "none"}`
+    : "—"
+  document.getElementById("plannerInfo").textContent = !currentResult
+    ? "not run"
+    : currentResult.ok
+      ? `SUCCESS\nregion attempts: ${(d.attempt ?? 0) + 1}\nselected regions: ${(d.selectedRegions || []).join(", ")}\nouter ramparts (planning): ${d.outerRamparts ?? "—"}\ncontroller candidates: ${d.controllerCandidates ?? "—"}\nanchor/storage: ${currentResult.plan.anchor.x},${currentResult.plan.anchor.y}`
+      : `FAIL: ${currentResult.failureStage || "unknown"}\nregion attempts: ${(d.attempt ?? 0) + 1}\nselected regions: ${(d.selectedRegions || []).join(", ") || "—"}\n${currentResult.message || ""}`
+  document.getElementById("counts").textContent = currentResult?.ok
+    ? Object.entries(cnt)
+        .sort()
+        .map(([k, v]) => `${k.padEnd(12)} ${v}`)
+        .join("\n")
+    : "—"
+  document.getElementById("towerOptInfo").textContent = towerOptimizationText()
+}
+async function setRoom(name, autoPlan = true) {
+  name = (name || "").trim().toUpperCase()
+  if (!/^[WE]\d+[NS]\d+$/.test(name)) {
+    alert(`Invalid room name: ${name}`)
+    return
+  }
+  if (name !== currentName) cancelOptimalTowerSolve()
+  const requestName = name
+  currentName = name
+  input.value = name
+  currentResult = planCache.get(name)?.result || null
+  currentElapsed = planCache.get(name)?.elapsed || 0
+  wrap.classList.add("busy")
+  document.getElementById("status").textContent = "LOADING ROOM"
+  document.getElementById("status").className = "pill idle"
+  try {
+    currentRoom = await fetchRoomData(name)
+  } catch (e) {
+    console.error(e)
+    if (currentName === requestName) {
+      wrap.classList.remove("busy")
+      currentRoom = null
+      currentResult = null
+      renderSide()
+      alert(`Failed to load ${name}: ${e?.message || e}`)
+    }
+    return
+  }
+  if (currentName !== requestName) return
+  wrap.classList.remove("busy")
+  renderCurrent()
+  renderSide()
+  if (autoPlan && !currentResult) runPlan()
+  else if (document.getElementById("milpTowerOverlay")?.checked && currentResult?.ok) ensureOptimalTowerOverlay()
+}
+function runPlan() {
+  if (!currentRoom) return
+  wrap.classList.add("busy")
+  document.getElementById("status").textContent = "PLANNING"
+  document.getElementById("status").className = "pill idle"
+  setTimeout(() => {
+    const name = currentName,
+      t0 = performance.now()
+    let result
+    try {
+      result = planBaseOffline(currentRoom)
+    } catch (e) {
+      console.error(e)
+      result = { ok: false, failureStage: "exception", message: e?.stack || String(e) }
+    }
+    const elapsed = performance.now() - t0
+    planCache.set(name, { result, elapsed })
+    if (currentName !== name) return
+    currentResult = result
+    currentElapsed = elapsed
+    wrap.classList.remove("busy")
+    renderCurrent()
+    renderSide()
+    if (document.getElementById("milpTowerOverlay")?.checked && result?.ok) ensureOptimalTowerOverlay()
+  }, 20)
+}
+function nav(delta) {
+  const list = document.getElementById("controllerOnly").checked ? controllerNames : allNames
+  let i = list.indexOf(currentName)
+  if (i < 0) i = 0
+  i = (i + delta + list.length) % list.length
+  setRoom(list[i], true)
+}
+function randomController() {
+  setRoom(controllerNames[Math.floor(Math.random() * controllerNames.length)], true)
+}
+function downloadPlan() {
+  if (!currentResult?.ok) return
+  const text = JSON.stringify(currentResult.plan, null, 2),
+    blob = new Blob([text], { type: "application/json" }),
+    url = URL.createObjectURL(blob),
+    a = document.createElement("a")
+  a.href = url
+  a.download = `${currentName}-basePlan-v1.json`
+  document.body.appendChild(a)
+  a.click()
+  a.remove()
+  setTimeout(() => URL.revokeObjectURL(url), 1000)
+}
+async function copyPlan() {
+  if (!currentResult?.ok) return
+  const text = JSON.stringify(currentResult.plan, null, 2)
+  try {
+    await navigator.clipboard.writeText(text)
+    const b = document.getElementById("copyBtn"),
+      old = b.textContent
+    b.textContent = "Copied"
+    setTimeout(() => (b.textContent = old), 900)
+  } catch (e) {
+    prompt("Copy BasePlan JSON", text)
+  }
+}
+function updateAssetState() {}
+input.addEventListener("keydown", (e) => {
+  if (e.key === "Enter") setRoom(input.value, true)
+})
+input.addEventListener("change", () => setRoom(input.value, true))
+document.getElementById("planBtn").onclick = () => setRoom(input.value, true)
+document.getElementById("prevBtn").onclick = () => nav(-1)
+document.getElementById("nextBtn").onclick = () => nav(1)
+document.getElementById("randomBtn").onclick = randomController
+document.getElementById("downloadBtn").onclick = downloadPlan
+document.getElementById("copyBtn").onclick = copyPlan
+for (const id of ["centralTowerOverlay", "distributedTowerOverlay", "plannerTowerOverlay"])
+  document.getElementById(id).addEventListener("change", () => {
+    renderCurrent()
+    renderSide()
+  })
+document.getElementById("milpTowerOverlay").addEventListener("change", () => {
+  const enabled = document.getElementById("milpTowerOverlay").checked
+  if (!enabled) cancelOptimalTowerSolve()
+  renderCurrent()
+  renderSide()
+  if (enabled) ensureOptimalTowerOverlay()
+})
+cv.addEventListener("mousemove", (e) => {
+  const r = cv.getBoundingClientRect(),
+    x = Math.floor(((e.clientX - r.left) / r.width) * 50),
+    y = Math.floor(((e.clientY - r.top) / r.height) * 50),
+    here = lastObjects.filter((o) => o.x === x && o.y === y).map((o) => o.label)
+  tip.style.display = "block"
+  tip.style.left = e.clientX - r.left + 12 + "px"
+  tip.style.top = e.clientY - r.top + 12 + "px"
+  tip.textContent = `(${x},${y})${here.length ? " · " + here.join(" + ") : ""}`
+})
+cv.addEventListener("mouseleave", () => (tip.style.display = "none"))
+window.addEventListener("resize", renderCurrent)
+const requested = new URLSearchParams(location.search).get("room")
+setRoom((requested || "E27N37").toUpperCase(), true)
+updateAssetState()

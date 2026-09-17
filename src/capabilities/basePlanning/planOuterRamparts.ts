@@ -1,6 +1,6 @@
-import { floodFill } from "../../world/map/floodFill";
-import { findMinimumTileCut } from "../../world/map/minCut";
-import type { RoomCoordinate } from "../../world/map/roomCoordinate";
+import { floodFill } from "../../world/map/floodFill"
+import { findMinimumTileCut } from "../../world/map/minCut"
+import type { RoomCoordinate } from "../../world/map/roomCoordinate"
 import {
   forEachCoordinateAtRange,
   fromRoomIndex,
@@ -9,17 +9,17 @@ import {
   ROOM_AREA,
   ROOM_SIZE,
   toRoomIndex,
-} from "../../world/map/roomGrid";
+} from "../../world/map/roomGrid"
 
-const BASE_RAMPART_COST = 1;
-const EXIT_SINK_RANGE = 1;
-const BASE_DISTANCE = 15;
+const BASE_RAMPART_COST = 1
+const EXIT_SINK_RANGE = 1
+const BASE_DISTANCE = 15
 
 export interface OuterRampartPlan {
-  readonly ramparts: RoomCoordinate[];
-  readonly rampartMask: Uint8Array;
-  readonly insideMask: Uint8Array;
-  readonly outsideMask: Uint8Array;
+  readonly ramparts: RoomCoordinate[]
+  readonly rampartMask: Uint8Array
+  readonly insideMask: Uint8Array
+  readonly outsideMask: Uint8Array
 }
 
 /**
@@ -39,32 +39,28 @@ export function planOuterRamparts(
   visual: RoomVisual,
   existingSpawn?: RoomCoordinate,
 ): OuterRampartPlan | undefined {
-  const selectedMask = buildSelectedRegionMask(
-    terrain,
-    selectedRegionIds,
-    regionByTile,
-  );
-  const sourceMask = shrinkSelectedRegion(terrain, selectedMask);
-  const sinkMask = buildExitSinkMask(terrain);
+  const selectedMask = buildSelectedRegionMask(terrain, selectedRegionIds, regionByTile)
+  const sourceMask = shrinkSelectedRegion(terrain, selectedMask)
+  const sinkMask = buildExitSinkMask(terrain)
 
   if (existingSpawn) {
-    const spawnIndex = toRoomIndex(existingSpawn.x, existingSpawn.y);
+    const spawnIndex = toRoomIndex(existingSpawn.x, existingSpawn.y)
 
     if (!sinkMask[spawnIndex]) {
-      sourceMask[spawnIndex] = 1;
+      sourceMask[spawnIndex] = 1
     }
   }
 
-  const tileCosts = buildControllerDistanceCosts(terrain, controller.pos);
+  const tileCosts = buildControllerDistanceCosts(terrain, controller.pos)
 
-  const result = findMinimumTileCut(terrain, sourceMask, sinkMask, tileCosts);
+  const result = findMinimumTileCut(terrain, sourceMask, sinkMask, tileCosts)
 
   if (!result || result.cuts.length === 0) {
-    return;
+    return
   }
 
   for (const rampart of result.cuts) {
-    visual.structure(rampart.x, rampart.y, STRUCTURE_RAMPART);
+    visual.structure(rampart.x, rampart.y, STRUCTURE_RAMPART)
   }
 
   return {
@@ -72,7 +68,7 @@ export function planOuterRamparts(
     rampartMask: result.cutMask,
     insideMask: result.insideMask,
     outsideMask: result.outsideMask,
-  };
+  }
 }
 
 function buildSelectedRegionMask(
@@ -80,68 +76,65 @@ function buildSelectedRegionMask(
   selectedRegionIds: ReadonlySet<number>,
   regionByTile: Int16Array,
 ): Uint8Array {
-  const selectedMask = new Uint8Array(ROOM_AREA);
+  const selectedMask = new Uint8Array(ROOM_AREA)
 
   for (let index = 0; index < ROOM_AREA; index++) {
     if (!selectedRegionIds.has(regionByTile[index])) {
-      continue;
+      continue
     }
 
-    const { x, y } = fromRoomIndex(index);
+    const { x, y } = fromRoomIndex(index)
 
     if (terrain.get(x, y) === TERRAIN_MASK_WALL) {
-      continue;
+      continue
     }
 
-    selectedMask[index] = 1;
+    selectedMask[index] = 1
   }
 
-  return selectedMask;
+  return selectedMask
 }
 
 /**
  * One-tile erosion against traversable non-selected space. Terrain walls do
  * not consume the defensive margin because they already block movement.
  */
-function shrinkSelectedRegion(
-  terrain: RoomTerrain,
-  selectedMask: Uint8Array,
-): Uint8Array {
-  const sourceMask = new Uint8Array(ROOM_AREA);
+function shrinkSelectedRegion(terrain: RoomTerrain, selectedMask: Uint8Array): Uint8Array {
+  const sourceMask = new Uint8Array(ROOM_AREA)
 
   for (let index = 0; index < ROOM_AREA; index++) {
     if (!selectedMask[index]) {
-      continue;
+      continue
     }
 
-    const coordinate = fromRoomIndex(index);
-    let survivesShrink = true;
+    const coordinate = fromRoomIndex(index)
+    let survivesShrink = true
 
     for (const offset of NEIGHBOR_OFFSETS) {
-      const x = coordinate.x + offset.x;
-      const y = coordinate.y + offset.y;
+      const x = coordinate.x + offset.x
+      const y = coordinate.y + offset.y
 
       if (!isInsideRoom(x, y)) {
-        survivesShrink = false;
-        break;
+        survivesShrink = false
+        break
       }
 
       if (terrain.get(x, y) === TERRAIN_MASK_WALL) {
-        continue;
+        continue
       }
 
       if (!selectedMask[toRoomIndex(x, y)]) {
-        survivesShrink = false;
-        break;
+        survivesShrink = false
+        break
       }
     }
 
     if (survivesShrink) {
-      sourceMask[index] = 1;
+      sourceMask[index] = 1
     }
   }
 
-  return sourceMask;
+  return sourceMask
 }
 
 /**
@@ -149,38 +142,38 @@ function shrinkSelectedRegion(
  * the minimum cut cannot settle directly on the room border.
  */
 function buildExitSinkMask(terrain: RoomTerrain): Uint8Array {
-  const sinkMask = new Uint8Array(ROOM_AREA);
+  const sinkMask = new Uint8Array(ROOM_AREA)
 
   for (let index = 0; index < ROOM_AREA; index++) {
-    const { x, y } = fromRoomIndex(index);
+    const { x, y } = fromRoomIndex(index)
 
     if (x !== 0 && x !== ROOM_SIZE - 1 && y !== 0 && y !== ROOM_SIZE - 1) {
-      continue;
+      continue
     }
 
     if (terrain.get(x, y) === TERRAIN_MASK_WALL) {
-      continue;
+      continue
     }
 
     for (let dy = -EXIT_SINK_RANGE; dy <= EXIT_SINK_RANGE; dy++) {
       for (let dx = -EXIT_SINK_RANGE; dx <= EXIT_SINK_RANGE; dx++) {
-        const sinkX = x + dx;
-        const sinkY = y + dy;
+        const sinkX = x + dx
+        const sinkY = y + dy
 
         if (!isInsideRoom(sinkX, sinkY)) {
-          continue;
+          continue
         }
 
         if (terrain.get(sinkX, sinkY) === TERRAIN_MASK_WALL) {
-          continue;
+          continue
         }
 
-        sinkMask[toRoomIndex(sinkX, sinkY)] = 1;
+        sinkMask[toRoomIndex(sinkX, sinkY)] = 1
       }
     }
   }
 
-  return sinkMask;
+  return sinkMask
 }
 
 /**
@@ -189,28 +182,24 @@ function buildExitSinkMask(terrain: RoomTerrain): Uint8Array {
  * have no extra weight: this distance approximates reinforcement travel time
  * rather than road construction cost.
  */
-function buildControllerDistanceCosts(
-  terrain: RoomTerrain,
-  controller: RoomCoordinate,
-): Uint16Array {
-  const startCoordinates: RoomCoordinate[] = [];
+function buildControllerDistanceCosts(terrain: RoomTerrain, controller: RoomCoordinate): Uint16Array {
+  const startCoordinates: RoomCoordinate[] = []
 
   forEachCoordinateAtRange(controller, 1, (x, y) => {
-    startCoordinates.push({ x, y });
-  });
+    startCoordinates.push({ x, y })
+  })
 
-  const { distances } = floodFill(terrain, startCoordinates);
+  const { distances } = floodFill(terrain, startCoordinates)
 
-  const tileCosts = new Uint16Array(ROOM_AREA);
+  const tileCosts = new Uint16Array(ROOM_AREA)
 
   for (let index = 0; index < ROOM_AREA; index++) {
-    const distance = distances[index];
+    const distance = distances[index]
 
-    const distanceFactor =
-      distance > BASE_DISTANCE ? distance - BASE_DISTANCE : 0;
+    const distanceFactor = distance > BASE_DISTANCE ? distance - BASE_DISTANCE : 0
 
-    tileCosts[index] = BASE_RAMPART_COST + distanceFactor;
+    tileCosts[index] = BASE_RAMPART_COST + distanceFactor
   }
 
-  return tileCosts;
+  return tileCosts
 }

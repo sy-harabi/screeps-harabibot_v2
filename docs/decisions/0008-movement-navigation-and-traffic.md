@@ -36,6 +36,8 @@ This record defines intended behavior. The movement capability is not implemente
 
 Movement must not infer strategy from role names. For example, the owned source operation chooses the mining position; movement only manages reaching it.
 
+Within the caller boundary, the operation owns durable goals, assigned working positions or areas, and strategic risk policy. The role chooses its current action, immediate destination and range, and current-tick hold declarations within those decisions. This is a conceptual responsibility boundary, not a requirement for separate classes or files.
+
 Use plain modules and small interfaces under `src/capabilities/movement/`. A public entrypoint may orchestrate several steps without owning every implementation detail. Splitting code into helpers is insufficient if callers can still mutate path cursors or recovery state directly.
 
 ### 2. Prepare paths synchronously and resolve traffic after operation execution
@@ -56,15 +58,15 @@ moveCreep(creep, goals, options)
 Only shared tile allocation and movement command emission are deferred:
 
 ```ts
-planOperationTree(rootOperation, context);
+planOperationTree(rootOperation, context)
 
-allocateSpawns();
+allocateSpawns()
 
-executeOperationTree(rootOperation, context);
+executeOperationTree(rootOperation, context)
 
-resolveTraffic();
+resolveTraffic()
 
-segmentManager.endTick();
+segmentManager.endTick()
 ```
 
 This preserves same-tick fallback decisions without requiring a second operation execution pass or a separate path query for ordinary movement callers. Traffic has all current-tick movement requests and constraints before it assigns positions.
@@ -79,11 +81,11 @@ The ordinary public entrypoint is `moveCreep(creep, goals, options?)`. Support o
 
 ```ts
 interface MoveGoal {
-  readonly pos: RoomPosition;
-  readonly range: number;
+  readonly pos: RoomPosition
+  readonly range: number
 }
 
-type MoveStatus = "arrived" | "pending" | "failed";
+type MoveStatus = "arrived" | "pending" | "failed"
 ```
 
 | Status    | Meaning                                                                                                                        |
@@ -121,13 +123,13 @@ An operation that wants a stationary worker must call `holdPosition()` explicitl
 
 ```ts
 if (miner.pos.isEqualTo(miningPosition)) {
-  holdPosition(miner);
+  holdPosition(miner)
 } else {
-  moveCreep(miner, { pos: miningPosition, range: 0 });
+  moveCreep(miner, { pos: miningPosition, range: 0 })
 }
 
 if (miner.pos.inRangeTo(source, 1)) {
-  miner.harvest(source);
+  miner.harvest(source)
 }
 ```
 
@@ -161,6 +163,10 @@ Record traffic decisions and emitted movement attempts separately from observed 
 
 Recovery should follow explicit rules: preserve paths during ordinary waiting, invalidate confirmed blocked steps, and use bounded local recovery or repathing after repeated lack of progress. Exact thresholds remain implementation choices. Recovery must not silently relax a caller's risk policy.
 
+Recovery should invalidate only the smallest scope justified by observed evidence. A failed step at a room exit or a bounded path search does not by itself invalidate a room connection. Preserve the room route when the evidence only requires replacing a path; reconsider the route when relevant world information or policy justifies it. Route reconsideration must remain consistent with the caller's policy and must not rewrite world connectivity facts based on a local failure.
+
+Whether an obstruction is temporary, which navigation state needs invalidation, and which status the call returns are separate questions. Temporary danger may invalidate the current path immediately. Returning `failed` does not require exhausting a fixed sequence of local retries, repathing, and rerouting, and does not establish strategic failure. The caller retains responsibility for changing or abandoning the goal.
+
 Prefer descriptive state names such as `cachedPath`, `nextPathIndex`, `lastMoveAttempt`, `consecutiveBlockedTicks`, and `retryAt`. These illustrate meaning and units; the final storage representation is not fixed here.
 
 ### 7. Separate movement constraints from search preferences
@@ -180,6 +186,24 @@ Keep the distinction between:
 Shared cost matrices must not be modified by request-specific overlays. Body-aware cost caching must account for relevant body, boost, damage, and load changes when that feature is introduced.
 
 Named policy presets may package common choices, but do not mix role categories, risk policy, and search purpose into one exhaustive profile enum. Flee changes the search objective; combat and civilian creeps may both need it. Add the concrete API when its consumer is implemented.
+
+For a future mineral operation, the following example assumes travel through an SK room is permitted but entering Keeper danger zones is forbidden by the selected policy:
+
+```text
+The operation assigns a mining position and selects the risk policy.
+The role requests movement toward that position.
+World supplies observed Keeper information.
+Pathing checks the remaining path against the selected policy.
+If the path violates that policy, movement stops following it.
+Movement attempts a bounded local repath while retaining the room route
+unless evidence also warrants reconsidering that route.
+Traffic applies the same risk restrictions to yielding alternatives.
+The caller receives pending or failed according to the existing contract.
+Recovery never weakens the caller's risk policy.
+The caller decides whether to change the goal or policy.
+```
+
+Keeper presence alone does not invalidate every path through the room. This example illustrates the ownership contract; it does not add SK behavior to the first implementation slice.
 
 ### 8. Keep traffic resolution bounded and explicit
 
@@ -276,6 +300,8 @@ When implementing the first slice, verify that:
 - a global reset loses disposable caches without losing operation intent.
 
 Extend verification to swaps, cycles, constrained yielding, room transitions, shared-path rejoining, and tactical movement when those features are introduced. Use focused tests and in-game observation appropriate to each implemented slice; this design record does not claim those checks have already passed.
+
+When room routing and risk policies are introduced, also verify that local failures do not invalidate room connections without supporting evidence, and that both repathing and traffic alternatives preserve the selected risk restrictions.
 
 ## References
 

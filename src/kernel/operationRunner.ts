@@ -1,77 +1,65 @@
-import { colonyOperationHandler } from "../operations/colony/colonyOperation";
-import { empireOperationHandler } from "../operations/empire/empireOperation";
-import {
-  getChildOperations,
-  type OperationRecord,
-} from "../operations/operation";
-import { ownedSourceOperationHandler } from "../operations/ownedSource/ownedSourceOperation";
-import type { TickContext } from "./tickContext";
+import { colonyOperationHandler } from "../operations/colony/colonyOperation"
+import { empireOperationHandler } from "../operations/empire/empireOperation"
+import { getChildOperations, type OperationRecord } from "../operations/operation"
+import { ownedSourceOperationHandler } from "../operations/ownedSource/ownedSourceOperation"
+import type { TickContext } from "./tickContext"
 
 function planOperation(operation: OperationRecord, context: TickContext): void {
   switch (operation.type) {
     case "empire":
-      empireOperationHandler.plan?.(operation, context);
-      return;
+      empireOperationHandler.plan?.(operation, context)
+      return
     case "colony":
-      colonyOperationHandler.plan?.(operation, context);
-      return;
+      colonyOperationHandler.plan?.(operation, context)
+      return
     case "ownedSource":
-      ownedSourceOperationHandler.plan?.(operation, context);
-      return;
+      ownedSourceOperationHandler.plan?.(operation, context)
+      return
   }
 
-  assertUnreachable(operation);
+  assertUnreachable(operation)
 }
 
-function executeOperation(
-  operation: OperationRecord,
-  context: TickContext,
-): void {
+function executeOperation(operation: OperationRecord, context: TickContext): void {
   switch (operation.type) {
     case "empire":
-      empireOperationHandler.execute?.(operation, context);
-      return;
+      empireOperationHandler.execute?.(operation, context)
+      return
     case "colony":
-      colonyOperationHandler.execute?.(operation, context);
-      return;
+      colonyOperationHandler.execute?.(operation, context)
+      return
     case "ownedSource":
-      ownedSourceOperationHandler.execute?.(operation, context);
-      return;
+      ownedSourceOperationHandler.execute?.(operation, context)
+      return
   }
 
-  assertUnreachable(operation);
+  assertUnreachable(operation)
 }
 
 function assertUnreachable(operation: never): never {
-  throw new Error("Unknown operation type");
+  throw new Error("Unknown operation type")
 }
 
-export function planOperationTree(
-  operation: OperationRecord,
-  context: TickContext,
-): void {
+export function planOperationTree(operation: OperationRecord, context: TickContext): void {
   if (operation.status !== "active") {
-    return;
+    return
   }
 
-  planOperation(operation, context);
+  planOperation(operation, context)
 
   for (const child of getChildOperations(operation.id)) {
-    planOperationTree(child, context);
+    planOperationTree(child, context)
   }
 }
 
-export function executeOperationTree(
-  operation: OperationRecord,
-  context: TickContext,
-): void {
+export function executeOperationTree(operation: OperationRecord, context: TickContext): void {
   if (operation.status !== "active") {
-    return;
+    return
   }
 
-  executeOperation(operation, context);
+  executeOperation(operation, context)
 
   for (const child of getChildOperations(operation.id)) {
-    executeOperationTree(child, context);
+    executeOperationTree(child, context)
   }
 }

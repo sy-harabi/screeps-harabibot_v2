@@ -1,5 +1,5 @@
-import { dijkstraMap } from "../../world/map/dijkstraMap";
-import { RoomCoordinate } from "../../world/map/roomCoordinate";
+import { dijkstraMap } from "../../world/map/dijkstraMap"
+import { RoomCoordinate } from "../../world/map/roomCoordinate"
 import {
   fromRoomIndex,
   isInsideRoom,
@@ -7,34 +7,34 @@ import {
   ROOM_AREA,
   ROOM_SIZE,
   toRoomIndex,
-} from "../../world/map/roomGrid";
-import { ControllerAreaCandidate } from "./findControllerAreaCandidates";
-import { CorePlan } from "./findCorePlans";
-import { LabPlan } from "./planLabs";
-import { RegionBoundaryRoadPlan } from "./planRegionBoundaryRoads";
-import { ResourceTreePlan } from "./planResourceTree";
+} from "../../world/map/roomGrid"
+import { ControllerAreaCandidate } from "./findControllerAreaCandidates"
+import { CorePlan } from "./findCorePlans"
+import { LabPlan } from "./planLabs"
+import { RegionBoundaryRoadPlan } from "./planRegionBoundaryRoads"
+import { ResourceTreePlan } from "./planResourceTree"
 
-const REQUIRED_STRUCTURE_SLOTS = 70;
-const MAX_BRANCH_LENGTH = 3;
-const SERVICE_DISTANCE_STEP = MAX_BRANCH_LENGTH;
-const MAX_SERVICE_DISTANCE = ROOM_SIZE;
-const SPAWN_ACCESS_PLAIN_COST = 5;
-const SPAWN_ACCESS_SWAMP_COST = 6;
+const REQUIRED_STRUCTURE_SLOTS = 70
+const MAX_BRANCH_LENGTH = 3
+const SERVICE_DISTANCE_STEP = MAX_BRANCH_LENGTH
+const MAX_SERVICE_DISTANCE = ROOM_SIZE
+const SPAWN_ACCESS_PLAIN_COST = 5
+const SPAWN_ACCESS_SWAMP_COST = 6
 
 interface BranchCandidate {
-  readonly newRoadIndices: number[];
-  readonly newRoadDistances: number[];
+  readonly newRoadIndices: number[]
+  readonly newRoadDistances: number[]
 }
 
 export interface StructureSlot {
-  readonly coordinate: RoomCoordinate;
-  readonly serviceDistance: number;
+  readonly coordinate: RoomCoordinate
+  readonly serviceDistance: number
 }
 
 export interface StructureSlotPlan {
-  readonly slots: StructureSlot[];
-  readonly roads: RoomCoordinate[];
-  readonly complete: boolean;
+  readonly slots: StructureSlot[]
+  readonly roads: RoomCoordinate[]
+  readonly complete: boolean
 }
 
 export function planStructureSlots(
@@ -48,54 +48,31 @@ export function planStructureSlots(
   visual: RoomVisual,
   existingSpawn?: RoomCoordinate,
 ): StructureSlotPlan | undefined {
-  const mandatoryRoadMask = buildRoadMask(
-    corePlan,
-    resourceTree,
-    boundaryRoadPlan,
-    labPlan,
-  );
+  const mandatoryRoadMask = buildRoadMask(corePlan, resourceTree, boundaryRoadPlan, labPlan)
 
-  const blockedMask = buildStructureSlotBlockedMask(
-    controllerArea,
-    corePlan,
-    resourceTree,
-    labPlan,
-    existingSpawn,
-  );
+  const blockedMask = buildStructureSlotBlockedMask(controllerArea, corePlan, resourceTree, labPlan, existingSpawn)
 
   const spawnAccessRoads = existingSpawn
-    ? planExistingSpawnAccessRoads(
-        terrain,
-        existingSpawn,
-        mandatoryRoadMask,
-        blockedMask,
-        planningMask,
-      )
-    : [];
+    ? planExistingSpawnAccessRoads(terrain, existingSpawn, mandatoryRoadMask, blockedMask, planningMask)
+    : []
 
   if (spawnAccessRoads === undefined) {
-    return;
+    return
   }
 
   for (const road of spawnAccessRoads) {
-    mandatoryRoadMask[toRoomIndex(road.x, road.y)] = 1;
+    mandatoryRoadMask[toRoomIndex(road.x, road.y)] = 1
   }
 
-  const slotPlan = findGreedySlotPlan(
-    terrain,
-    mandatoryRoadMask,
-    blockedMask,
-    planningMask,
-    corePlan,
-  );
+  const slotPlan = findGreedySlotPlan(terrain, mandatoryRoadMask, blockedMask, planningMask, corePlan)
   const plan: StructureSlotPlan = {
     ...slotPlan,
     roads: [...spawnAccessRoads, ...slotPlan.roads],
-  };
+  }
 
-  visualizeStructureSlotPlan(plan, visual);
+  visualizeStructureSlotPlan(plan, visual)
 
-  return plan;
+  return plan
 }
 
 function planExistingSpawnAccessRoads(
@@ -105,10 +82,10 @@ function planExistingSpawnAccessRoads(
   blockedMask: Uint8Array,
   planningMask: Uint8Array,
 ): RoomCoordinate[] | undefined {
-  const roadRoots = collectCoordinates(mandatoryRoadMask);
+  const roadRoots = collectCoordinates(mandatoryRoadMask)
 
   if (roadRoots.length === 0) {
-    return;
+    return
   }
 
   const distanceMap = dijkstraMap(
@@ -116,76 +93,68 @@ function planExistingSpawnAccessRoads(
     roadRoots,
     (_x, _y, terrainType) => getSpawnAccessRoadCost(terrainType),
     (x, y) => {
-      const index = toRoomIndex(x, y);
-      return planningMask[index] === 1 && blockedMask[index] === 0;
+      const index = toRoomIndex(x, y)
+      return planningMask[index] === 1 && blockedMask[index] === 0
     },
-  );
+  )
 
-  let targetIndex = -1;
-  let targetDistance = Infinity;
+  let targetIndex = -1
+  let targetDistance = Infinity
 
   for (const offset of NEIGHBOR_OFFSETS) {
-    const x = existingSpawn.x + offset.x;
-    const y = existingSpawn.y + offset.y;
+    const x = existingSpawn.x + offset.x
+    const y = existingSpawn.y + offset.y
 
     if (!isInsideRoom(x, y)) {
-      continue;
+      continue
     }
 
-    const index = toRoomIndex(x, y);
-    const distance = distanceMap[index];
+    const index = toRoomIndex(x, y)
+    const distance = distanceMap[index]
 
     if (distance < 0) {
-      continue;
+      continue
     }
 
-    if (
-      distance < targetDistance ||
-      (distance === targetDistance && (targetIndex < 0 || index < targetIndex))
-    ) {
-      targetIndex = index;
-      targetDistance = distance;
+    if (distance < targetDistance || (distance === targetDistance && (targetIndex < 0 || index < targetIndex))) {
+      targetIndex = index
+      targetDistance = distance
     }
   }
 
   if (targetIndex < 0) {
-    return;
+    return
   }
 
-  const path: RoomCoordinate[] = [];
-  let currentIndex = targetIndex;
+  const path: RoomCoordinate[] = []
+  let currentIndex = targetIndex
 
   while (!mandatoryRoadMask[currentIndex]) {
-    const current = fromRoomIndex(currentIndex);
-    const currentDistance = distanceMap[currentIndex];
+    const current = fromRoomIndex(currentIndex)
+    const currentDistance = distanceMap[currentIndex]
 
     if (currentDistance <= 0) {
-      return;
+      return
     }
 
-    path.push(current);
+    path.push(current)
 
-    const currentCost = getSpawnAccessRoadCost(
-      terrain.get(current.x, current.y),
-    );
-    let nextIndex = -1;
+    const currentCost = getSpawnAccessRoadCost(terrain.get(current.x, current.y))
+    let nextIndex = -1
 
     for (const offset of NEIGHBOR_OFFSETS) {
-      const x = current.x + offset.x;
-      const y = current.y + offset.y;
+      const x = current.x + offset.x
+      const y = current.y + offset.y
 
       if (!isInsideRoom(x, y)) {
-        continue;
+        continue
       }
 
-      const neighborIndex = toRoomIndex(x, y);
-      const neighborDistance = distanceMap[neighborIndex];
+      const neighborIndex = toRoomIndex(x, y)
+      const neighborDistance = distanceMap[neighborIndex]
 
-      if (
-        neighborDistance < 0 ||
-        neighborDistance + currentCost !== currentDistance
-      ) {
-        continue;
+      if (neighborDistance < 0 || neighborDistance + currentCost !== currentDistance) {
+        continue
       }
 
       if (
@@ -193,24 +162,22 @@ function planExistingSpawnAccessRoads(
         mandatoryRoadMask[neighborIndex] ||
         (!mandatoryRoadMask[nextIndex] && neighborIndex < nextIndex)
       ) {
-        nextIndex = neighborIndex;
+        nextIndex = neighborIndex
       }
     }
 
     if (nextIndex < 0) {
-      return;
+      return
     }
 
-    currentIndex = nextIndex;
+    currentIndex = nextIndex
   }
 
-  return path;
+  return path
 }
 
 function getSpawnAccessRoadCost(terrainType: number): number {
-  return terrainType === TERRAIN_MASK_SWAMP
-    ? SPAWN_ACCESS_SWAMP_COST
-    : SPAWN_ACCESS_PLAIN_COST;
+  return terrainType === TERRAIN_MASK_SWAMP ? SPAWN_ACCESS_SWAMP_COST : SPAWN_ACCESS_PLAIN_COST
 }
 
 function findGreedySlotPlan(
@@ -220,15 +187,11 @@ function findGreedySlotPlan(
   planningMask: Uint8Array,
   corePlan: CorePlan,
 ): StructureSlotPlan {
-  const serviceRoadMask = mandatoryRoadMask.slice();
-  const addedRoadMask = new Uint8Array(ROOM_AREA);
+  const serviceRoadMask = mandatoryRoadMask.slice()
+  const addedRoadMask = new Uint8Array(ROOM_AREA)
 
-  let serviceDistanceMap = buildServiceDistanceMap(
-    terrain,
-    serviceRoadMask,
-    corePlan,
-  );
-  let slots: StructureSlot[] = [];
+  let serviceDistanceMap = buildServiceDistanceMap(terrain, serviceRoadMask, corePlan)
+  let slots: StructureSlot[] = []
 
   // Grow one persistent road network while the allowed road distance expands.
   // Each wave covers roughly one full branch length so nearby alternatives can
@@ -238,7 +201,7 @@ function findGreedySlotPlan(
     distanceLimit <= MAX_SERVICE_DISTANCE + SERVICE_DISTANCE_STEP - 1;
     distanceLimit += SERVICE_DISTANCE_STEP
   ) {
-    const maxServiceDistance = Math.min(distanceLimit, MAX_SERVICE_DISTANCE);
+    const maxServiceDistance = Math.min(distanceLimit, MAX_SERVICE_DISTANCE)
 
     slots = collectStructureSlots(
       terrain,
@@ -248,7 +211,7 @@ function findGreedySlotPlan(
       planningMask,
       serviceDistanceMap,
       maxServiceDistance,
-    );
+    )
 
     while (slots.length < REQUIRED_STRUCTURE_SLOTS) {
       const candidates = generateBranchCandidates(
@@ -258,22 +221,22 @@ function findGreedySlotPlan(
         maxServiceDistance,
         planningMask,
         blockedMask,
-      );
+      )
 
-      let bestCandidate: BranchCandidate | undefined;
-      let bestGain = 0;
-      let bestCost = Infinity;
+      let bestCandidate: BranchCandidate | undefined
+      let bestGain = 0
+      let bestCost = Infinity
 
       for (const candidate of candidates) {
-        const candidateRoadMask = serviceRoadMask.slice();
-        const candidateDistanceMap = serviceDistanceMap.slice();
+        const candidateRoadMask = serviceRoadMask.slice()
+        const candidateDistanceMap = serviceDistanceMap.slice()
 
         for (let i = 0; i < candidate.newRoadIndices.length; i++) {
-          const index = candidate.newRoadIndices[i];
-          const distance = candidate.newRoadDistances[i];
+          const index = candidate.newRoadIndices[i]
+          const distance = candidate.newRoadDistances[i]
 
-          candidateRoadMask[index] = 1;
-          candidateDistanceMap[index] = distance;
+          candidateRoadMask[index] = 1
+          candidateDistanceMap[index] = distance
         }
 
         const candidateSlots = collectStructureSlots(
@@ -284,44 +247,39 @@ function findGreedySlotPlan(
           planningMask,
           candidateDistanceMap,
           maxServiceDistance,
-        );
-        const gain = candidateSlots.length - slots.length;
-        const cost = candidate.newRoadIndices.length;
+        )
+        const gain = candidateSlots.length - slots.length
+        const cost = candidate.newRoadIndices.length
 
         if (gain <= 0) {
-          continue;
+          continue
         }
 
         if (
           bestCandidate &&
           (gain * bestCost < bestGain * cost ||
-            (gain * bestCost === bestGain * cost &&
-              (gain < bestGain || (gain === bestGain && cost >= bestCost))))
+            (gain * bestCost === bestGain * cost && (gain < bestGain || (gain === bestGain && cost >= bestCost))))
         ) {
-          continue;
+          continue
         }
 
-        bestCandidate = candidate;
-        bestGain = gain;
-        bestCost = cost;
+        bestCandidate = candidate
+        bestGain = gain
+        bestCost = cost
       }
 
       if (!bestCandidate) {
-        break;
+        break
       }
 
       for (const index of bestCandidate.newRoadIndices) {
-        serviceRoadMask[index] = 1;
-        addedRoadMask[index] = 1;
+        serviceRoadMask[index] = 1
+        addedRoadMask[index] = 1
       }
 
       // An accepted branch can shorten the path to existing roads as well as
       // extend the network, so recalculate actual road-network distances.
-      serviceDistanceMap = buildServiceDistanceMap(
-        terrain,
-        serviceRoadMask,
-        corePlan,
-      );
+      serviceDistanceMap = buildServiceDistanceMap(terrain, serviceRoadMask, corePlan)
 
       slots = collectStructureSlots(
         terrain,
@@ -331,21 +289,21 @@ function findGreedySlotPlan(
         planningMask,
         serviceDistanceMap,
         maxServiceDistance,
-      );
+      )
     }
 
     if (slots.length >= REQUIRED_STRUCTURE_SLOTS) {
-      break;
+      break
     }
   }
 
-  const complete = slots.length >= REQUIRED_STRUCTURE_SLOTS - 5;
+  const complete = slots.length >= REQUIRED_STRUCTURE_SLOTS - 5
 
   return {
     slots,
     roads: collectCoordinates(addedRoadMask),
     complete,
-  };
+  }
 }
 
 function generateBranchCandidates(
@@ -356,83 +314,83 @@ function generateBranchCandidates(
   planningMask: Uint8Array,
   blockedMask: Uint8Array,
 ): BranchCandidate[] {
-  const candidates: BranchCandidate[] = [];
-  const seen = new Set<string>();
+  const candidates: BranchCandidate[] = []
+  const seen = new Set<string>()
 
   for (let rootIndex = 0; rootIndex < ROOM_AREA; rootIndex++) {
     if (!serviceRoadMask[rootIndex]) {
-      continue;
+      continue
     }
 
-    const rootDistance = serviceDistanceMap[rootIndex];
+    const rootDistance = serviceDistanceMap[rootIndex]
 
     if (rootDistance < 0 || rootDistance > maxServiceDistance) {
-      continue;
+      continue
     }
 
-    const root = fromRoomIndex(rootIndex);
+    const root = fromRoomIndex(rootIndex)
 
     for (const direction of NEIGHBOR_OFFSETS) {
-      const newRoadIndices: number[] = [];
-      const newRoadDistances: number[] = [];
-      let currentDistance = rootDistance;
+      const newRoadIndices: number[] = []
+      const newRoadDistances: number[] = []
+      let currentDistance = rootDistance
 
       for (let step = 1; step <= MAX_BRANCH_LENGTH; step++) {
-        const x = root.x + direction.x * step;
-        const y = root.y + direction.y * step;
+        const x = root.x + direction.x * step
+        const y = root.y + direction.y * step
 
         if (!isInsideRoom(x, y)) {
-          break;
+          break
         }
 
         if (terrain.get(x, y) === TERRAIN_MASK_WALL) {
-          break;
+          break
         }
 
-        const index = toRoomIndex(x, y);
+        const index = toRoomIndex(x, y)
 
         if (!planningMask[index] || blockedMask[index]) {
-          break;
+          break
         }
 
-        let nextDistance = currentDistance + 1;
-        const existingDistance = serviceDistanceMap[index];
+        let nextDistance = currentDistance + 1
+        const existingDistance = serviceDistanceMap[index]
 
         if (serviceRoadMask[index] && existingDistance >= 0) {
-          nextDistance = Math.min(nextDistance, existingDistance);
+          nextDistance = Math.min(nextDistance, existingDistance)
         }
 
         if (nextDistance > maxServiceDistance) {
-          break;
+          break
         }
 
-        currentDistance = nextDistance;
+        currentDistance = nextDistance
 
         if (!serviceRoadMask[index]) {
-          newRoadIndices.push(index);
-          newRoadDistances.push(currentDistance);
+          newRoadIndices.push(index)
+          newRoadDistances.push(currentDistance)
         }
       }
 
       if (newRoadIndices.length < 2) {
-        continue;
+        continue
       }
 
       const key = newRoadIndices
         .map((index, i) => `${index}:${newRoadDistances[i]}`)
         .sort()
-        .join(",");
+        .join(",")
 
       if (seen.has(key)) {
-        continue;
+        continue
       }
 
-      seen.add(key);
-      candidates.push({ newRoadIndices, newRoadDistances });
+      seen.add(key)
+      candidates.push({ newRoadIndices, newRoadDistances })
     }
   }
 
-  return candidates;
+  return candidates
 }
 
 function collectStructureSlots(
@@ -444,98 +402,94 @@ function collectStructureSlots(
   serviceDistanceMap: Int32Array,
   maxServiceDistance: number,
 ): StructureSlot[] {
-  const slotDistanceMap = new Int16Array(ROOM_AREA);
-  slotDistanceMap.fill(-1);
+  const slotDistanceMap = new Int16Array(ROOM_AREA)
+  slotDistanceMap.fill(-1)
 
   for (let roadIndex = 0; roadIndex < ROOM_AREA; roadIndex++) {
     if (!serviceRoadMask[roadIndex]) {
-      continue;
+      continue
     }
 
-    const roadDistance = serviceDistanceMap[roadIndex];
+    const roadDistance = serviceDistanceMap[roadIndex]
 
     if (roadDistance < 0 || roadDistance > maxServiceDistance) {
-      continue;
+      continue
     }
 
-    const road = fromRoomIndex(roadIndex);
+    const road = fromRoomIndex(roadIndex)
 
     for (const offset of NEIGHBOR_OFFSETS) {
-      const x = road.x + offset.x;
-      const y = road.y + offset.y;
+      const x = road.x + offset.x
+      const y = road.y + offset.y
 
       if (!isInsideRoom(x, y)) {
-        continue;
+        continue
       }
 
-      const index = toRoomIndex(x, y);
+      const index = toRoomIndex(x, y)
 
       if (terrain.get(x, y) === TERRAIN_MASK_WALL) {
-        continue;
+        continue
       }
 
       if (serviceRoadMask[index] || mandatoryRoadMask[index]) {
-        continue;
+        continue
       }
 
       if (structureBlockedMask[index]) {
-        continue;
+        continue
       }
 
       if (!planningMask[index]) {
-        continue;
+        continue
       }
 
-      const slotDistance = roadDistance + 1;
-      const previousDistance = slotDistanceMap[index];
+      const slotDistance = roadDistance + 1
+      const previousDistance = slotDistanceMap[index]
 
       if (previousDistance < 0 || slotDistance < previousDistance) {
-        slotDistanceMap[index] = slotDistance;
+        slotDistanceMap[index] = slotDistance
       }
     }
   }
 
-  const slots: StructureSlot[] = [];
+  const slots: StructureSlot[] = []
 
   for (let index = 0; index < ROOM_AREA; index++) {
-    const serviceDistance = slotDistanceMap[index];
+    const serviceDistance = slotDistanceMap[index]
 
     if (serviceDistance < 0) {
-      continue;
+      continue
     }
 
     slots.push({
       coordinate: fromRoomIndex(index),
       serviceDistance,
-    });
+    })
   }
 
-  return slots;
+  return slots
 }
 
-function buildServiceDistanceMap(
-  terrain: RoomTerrain,
-  serviceRoadMask: Uint8Array,
-  corePlan: CorePlan,
-): Int32Array {
+function buildServiceDistanceMap(terrain: RoomTerrain, serviceRoadMask: Uint8Array, corePlan: CorePlan): Int32Array {
   return dijkstraMap(
     terrain,
     corePlan.roads,
     () => 1,
     (x, y) => serviceRoadMask[toRoomIndex(x, y)] === 1,
-  );
+  )
 }
 
 function collectCoordinates(mask: Uint8Array): RoomCoordinate[] {
-  const coordinates: RoomCoordinate[] = [];
+  const coordinates: RoomCoordinate[] = []
 
   for (let index = 0; index < ROOM_AREA; index++) {
     if (mask[index]) {
-      coordinates.push(fromRoomIndex(index));
+      coordinates.push(fromRoomIndex(index))
     }
   }
 
-  return coordinates;
+  return coordinates
 }
 
 function buildRoadMask(
@@ -544,19 +498,19 @@ function buildRoadMask(
   boundaryRoadPlan: RegionBoundaryRoadPlan,
   labPlan: LabPlan,
 ): Uint8Array {
-  const roadMask = new Uint8Array(ROOM_AREA);
+  const roadMask = new Uint8Array(ROOM_AREA)
 
   function mask(coordinate: RoomCoordinate) {
-    const index = toRoomIndex(coordinate.x, coordinate.y);
-    roadMask[index] = 1;
+    const index = toRoomIndex(coordinate.x, coordinate.y)
+    roadMask[index] = 1
   }
 
-  corePlan.roads.forEach(mask);
-  resourceTree.roads.forEach(mask);
-  boundaryRoadPlan.roads.forEach(mask);
-  labPlan.serviceRoads.forEach(mask);
+  corePlan.roads.forEach(mask)
+  resourceTree.roads.forEach(mask)
+  boundaryRoadPlan.roads.forEach(mask)
+  labPlan.serviceRoads.forEach(mask)
 
-  return roadMask;
+  return roadMask
 }
 
 function buildStructureSlotBlockedMask(
@@ -566,64 +520,59 @@ function buildStructureSlotBlockedMask(
   labPlan: LabPlan,
   existingSpawn?: RoomCoordinate,
 ): Uint8Array {
-  const blockedMask = new Uint8Array(ROOM_AREA);
+  const blockedMask = new Uint8Array(ROOM_AREA)
 
   function block(coordinate: RoomCoordinate) {
-    const index = toRoomIndex(coordinate.x, coordinate.y);
-    blockedMask[index] = 1;
+    const index = toRoomIndex(coordinate.x, coordinate.y)
+    blockedMask[index] = 1
   }
 
-  block(controllerArea.storage);
+  block(controllerArea.storage)
 
   const managerStructureIndices = new Set([
     toRoomIndex(corePlan.factory.x, corePlan.factory.y),
     toRoomIndex(corePlan.powerSpawn.x, corePlan.powerSpawn.y),
-  ]);
+  ])
 
-  const { left, middle, right } = controllerArea.upgradeChains;
+  const { left, middle, right } = controllerArea.upgradeChains
 
   for (const chain of [left, middle, right]) {
-    const isLateStructureChain = chain.some(({ x, y }) =>
-      managerStructureIndices.has(toRoomIndex(x, y)),
-    );
+    const isLateStructureChain = chain.some(({ x, y }) => managerStructureIndices.has(toRoomIndex(x, y)))
 
     if (!isLateStructureChain) {
-      block(chain[0]);
+      block(chain[0])
     }
   }
 
-  block(corePlan.manager);
-  block(corePlan.firstSpawn);
-  block(corePlan.link);
-  block(corePlan.terminal);
-  block(corePlan.factory);
-  block(corePlan.powerSpawn);
+  block(corePlan.manager)
+  block(corePlan.firstSpawn)
+  block(corePlan.link)
+  block(corePlan.terminal)
+  block(corePlan.factory)
+  block(corePlan.powerSpawn)
 
-  corePlan.parking.forEach(block);
+  corePlan.parking.forEach(block)
 
   if (existingSpawn) {
-    block(existingSpawn);
+    block(existingSpawn)
   }
 
   resourceTree.branches.forEach((branch) => {
-    block(branch.container);
+    block(branch.container)
 
     if (branch.link) {
-      block(branch.link);
+      block(branch.link)
     }
-  });
+  })
 
-  labPlan.inputLabs.forEach(block);
-  labPlan.outputLabs.forEach(block);
+  labPlan.inputLabs.forEach(block)
+  labPlan.outputLabs.forEach(block)
 
-  return blockedMask;
+  return blockedMask
 }
 
-function visualizeStructureSlotPlan(
-  plan: StructureSlotPlan,
-  visual: RoomVisual,
-): void {
+function visualizeStructureSlotPlan(plan: StructureSlotPlan, visual: RoomVisual): void {
   plan.roads.forEach((road) => {
-    visual.structure(road.x, road.y, STRUCTURE_ROAD);
-  });
+    visual.structure(road.x, road.y, STRUCTURE_ROAD)
+  })
 }

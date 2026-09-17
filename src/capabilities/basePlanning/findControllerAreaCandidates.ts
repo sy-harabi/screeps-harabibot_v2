@@ -1,102 +1,91 @@
-import { RoomCoordinate } from "../../world/map/roomCoordinate";
+import { RoomCoordinate } from "../../world/map/roomCoordinate"
 import {
   forEachCoordinateAtRange,
   forEachCoordinateInRange,
   isInsideRoom,
   NEIGHBOR_OFFSETS,
   toRoomIndex,
-} from "../../world/map/roomGrid";
+} from "../../world/map/roomGrid"
 
-const UPGRADE_TILES_TIER_ONE_THRESHOLD = 16;
-const UPGRADE_TILES_TIER_TWO_THRESHOLD = 13;
+const UPGRADE_TILES_TIER_ONE_THRESHOLD = 16
+const UPGRADE_TILES_TIER_TWO_THRESHOLD = 13
 
-const LEFT_TURN_ORDER = [-2, -1, 0, 1, 2, 3, 4, 5];
-const RIGHT_TURN_ORDER = [2, 1, 0, -1, -2, -3, -4, -5];
+const LEFT_TURN_ORDER = [-2, -1, 0, 1, 2, 3, 4, 5]
+const RIGHT_TURN_ORDER = [2, 1, 0, -1, -2, -3, -4, -5]
 
 interface UpgradeRoots {
-  left: RoomCoordinate;
-  middle: RoomCoordinate;
-  right: RoomCoordinate;
+  left: RoomCoordinate
+  middle: RoomCoordinate
+  right: RoomCoordinate
 }
 
 export interface UpgradeChains {
-  left: RoomCoordinate[];
-  middle: RoomCoordinate[];
-  right: RoomCoordinate[];
+  left: RoomCoordinate[]
+  middle: RoomCoordinate[]
+  right: RoomCoordinate[]
 }
 
 export interface ControllerAreaCandidate {
-  storage: RoomCoordinate;
-  upgradeChains: UpgradeChains;
-  tier: number;
+  storage: RoomCoordinate
+  upgradeChains: UpgradeChains
+  tier: number
 }
 
 interface StorageCandidate {
-  storage: RoomCoordinate;
-  roots: UpgradeRoots;
+  storage: RoomCoordinate
+  roots: UpgradeRoots
 }
 
 export function findControllerAreaCandidates(
   controller: StructureController,
   planningMask: Uint8Array,
 ): ControllerAreaCandidate[] {
-  const controllerAreaCandidates: ControllerAreaCandidate[] = [];
+  const controllerAreaCandidates: ControllerAreaCandidate[] = []
 
-  const upgradeTiles = findUpgradeTiles(controller, planningMask);
+  const upgradeTiles = findUpgradeTiles(controller, planningMask)
 
-  const upgradeTileIndices = new Set(
-    upgradeTiles.map(({ x, y }) => toRoomIndex(x, y)),
-  );
+  const upgradeTileIndices = new Set(upgradeTiles.map(({ x, y }) => toRoomIndex(x, y)))
 
-  const storageCandidates = findStorageCandidates(
-    controller,
-    planningMask,
-    upgradeTileIndices,
-  );
+  const storageCandidates = findStorageCandidates(controller, planningMask, upgradeTileIndices)
 
   if (storageCandidates.length === 0) {
-    return controllerAreaCandidates;
+    return controllerAreaCandidates
   }
 
   for (const storageCandidate of storageCandidates) {
-    const { storage, roots } = storageCandidate;
+    const { storage, roots } = storageCandidate
 
-    const upgradeChains = findUpgradeChains(roots, storage, upgradeTileIndices);
+    const upgradeChains = findUpgradeChains(roots, storage, upgradeTileIndices)
 
-    const compactChains = compactUpgradeChains(
-      upgradeChains,
-      roots,
-      storage,
-      upgradeTileIndices,
-    );
+    const compactChains = compactUpgradeChains(upgradeChains, roots, storage, upgradeTileIndices)
 
     controllerAreaCandidates.push({
       storage,
       upgradeChains: compactChains,
 
       tier: getUpgradeCapacityTier(compactChains),
-    });
+    })
   }
 
-  return controllerAreaCandidates;
+  return controllerAreaCandidates
 }
 
 function getUpgradeCapacityTier(upgradeChains: UpgradeChains): number {
-  let numUpgradeTiles = 0;
+  let numUpgradeTiles = 0
 
   for (const chain of Object.values(upgradeChains)) {
-    numUpgradeTiles += chain.length;
+    numUpgradeTiles += chain.length
   }
 
   if (numUpgradeTiles >= UPGRADE_TILES_TIER_ONE_THRESHOLD) {
-    return 1;
+    return 1
   }
 
   if (numUpgradeTiles >= UPGRADE_TILES_TIER_TWO_THRESHOLD) {
-    return 2;
+    return 2
   }
 
-  return 3;
+  return 3
 }
 
 function compactUpgradeChains(
@@ -109,19 +98,13 @@ function compactUpgradeChains(
     left: [...(chains.left ?? [])],
     right: [...(chains.right ?? [])],
     middle: [...(chains.middle ?? [])],
-  };
-
-  for (const side of ["left", "right"] as const) {
-    result = tryCompactOuterChain(
-      result,
-      side,
-      roots,
-      storageCoordinate,
-      upgradeTileIndices,
-    );
   }
 
-  return result;
+  for (const side of ["left", "right"] as const) {
+    result = tryCompactOuterChain(result, side, roots, storageCoordinate, upgradeTileIndices)
+  }
+
+  return result
 }
 
 function tryCompactOuterChain(
@@ -132,37 +115,28 @@ function tryCompactOuterChain(
   upgradeTileIndices: Set<number>,
 ): UpgradeChains {
   if (roots[side] === undefined || chains[side] === undefined) {
-    return chains;
+    return chains
   }
 
-  const blockedTiles: RoomCoordinate[] = [];
+  const blockedTiles: RoomCoordinate[] = []
 
   for (const [currentSide, currentChain] of Object.entries(chains)) {
     if (currentSide !== side) {
-      blockedTiles.push(...currentChain);
+      blockedTiles.push(...currentChain)
     }
   }
 
-  const blockedTileIndices = new Set<number>(
-    blockedTiles.map(({ x, y }) => toRoomIndex(x, y)),
-  );
+  const blockedTileIndices = new Set<number>(blockedTiles.map(({ x, y }) => toRoomIndex(x, y)))
 
-  const hand = side === "left" ? "right" : "left";
+  const hand = side === "left" ? "right" : "left"
 
-  const compactPath = followUpgradeWall(
-    roots[side],
-    storageCoordinate,
-    upgradeTileIndices,
-    hand,
-    6,
-    blockedTileIndices,
-  );
+  const compactPath = followUpgradeWall(roots[side], storageCoordinate, upgradeTileIndices, hand, 6, blockedTileIndices)
 
   if (compactPath.length >= chains[side].length) {
-    chains[side] = compactPath;
+    chains[side] = compactPath
   }
 
-  return chains;
+  return chains
 }
 
 function findUpgradeChains(
@@ -170,106 +144,73 @@ function findUpgradeChains(
   storageCoordinate: RoomCoordinate,
   upgradeTileIndices: Set<number>,
 ): UpgradeChains {
-  let blockedTileIndices = new Set(
-    Object.values(roots).map((coordinate) =>
-      toRoomIndex(coordinate.x, coordinate.y),
-    ),
-  );
+  let blockedTileIndices = new Set(Object.values(roots).map((coordinate) => toRoomIndex(coordinate.x, coordinate.y)))
 
-  const leftMax = followUpgradeWall(
-    roots.left,
-    storageCoordinate,
-    upgradeTileIndices,
-    "left",
-    6,
-    blockedTileIndices,
-  );
+  const leftMax = followUpgradeWall(roots.left, storageCoordinate, upgradeTileIndices, "left", 6, blockedTileIndices)
 
-  leftMax.forEach((coordinate) =>
-    blockedTileIndices.add(toRoomIndex(coordinate.x, coordinate.y)),
-  );
+  leftMax.forEach((coordinate) => blockedTileIndices.add(toRoomIndex(coordinate.x, coordinate.y)))
 
-  const rightMax = followUpgradeWall(
-    roots.right,
-    storageCoordinate,
-    upgradeTileIndices,
-    "right",
-    6,
-    blockedTileIndices,
-  );
+  const rightMax = followUpgradeWall(roots.right, storageCoordinate, upgradeTileIndices, "right", 6, blockedTileIndices)
 
   let best = {
     left: leftMax,
     right: rightMax,
     middle: [roots.middle],
-  };
+  }
 
-  let bestNumTiles = leftMax.length + rightMax.length + 1;
+  let bestNumTiles = leftMax.length + rightMax.length + 1
 
   for (let leftLength = leftMax.length; leftLength >= 1; leftLength--) {
     for (let rightLength = rightMax.length; rightLength >= 1; rightLength--) {
-      const left = leftMax.slice(0, leftLength);
-      const right = rightMax.slice(0, rightLength);
+      const left = leftMax.slice(0, leftLength)
+      const right = rightMax.slice(0, rightLength)
 
-      blockedTileIndices = new Set(
-        [...left, ...right].map((coordinate) =>
-          toRoomIndex(coordinate.x, coordinate.y),
-        ),
-      );
+      blockedTileIndices = new Set([...left, ...right].map((coordinate) => toRoomIndex(coordinate.x, coordinate.y)))
 
-      const middle = findLongestUpgradePath(
-        roots.middle,
-        upgradeTileIndices,
-        blockedTileIndices,
-        6,
-      );
+      const middle = findLongestUpgradePath(roots.middle, upgradeTileIndices, blockedTileIndices, 6)
 
       if (leftLength + rightLength + middle.length === 18) {
-        return { left, right, middle };
+        return { left, right, middle }
       }
 
-      middle.forEach((coordinate) =>
-        blockedTileIndices.add(toRoomIndex(coordinate.x, coordinate.y)),
-      );
+      middle.forEach((coordinate) => blockedTileIndices.add(toRoomIndex(coordinate.x, coordinate.y)))
 
-      const paths = [left, right].sort((a, b) => a.length - b.length);
+      const paths = [left, right].sort((a, b) => a.length - b.length)
 
       for (const path of paths) {
         if (path.length === 6) {
-          continue;
+          continue
         }
 
-        const remainingLength = 6 - path.length;
+        const remainingLength = 6 - path.length
         const extendedPath = findLongestUpgradePath(
           path[path.length - 1],
           upgradeTileIndices,
           blockedTileIndices,
           remainingLength + 1,
-        );
+        )
 
         if (extendedPath.length > 1) {
-          path.push(...extendedPath.slice(1));
+          path.push(...extendedPath.slice(1))
 
-          extendedPath.forEach((coordinate) =>
-            blockedTileIndices.add(toRoomIndex(coordinate.x, coordinate.y)),
-          );
+          extendedPath.forEach((coordinate) => blockedTileIndices.add(toRoomIndex(coordinate.x, coordinate.y)))
         }
       }
 
-      const currentNumTiles = left.length + right.length + middle.length;
+      const currentNumTiles = left.length + right.length + middle.length
 
       if (currentNumTiles === 18) {
-        return { left, right, middle };
+        return { left, right, middle }
       }
 
       if (currentNumTiles > bestNumTiles) {
-        best = { left, right, middle };
-        bestNumTiles = currentNumTiles;
+        best = { left, right, middle }
+        bestNumTiles = currentNumTiles
       }
     }
   }
 
-  return best;
+  return best
 }
 
 function findLongestUpgradePath(
@@ -278,55 +219,51 @@ function findLongestUpgradePath(
   blockedTileIndices: Set<number>,
   maxLength = 6,
 ): RoomCoordinate[] {
-  const path: RoomCoordinate[] = [root];
-  let bestPath: RoomCoordinate[] = [root];
-  const visited = new Set<number>([toRoomIndex(root.x, root.y)]);
+  const path: RoomCoordinate[] = [root]
+  let bestPath: RoomCoordinate[] = [root]
+  const visited = new Set<number>([toRoomIndex(root.x, root.y)])
 
   function dfs(current: RoomCoordinate): boolean {
     if (path.length > bestPath.length) {
-      bestPath = [...path];
+      bestPath = [...path]
     }
 
     if (path.length === maxLength) {
-      return true;
+      return true
     }
 
     for (const offset of NEIGHBOR_OFFSETS) {
       const next = {
         x: current.x + offset.x,
         y: current.y + offset.y,
-      };
+      }
 
       if (!isInsideRoom(next.x, next.y)) {
-        continue;
+        continue
       }
 
-      const nextIndex = toRoomIndex(next.x, next.y);
+      const nextIndex = toRoomIndex(next.x, next.y)
 
-      if (
-        !upgradeTileIndices.has(nextIndex) ||
-        blockedTileIndices.has(nextIndex) ||
-        visited.has(nextIndex)
-      ) {
-        continue;
+      if (!upgradeTileIndices.has(nextIndex) || blockedTileIndices.has(nextIndex) || visited.has(nextIndex)) {
+        continue
       }
 
-      visited.add(nextIndex);
-      path.push(next);
+      visited.add(nextIndex)
+      path.push(next)
 
       if (dfs(next)) {
-        return true;
+        return true
       }
 
-      path.pop();
-      visited.delete(nextIndex);
+      path.pop()
+      visited.delete(nextIndex)
     }
 
-    return false;
+    return false
   }
 
-  dfs(root);
-  return bestPath;
+  dfs(root)
+  return bestPath
 }
 
 function followUpgradeWall(
@@ -337,54 +274,49 @@ function followUpgradeWall(
   maxLength = 6,
   blockedTileIndices?: Set<number>,
 ): RoomCoordinate[] {
-  const path: RoomCoordinate[] = [root];
-  const visited = new Set<number>([toRoomIndex(root.x, root.y)]);
+  const path: RoomCoordinate[] = [root]
+  const visited = new Set<number>([toRoomIndex(root.x, root.y)])
 
-  let current = root;
+  let current = root
   let heading = NEIGHBOR_OFFSETS.findIndex(
     (offset) =>
-      offset.x === Math.sign(root.x - storageCoordinate.x) &&
-      offset.y === Math.sign(root.y - storageCoordinate.y),
-  );
+      offset.x === Math.sign(root.x - storageCoordinate.x) && offset.y === Math.sign(root.y - storageCoordinate.y),
+  )
 
-  const order = hand === "left" ? LEFT_TURN_ORDER : RIGHT_TURN_ORDER;
+  const order = hand === "left" ? LEFT_TURN_ORDER : RIGHT_TURN_ORDER
 
   while (path.length < maxLength) {
-    let moved = false;
+    let moved = false
 
     for (const turn of order) {
-      const direction = (heading + turn + 8) % 8;
-      const offset = NEIGHBOR_OFFSETS[direction];
-      const next = { x: current.x + offset.x, y: current.y + offset.y };
+      const direction = (heading + turn + 8) % 8
+      const offset = NEIGHBOR_OFFSETS[direction]
+      const next = { x: current.x + offset.x, y: current.y + offset.y }
 
       if (!isInsideRoom(next.x, next.y)) {
-        continue;
+        continue
       }
 
-      const nextIndex = toRoomIndex(next.x, next.y);
+      const nextIndex = toRoomIndex(next.x, next.y)
 
-      if (
-        !upgradeTileIndices.has(nextIndex) ||
-        visited.has(nextIndex) ||
-        blockedTileIndices?.has(nextIndex)
-      ) {
-        continue;
+      if (!upgradeTileIndices.has(nextIndex) || visited.has(nextIndex) || blockedTileIndices?.has(nextIndex)) {
+        continue
       }
 
-      current = next;
-      heading = direction;
-      path.push(next);
-      visited.add(nextIndex);
-      moved = true;
-      break;
+      current = next
+      heading = direction
+      path.push(next)
+      visited.add(nextIndex)
+      moved = true
+      break
     }
 
     if (!moved) {
-      break;
+      break
     }
   }
 
-  return path;
+  return path
 }
 
 function findUpgradeRoots(
@@ -392,53 +324,48 @@ function findUpgradeRoots(
   controller: StructureController,
   upgradeTileIndices: Set<number>,
 ): UpgradeRoots | undefined {
-  const dx = Math.sign(storageCoordinate.x - controller.pos.x);
-  const dy = Math.sign(storageCoordinate.y - controller.pos.y);
+  const dx = Math.sign(storageCoordinate.x - controller.pos.x)
+  const dy = Math.sign(storageCoordinate.y - controller.pos.y)
 
-  const startIndex = NEIGHBOR_OFFSETS.findIndex(
-    (offset) => offset.x === dx && offset.y === dy,
-  );
+  const startIndex = NEIGHBOR_OFFSETS.findIndex((offset) => offset.x === dx && offset.y === dy)
 
-  const roots: RoomCoordinate[] = [];
+  const roots: RoomCoordinate[] = []
 
   for (let i = 0; i < NEIGHBOR_OFFSETS.length; i++) {
-    const offset = NEIGHBOR_OFFSETS[(startIndex + i) % 8];
+    const offset = NEIGHBOR_OFFSETS[(startIndex + i) % 8]
     const coordinate = {
       x: storageCoordinate.x + offset.x,
       y: storageCoordinate.y + offset.y,
-    };
+    }
 
     if (upgradeTileIndices.has(toRoomIndex(coordinate.x, coordinate.y))) {
-      roots.push(coordinate);
+      roots.push(coordinate)
     }
   }
 
   if (roots.length < 3) {
-    return;
+    return
   }
 
   return {
     left: roots[0],
     middle: roots[1],
     right: roots[2],
-  };
+  }
 }
 
-function findUpgradeTiles(
-  controller: StructureController,
-  planningMask: Uint8Array,
-): RoomCoordinate[] {
-  const upgradeTiles: RoomCoordinate[] = [];
+function findUpgradeTiles(controller: StructureController, planningMask: Uint8Array): RoomCoordinate[] {
+  const upgradeTiles: RoomCoordinate[] = []
 
   forEachCoordinateInRange(controller.pos, 3, (x, y) => {
-    const index = toRoomIndex(x, y);
+    const index = toRoomIndex(x, y)
 
     if (planningMask[index]) {
-      upgradeTiles.push({ x, y });
+      upgradeTiles.push({ x, y })
     }
-  });
+  })
 
-  return upgradeTiles;
+  return upgradeTiles
 }
 
 function findStorageCandidates(
@@ -446,29 +373,25 @@ function findStorageCandidates(
   planningMask: Uint8Array,
   upgradeTileIndices: Set<number>,
 ): StorageCandidate[] {
-  let candidates: StorageCandidate[] = [];
+  let candidates: StorageCandidate[] = []
 
   forEachCoordinateAtRange(controller.pos, 4, (x, y) => {
-    const index = toRoomIndex(x, y);
+    const index = toRoomIndex(x, y)
 
     if (!planningMask[index]) {
-      return;
+      return
     }
 
-    const storageCandidate = { x, y };
+    const storageCandidate = { x, y }
 
-    const roots = findUpgradeRoots(
-      storageCandidate,
-      controller,
-      upgradeTileIndices,
-    );
+    const roots = findUpgradeRoots(storageCandidate, controller, upgradeTileIndices)
 
     if (roots === undefined) {
-      return;
+      return
     }
 
-    candidates.push({ storage: storageCandidate, roots });
-  });
+    candidates.push({ storage: storageCandidate, roots })
+  })
 
-  return candidates;
+  return candidates
 }

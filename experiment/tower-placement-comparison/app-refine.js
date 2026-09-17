@@ -1,6 +1,58 @@
-function betterGlobalMinmaxScore(a,b){if(!b)return true;if(a.minDps!==b.minDps)return a.minDps>b.minDps;if(a.weakCount!==b.weakCount)return a.weakCount<b.weakCount;if(a.totalDps!==b.totalDps)return a.totalDps>b.totalDps;return a.roomIndex<b.roomIndex}
-function refinePlacementGlobally(context,selection){let selected=[...selection],changes=0;for(let i=0;i<selected.length;i++){const fixed=selected.filter((_,j)=>j!==i),state=candidateState(),used=new Set(fixed.map(c=>c.roomIndex));for(const c of fixed)takeCandidate(c,state);let best=selected[i],bestScore={...evaluateTowerPlacement(placementCoordinates(selected),context.topology.ramparts),roomIndex:best.roomIndex};for(const c of context.candidates){if(used.has(c.roomIndex)||!canTakeCandidate(c,state,context))continue;const score={...evaluateTowerPlacement(placementCoordinates([...fixed,c]),context.topology.ramparts),roomIndex:c.roomIndex};if(betterGlobalMinmaxScore(score,bestScore)){best=c;bestScore=score}}if(best.roomIndex!==selected[i].roomIndex){selected[i]=best;changes++}}const coordinates=placementCoordinates(selected);return{selected,coordinates,refinementChanges:changes,...evaluateTowerPlacement(coordinates,context.topology.ramparts)}}
-const buildCentralPlacementBeforeGlobalRefinement=buildCentralPlacement;
-buildCentralPlacement=function(context){const initial=buildCentralPlacementBeforeGlobalRefinement(context);if(!initial)return;const refined=refinePlacementGlobally(context,initial.selected);return{...initial,refinement:'global-minmax-1pass',...refined}}
-const buildDistributedPlacementBeforeGlobalRefinement=buildDistributedPlacement;
-buildDistributedPlacement=function(context){const initial=buildDistributedPlacementBeforeGlobalRefinement(context);if(!initial)return;const refined=refinePlacementGlobally(context,initial.selected);return{...initial,refinement:'global-minmax-1pass',...refined}}
+function betterGlobalMinmaxScore(a, b) {
+  if (!b) return true
+  if (a.minDps !== b.minDps) return a.minDps > b.minDps
+  if (a.weakCount !== b.weakCount) return a.weakCount < b.weakCount
+  if (a.totalDps !== b.totalDps) return a.totalDps > b.totalDps
+  return a.roomIndex < b.roomIndex
+}
+function refinePlacementGlobally(context, selection) {
+  let selected = [...selection],
+    changes = 0
+  for (let i = 0; i < selected.length; i++) {
+    const fixed = selected.filter((_, j) => j !== i),
+      state = candidateState(),
+      used = new Set(fixed.map((c) => c.roomIndex))
+    for (const c of fixed) takeCandidate(c, state)
+    let best = selected[i],
+      bestScore = {
+        ...evaluateTowerPlacement(placementCoordinates(selected), context.topology.ramparts),
+        roomIndex: best.roomIndex,
+      }
+    for (const c of context.candidates) {
+      if (used.has(c.roomIndex) || !canTakeCandidate(c, state, context)) continue
+      const score = {
+        ...evaluateTowerPlacement(placementCoordinates([...fixed, c]), context.topology.ramparts),
+        roomIndex: c.roomIndex,
+      }
+      if (betterGlobalMinmaxScore(score, bestScore)) {
+        best = c
+        bestScore = score
+      }
+    }
+    if (best.roomIndex !== selected[i].roomIndex) {
+      selected[i] = best
+      changes++
+    }
+  }
+  const coordinates = placementCoordinates(selected)
+  return {
+    selected,
+    coordinates,
+    refinementChanges: changes,
+    ...evaluateTowerPlacement(coordinates, context.topology.ramparts),
+  }
+}
+const buildCentralPlacementBeforeGlobalRefinement = buildCentralPlacement
+buildCentralPlacement = function (context) {
+  const initial = buildCentralPlacementBeforeGlobalRefinement(context)
+  if (!initial) return
+  const refined = refinePlacementGlobally(context, initial.selected)
+  return { ...initial, refinement: "global-minmax-1pass", ...refined }
+}
+const buildDistributedPlacementBeforeGlobalRefinement = buildDistributedPlacement
+buildDistributedPlacement = function (context) {
+  const initial = buildDistributedPlacementBeforeGlobalRefinement(context)
+  if (!initial) return
+  const refined = refinePlacementGlobally(context, initial.selected)
+  return { ...initial, refinement: "global-minmax-1pass", ...refined }
+}

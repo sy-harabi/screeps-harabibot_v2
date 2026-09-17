@@ -1,101 +1,97 @@
-export type SegmentReadResult<T> =
-  { status: "loading" } | { status: "ready"; value: T };
+export type SegmentReadResult<T> = { status: "loading" } | { status: "ready"; value: T }
 
-const MAX_ACTIVE_SEGMENTS = 10;
+const MAX_ACTIVE_SEGMENTS = 10
 
-const MAX_SEGMENT_LENGTH = 100 * 1024;
+const MAX_SEGMENT_LENGTH = 100 * 1024
 
-const loadedSegments = new Map<number, unknown>();
-const requestedSegments = new Set<number>();
-const dirtySegments = new Set<number>();
+const loadedSegments = new Map<number, unknown>()
+const requestedSegments = new Set<number>()
+const dirtySegments = new Set<number>()
 
 function pretick(): void {
-  requestedSegments.clear();
+  requestedSegments.clear()
 
   for (const [idString, raw] of Object.entries(RawMemory.segments)) {
-    const id = Number(idString);
+    const id = Number(idString)
 
-    loadedSegments.set(id, raw.length === 0 ? {} : JSON.parse(raw));
+    loadedSegments.set(id, raw.length === 0 ? {} : JSON.parse(raw))
 
     // Served segments are already cached in heap for this global lifetime.
     // Removing the per-tick RawMemory key frees the segment write budget without
     // deleting the server-side segment value.
-    delete RawMemory.segments[id];
+    delete RawMemory.segments[id]
   }
 }
 
 function getSegment<T>(id: number): SegmentReadResult<T> {
-  assertValidSegmentId(id);
+  assertValidSegmentId(id)
 
   if (loadedSegments.has(id)) {
     return {
       status: "ready",
       value: loadedSegments.get(id) as T,
-    };
+    }
   }
 
-  requestSegment(id);
+  requestSegment(id)
 
-  return { status: "loading" };
+  return { status: "loading" }
 }
 
 function setSegment<T>(id: number, value: T): void {
-  assertValidSegmentId(id);
+  assertValidSegmentId(id)
 
-  loadedSegments.set(id, value);
-  dirtySegments.add(id);
+  loadedSegments.set(id, value)
+  dirtySegments.add(id)
 }
 
 function endTick(): void {
-  RawMemory.setActiveSegments([...requestedSegments]);
+  RawMemory.setActiveSegments([...requestedSegments])
 
-  let usedWriteSlots = Object.keys(RawMemory.segments).length;
+  let usedWriteSlots = Object.keys(RawMemory.segments).length
 
   for (const id of dirtySegments) {
-    const alreadyQueued = Object.prototype.hasOwnProperty.call(
-      RawMemory.segments,
-      id,
-    );
+    const alreadyQueued = Object.prototype.hasOwnProperty.call(RawMemory.segments, id)
 
     if (!alreadyQueued && usedWriteSlots >= MAX_ACTIVE_SEGMENTS) {
-      break;
+      break
     }
 
     if (!loadedSegments.has(id)) {
-      throw new Error(`Dirty segment ${id} is not loaded`);
+      throw new Error(`Dirty segment ${id} is not loaded`)
     }
 
-    const serialized = JSON.stringify(loadedSegments.get(id));
+    const serialized = JSON.stringify(loadedSegments.get(id))
 
     if (serialized.length > MAX_SEGMENT_LENGTH) {
-      throw new Error(`Segment ${id} exceeds max size: ${serialized.length}`);
+      throw new Error(`Segment ${id} exceeds max size: ${serialized.length}`)
     }
 
-    RawMemory.segments[id] = serialized;
+    RawMemory.segments[id] = serialized
 
-    dirtySegments.delete(id);
+    dirtySegments.delete(id)
 
     if (!alreadyQueued) {
-      usedWriteSlots++;
+      usedWriteSlots++
     }
   }
 }
 
 function requestSegment(id: number): void {
   if (requestedSegments.has(id)) {
-    return;
+    return
   }
 
   if (requestedSegments.size >= MAX_ACTIVE_SEGMENTS) {
-    throw new Error("Too many segment activation requests");
+    throw new Error("Too many segment activation requests")
   }
 
-  requestedSegments.add(id);
+  requestedSegments.add(id)
 }
 
 function assertValidSegmentId(id: number): void {
   if (!Number.isInteger(id) || id < 0 || id > 99) {
-    throw new Error(`Invalid segment id: ${id}`);
+    throw new Error(`Invalid segment id: ${id}`)
   }
 }
 
@@ -104,4 +100,4 @@ export const segmentManager = {
   getSegment,
   setSegment,
   endTick,
-};
+}

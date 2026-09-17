@@ -1,33 +1,28 @@
-import {
-  forEachCoordinateInRange,
-  fromRoomIndex,
-  ROOM_AREA,
-  toRoomIndex,
-} from "../../world/map/roomGrid";
-import type { OuterRampartPlan } from "./planOuterRamparts";
+import { forEachCoordinateInRange, fromRoomIndex, ROOM_AREA, toRoomIndex } from "../../world/map/roomGrid"
+import type { OuterRampartPlan } from "./planOuterRamparts"
 
-const RANGED_ATTACK_RANGE = 3;
-const REPAIR_RANGE = 3;
+const RANGED_ATTACK_RANGE = 3
+const REPAIR_RANGE = 3
 
 export interface DefensiveTileClassification {
   /** Actual min-cut outer rampart line. */
-  readonly outerRampartMask: Uint8Array;
+  readonly outerRampartMask: Uint8Array
 
   /** Interior tiles that can be hit by a ranged attacker standing outside. */
-  readonly dangerousMask: Uint8Array;
+  readonly dangerousMask: Uint8Array
 
   /** Interior tiles reserved as potential standing positions for rampart repair. */
-  readonly repairMask: Uint8Array;
+  readonly repairMask: Uint8Array
 
   /** Safe interior tiles that can repair at least one outer rampart. */
-  readonly safeRepairCandidateMask: Uint8Array;
+  readonly safeRepairCandidateMask: Uint8Array
 
   /**
    * Interior tiles that can repair at least one outer rampart but are exposed
    * to outside ranged attacks. Using one as a repair position requires adding
    * a rampart on that tile.
    */
-  readonly rampartRequiredRepairCandidateMask: Uint8Array;
+  readonly rampartRequiredRepairCandidateMask: Uint8Array
 }
 
 /**
@@ -41,33 +36,28 @@ export function classifyDefensiveTiles(
   outerRampartPlan: OuterRampartPlan,
   visual?: RoomVisual,
 ): DefensiveTileClassification {
-  const dangerousMask = buildDangerousMask(outerRampartPlan);
-  const repairRangeMask = buildRepairRangeMask(outerRampartPlan);
-  const repairMask = new Uint8Array(ROOM_AREA);
-  const safeRepairCandidateMask = new Uint8Array(ROOM_AREA);
-  const rampartRequiredRepairCandidateMask = new Uint8Array(ROOM_AREA);
+  const dangerousMask = buildDangerousMask(outerRampartPlan)
+  const repairRangeMask = buildRepairRangeMask(outerRampartPlan)
+  const repairMask = new Uint8Array(ROOM_AREA)
+  const safeRepairCandidateMask = new Uint8Array(ROOM_AREA)
+  const rampartRequiredRepairCandidateMask = new Uint8Array(ROOM_AREA)
 
   for (let index = 0; index < ROOM_AREA; index++) {
     if (!repairRangeMask[index]) {
-      continue;
+      continue
     }
 
-    repairMask[index] = 1;
+    repairMask[index] = 1
 
     if (dangerousMask[index]) {
-      rampartRequiredRepairCandidateMask[index] = 1;
+      rampartRequiredRepairCandidateMask[index] = 1
     } else {
-      safeRepairCandidateMask[index] = 1;
+      safeRepairCandidateMask[index] = 1
     }
   }
 
   if (visual) {
-    visualizeDefensiveTiles(
-      dangerousMask,
-      safeRepairCandidateMask,
-      rampartRequiredRepairCandidateMask,
-      visual,
-    );
+    visualizeDefensiveTiles(dangerousMask, safeRepairCandidateMask, rampartRequiredRepairCandidateMask, visual)
   }
 
   return {
@@ -76,49 +66,45 @@ export function classifyDefensiveTiles(
     repairMask,
     safeRepairCandidateMask,
     rampartRequiredRepairCandidateMask,
-  };
+  }
 }
 
-function buildDangerousMask(
-  outerRampartPlan: OuterRampartPlan,
-): Uint8Array {
-  const dangerousMask = new Uint8Array(ROOM_AREA);
+function buildDangerousMask(outerRampartPlan: OuterRampartPlan): Uint8Array {
+  const dangerousMask = new Uint8Array(ROOM_AREA)
 
   for (let outsideIndex = 0; outsideIndex < ROOM_AREA; outsideIndex++) {
     if (!outerRampartPlan.outsideMask[outsideIndex]) {
-      continue;
+      continue
     }
 
-    const outside = fromRoomIndex(outsideIndex);
+    const outside = fromRoomIndex(outsideIndex)
 
     forEachCoordinateInRange(outside, RANGED_ATTACK_RANGE, (x, y) => {
-      const index = toRoomIndex(x, y);
+      const index = toRoomIndex(x, y)
 
       if (outerRampartPlan.insideMask[index]) {
-        dangerousMask[index] = 1;
+        dangerousMask[index] = 1
       }
-    });
+    })
   }
 
-  return dangerousMask;
+  return dangerousMask
 }
 
-function buildRepairRangeMask(
-  outerRampartPlan: OuterRampartPlan,
-): Uint8Array {
-  const repairRangeMask = new Uint8Array(ROOM_AREA);
+function buildRepairRangeMask(outerRampartPlan: OuterRampartPlan): Uint8Array {
+  const repairRangeMask = new Uint8Array(ROOM_AREA)
 
   for (const rampart of outerRampartPlan.ramparts) {
     forEachCoordinateInRange(rampart, REPAIR_RANGE, (x, y) => {
-      const index = toRoomIndex(x, y);
+      const index = toRoomIndex(x, y)
 
       if (outerRampartPlan.insideMask[index]) {
-        repairRangeMask[index] = 1;
+        repairRangeMask[index] = 1
       }
-    });
+    })
   }
 
-  return repairRangeMask;
+  return repairRangeMask
 }
 
 function visualizeDefensiveTiles(
@@ -128,14 +114,14 @@ function visualizeDefensiveTiles(
   visual: RoomVisual,
 ): void {
   for (let index = 0; index < ROOM_AREA; index++) {
-    const { x, y } = fromRoomIndex(index);
+    const { x, y } = fromRoomIndex(index)
 
     if (dangerousMask[index]) {
       visual.rect(x - 0.5, y - 0.5, 1, 1, {
         fill: "#ff4d4d",
         opacity: 0.18,
         stroke: "transparent",
-      });
+      })
     }
 
     if (safeRepairCandidateMask[index]) {
@@ -144,8 +130,8 @@ function visualizeDefensiveTiles(
         fill: "#62d26f",
         opacity: 0.9,
         stroke: "transparent",
-      });
-      continue;
+      })
+      continue
     }
 
     if (rampartRequiredRepairCandidateMask[index]) {
@@ -154,7 +140,7 @@ function visualizeDefensiveTiles(
         fill: "#ffb347",
         opacity: 0.9,
         stroke: "transparent",
-      });
+      })
     }
   }
 }

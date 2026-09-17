@@ -1,37 +1,24 @@
-import { distanceTransform } from "../../world/map/distanceTransform";
-import { getRange, RoomCoordinate } from "../../world/map/roomCoordinate";
-import {
-  fromRoomIndex,
-  ROOM_AREA,
-  toRoomIndex,
-} from "../../world/map/roomGrid";
-import {
-  findTerrainRegions,
-  TerrainRegion,
-} from "../../world/map/terrainRegions";
-import type { BasePlan } from "./basePlan";
-import { classifyDefensiveTiles } from "./classifyDefensiveTiles";
-import {
-  buildProvisionalBasePlanStructures,
-  finalizeBasePlanStructures,
-} from "./finalizeBasePlan";
-import { finalizeDefensePlan } from "./finalizeDefensePlan";
-import {
-  ControllerAreaCandidate,
-  findControllerAreaCandidates,
-} from "./findControllerAreaCandidates";
-import { CorePlan, findCorePlans } from "./findCorePlans";
-import { planLabs } from "./planLabs";
-import { planOuterRampartRoads } from "./planOuterRampartRoads";
-import { planOuterRamparts } from "./planOuterRamparts";
-import { planResourceTree } from "./planResourceTree";
-import { planStructureSlots } from "./planStructureSlots";
-import { planTowers } from "./planTowers";
-import { createBaseRegionSelection } from "./selectBaseRegions";
+import { distanceTransform } from "../../world/map/distanceTransform"
+import { getRange, RoomCoordinate } from "../../world/map/roomCoordinate"
+import { fromRoomIndex, ROOM_AREA, toRoomIndex } from "../../world/map/roomGrid"
+import { findTerrainRegions, TerrainRegion } from "../../world/map/terrainRegions"
+import type { BasePlan } from "./basePlan"
+import { classifyDefensiveTiles } from "./classifyDefensiveTiles"
+import { buildProvisionalBasePlanStructures, finalizeBasePlanStructures } from "./finalizeBasePlan"
+import { finalizeDefensePlan } from "./finalizeDefensePlan"
+import { ControllerAreaCandidate, findControllerAreaCandidates } from "./findControllerAreaCandidates"
+import { CorePlan, findCorePlans } from "./findCorePlans"
+import { planLabs } from "./planLabs"
+import { planOuterRampartRoads } from "./planOuterRampartRoads"
+import { planOuterRamparts } from "./planOuterRamparts"
+import { planResourceTree } from "./planResourceTree"
+import { planStructureSlots } from "./planStructureSlots"
+import { planTowers } from "./planTowers"
+import { createBaseRegionSelection } from "./selectBaseRegions"
 
 export interface PlanBaseOptions {
-  readonly visualizeIntermediate?: boolean;
-  readonly existingSpawn?: RoomCoordinate;
+  readonly visualizeIntermediate?: boolean
+  readonly existingSpawn?: RoomCoordinate
 }
 
 /**
@@ -48,35 +35,28 @@ export function planBase(
   minerals: Mineral[],
   options: PlanBaseOptions = {},
 ): BasePlan | undefined {
-  const distances = distanceTransform(terrain);
-  const { regionByTile, regions } = findTerrainRegions(terrain, distances);
-  const regionSelection = createBaseRegionSelection(
-    controller,
-    regionByTile,
-    regions,
-  );
-  const existingSpawn = options.existingSpawn;
+  const distances = distanceTransform(terrain)
+  const { regionByTile, regions } = findTerrainRegions(terrain, distances)
+  const regionSelection = createBaseRegionSelection(controller, regionByTile, regions)
+  const existingSpawn = options.existingSpawn
 
   if (existingSpawn) {
-    const spawnRegionId =
-      regionByTile[toRoomIndex(existingSpawn.x, existingSpawn.y)];
+    const spawnRegionId = regionByTile[toRoomIndex(existingSpawn.x, existingSpawn.y)]
 
     if (spawnRegionId >= 0) {
-      regionSelection.selectedRegionIds.add(spawnRegionId);
+      regionSelection.selectedRegionIds.add(spawnRegionId)
     }
   }
 
-  const finalVisual = new RoomVisual(roomName);
-  const visualizeIntermediate = options.visualizeIntermediate ?? false;
-  const planningVisual = visualizeIntermediate
-    ? finalVisual
-    : createNoopVisual(roomName);
+  const finalVisual = new RoomVisual(roomName)
+  const visualizeIntermediate = options.visualizeIntermediate ?? false
+  const planningVisual = visualizeIntermediate ? finalVisual : createNoopVisual(roomName)
 
-  let attempt = 0;
+  let attempt = 0
 
   while (true) {
     if (attempt > 0 && visualizeIntermediate) {
-      clearVisual(finalVisual);
+      clearVisual(finalVisual)
     }
 
     const basePlan = tryPlanBaseWithRegions(
@@ -92,17 +72,17 @@ export function planBase(
       finalVisual,
       visualizeIntermediate,
       existingSpawn,
-    );
+    )
 
     if (basePlan !== undefined) {
-      return basePlan;
+      return basePlan
     }
 
     if (!regionSelection.addNextRegion()) {
-      return;
+      return
     }
 
-    attempt++;
+    attempt++
   }
 }
 
@@ -120,7 +100,7 @@ function tryPlanBaseWithRegions(
   visualizeIntermediate: boolean,
   existingSpawn?: RoomCoordinate,
 ): BasePlan | undefined {
-  visualizeSelectedRegions(selectedRegionIds, regions, visual);
+  visualizeSelectedRegions(selectedRegionIds, regions, visual)
 
   const outerRampartPlan = planOuterRamparts(
     terrain,
@@ -129,13 +109,13 @@ function tryPlanBaseWithRegions(
     regionByTile,
     visual,
     existingSpawn,
-  );
+  )
 
   if (!outerRampartPlan) {
-    return;
+    return
   }
 
-  const defensiveTiles = classifyDefensiveTiles(outerRampartPlan);
+  const defensiveTiles = classifyDefensiveTiles(outerRampartPlan)
 
   // Downstream planning uses the actual min-cut interior and deliberately
   // excludes dangerous and repair standing tiles for now.
@@ -144,43 +124,37 @@ function tryPlanBaseWithRegions(
     defensiveTiles.dangerousMask,
     defensiveTiles.repairMask,
     existingSpawn,
-  );
+  )
 
-  const planningCenter = getMaskCenter(outerRampartPlan.insideMask);
+  const planningCenter = getMaskCenter(outerRampartPlan.insideMask)
 
-  const controllerAreaCandidates = findControllerAreaCandidates(
-    controller,
-    safePlanningMask,
-  );
+  const controllerAreaCandidates = findControllerAreaCandidates(controller, safePlanningMask)
 
-  let bestTier = Infinity;
-  let bestDistance = Infinity;
-  let bestCorePlan: CorePlan | undefined;
-  let bestControllerArea: ControllerAreaCandidate | undefined;
+  let bestTier = Infinity
+  let bestDistance = Infinity
+  let bestCorePlan: CorePlan | undefined
+  let bestControllerArea: ControllerAreaCandidate | undefined
 
   for (const controllerAreaCandidate of controllerAreaCandidates) {
     if (controllerAreaCandidate.tier > bestTier) {
-      continue;
+      continue
     }
 
-    const corePlans = findCorePlans(controllerAreaCandidate, safePlanningMask);
+    const corePlans = findCorePlans(controllerAreaCandidate, safePlanningMask)
 
     for (const corePlan of corePlans) {
-      const candidateDistance = getRange(corePlan.firstSpawn, planningCenter);
-      if (
-        controllerAreaCandidate.tier < bestTier ||
-        candidateDistance < bestDistance
-      ) {
-        bestTier = controllerAreaCandidate.tier;
-        bestDistance = candidateDistance;
-        bestCorePlan = corePlan;
-        bestControllerArea = controllerAreaCandidate;
+      const candidateDistance = getRange(corePlan.firstSpawn, planningCenter)
+      if (controllerAreaCandidate.tier < bestTier || candidateDistance < bestDistance) {
+        bestTier = controllerAreaCandidate.tier
+        bestDistance = candidateDistance
+        bestCorePlan = corePlan
+        bestControllerArea = controllerAreaCandidate
       }
     }
   }
 
   if (!bestCorePlan || !bestControllerArea) {
-    return;
+    return
   }
 
   const resourceTree = planResourceTree(
@@ -191,10 +165,10 @@ function tryPlanBaseWithRegions(
     bestCorePlan,
     visual,
     existingSpawn,
-  );
+  )
 
   if (resourceTree === undefined) {
-    return;
+    return
   }
 
   const rampartRoadPlan = planOuterRampartRoads(
@@ -208,10 +182,10 @@ function tryPlanBaseWithRegions(
     resourceTree,
     visual,
     existingSpawn,
-  );
+  )
 
   if (!rampartRoadPlan) {
-    return;
+    return
   }
 
   const labPlan = planLabs(
@@ -225,10 +199,10 @@ function tryPlanBaseWithRegions(
     resourceTree,
     rampartRoadPlan,
     visual,
-  );
+  )
 
   if (!labPlan) {
-    return;
+    return
   }
 
   const slotPlan = planStructureSlots(
@@ -241,10 +215,10 @@ function tryPlanBaseWithRegions(
     labPlan,
     visual,
     existingSpawn,
-  );
+  )
 
   if (!slotPlan || !slotPlan.complete) {
-    return;
+    return
   }
 
   const provisionalStructures = buildProvisionalBasePlanStructures(
@@ -258,12 +232,12 @@ function tryPlanBaseWithRegions(
     labPlan,
     slotPlan,
     existingSpawn,
-  );
+  )
 
   // structure(ROAD) stores road coordinates on RoomVisual separately from the
   // actual draw commands. Drop any intermediate cache before the final pass so
   // connectRoads() can only connect roads in the final plan.
-  finalVisual.roads = [];
+  finalVisual.roads = []
 
   const defenseStructures = finalizeDefensePlan(
     terrain,
@@ -273,10 +247,10 @@ function tryPlanBaseWithRegions(
     provisionalStructures,
     bestCorePlan,
     finalVisual,
-  );
+  )
 
   if (!defenseStructures) {
-    return;
+    return
   }
 
   const towers = planTowers(
@@ -289,10 +263,10 @@ function tryPlanBaseWithRegions(
     slotPlan,
     defenseStructures,
     existingSpawn,
-  );
+  )
 
   if (!towers) {
-    return;
+    return
   }
 
   const structures = finalizeBasePlanStructures(
@@ -303,24 +277,24 @@ function tryPlanBaseWithRegions(
     towers,
     finalVisual,
     existingSpawn,
-  );
+  )
 
   if (!structures) {
-    return;
+    return
   }
 
   if (visualizeIntermediate) {
-    Game.map.visual.text("SUCCESS", new RoomPosition(25, 25, roomName));
+    Game.map.visual.text("SUCCESS", new RoomPosition(25, 25, roomName))
   }
 
-  finalVisual.connectRoads();
+  finalVisual.connectRoads()
 
   return {
     version: 1,
     roomName,
     anchor: bestControllerArea.storage,
     structures,
-  };
+  }
 }
 
 function buildSafePlanningMask(
@@ -329,19 +303,19 @@ function buildSafePlanningMask(
   repairMask: Uint8Array,
   existingSpawn?: RoomCoordinate,
 ): Uint8Array {
-  const result = insideMask.slice();
+  const result = insideMask.slice()
 
   for (let index = 0; index < ROOM_AREA; index++) {
     if (dangerousMask[index] || repairMask[index]) {
-      result[index] = 0;
+      result[index] = 0
     }
   }
 
   if (existingSpawn) {
-    result[toRoomIndex(existingSpawn.x, existingSpawn.y)] = 0;
+    result[toRoomIndex(existingSpawn.x, existingSpawn.y)] = 0
   }
 
-  return result;
+  return result
 }
 
 function visualizeSelectedRegions(
@@ -352,50 +326,45 @@ function visualizeSelectedRegions(
   for (const region of regions) {
     if (selectedRegionIds.has(region.id)) {
       region.tileIndices.forEach((index) => {
-        const { x, y } = fromRoomIndex(index);
+        const { x, y } = fromRoomIndex(index)
 
-        const color = getRegionColor(region.id, regions.length);
+        const color = getRegionColor(region.id, regions.length)
         visual.rect(x - 0.5, y - 0.5, 1, 1, {
           fill: color,
           opacity: 0.3,
           stroke: "transparent",
-        });
-      });
+        })
+      })
     }
   }
 }
 
 function getMaskCenter(mask: Uint8Array): RoomCoordinate {
-  let sumX = 0;
-  let sumY = 0;
-  let numTiles = 0;
+  let sumX = 0
+  let sumY = 0
+  let numTiles = 0
 
   for (let index = 0; index < ROOM_AREA; index++) {
     if (!mask[index]) {
-      continue;
+      continue
     }
 
-    const { x, y } = fromRoomIndex(index);
-    sumX += x;
-    sumY += y;
-    numTiles++;
+    const { x, y } = fromRoomIndex(index)
+    sumX += x
+    sumY += y
+    numTiles++
   }
 
   return {
     x: Math.round(sumX / numTiles),
     y: Math.round(sumY / numTiles),
-  };
+  }
 }
 
-function visualizeUpgradePath(
-  visual: RoomVisual,
-  path: RoomCoordinate[],
-  label: string,
-  color: string,
-): void {
+function visualizeUpgradePath(visual: RoomVisual, path: RoomCoordinate[], label: string, color: string): void {
   path.forEach((coordinate, index) => {
     if (index > 0) {
-      const previous = path[index - 1];
+      const previous = path[index - 1]
       visual.arrow(
         new RoomPosition(previous.x, previous.y, visual.roomName),
         new RoomPosition(coordinate.x, coordinate.y, visual.roomName),
@@ -403,26 +372,26 @@ function visualizeUpgradePath(
           color,
           opacity: 0.8,
         },
-      );
+      )
     }
 
     visual.text(`${label}${index + 1}`, coordinate.x, coordinate.y, {
       color,
       font: 0.45,
       stroke: "black",
-    });
-  });
+    })
+  })
 }
 
 function clearVisual(visual: RoomVisual): void {
-  visual.clear();
-  visual.roads = [];
+  visual.clear()
+  visual.roads = []
 }
 
 function createNoopVisual(roomName: string): RoomVisual {
-  let visual: RoomVisual;
+  let visual: RoomVisual
 
-  const noop = (): RoomVisual => visual;
+  const noop = (): RoomVisual => visual
 
   visual = {
     roomName,
@@ -435,12 +404,12 @@ function createNoopVisual(roomName: string): RoomVisual {
     poly: noop,
     clear: noop,
     connectRoads: noop,
-  } as unknown as RoomVisual;
+  } as unknown as RoomVisual
 
-  return visual;
+  return visual
 }
 
 function getRegionColor(regionId: number, regionCount: number): string {
-  const hue = (regionId * 360) / regionCount;
-  return `hsl(${hue}, 70%, 50%)`;
+  const hue = (regionId * 360) / regionCount
+  return `hsl(${hue}, 70%, 50%)`
 }

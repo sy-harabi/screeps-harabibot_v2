@@ -1,22 +1,15 @@
-import { type RoomCoordinate } from "./roomCoordinate";
-import {
-  fromRoomIndex,
-  isInsideRoom,
-  NEIGHBOR_OFFSETS,
-  ROOM_AREA,
-  ROOM_SIZE,
-  toRoomIndex,
-} from "./roomGrid";
+import { type RoomCoordinate } from "./roomCoordinate"
+import { fromRoomIndex, isInsideRoom, NEIGHBOR_OFFSETS, ROOM_AREA, ROOM_SIZE, toRoomIndex } from "./roomGrid"
 
 export interface FloodFillResult {
   /**
    * Minimum steps from any accepted start, indexed by `y * ROOM_SIZE + x`.
    * Starts have distance 0; blocked and unreachable tiles have distance -1.
    */
-  readonly distances: Int16Array;
+  readonly distances: Int16Array
 
   /** Tile indices in discovery order, including starts, without duplicates. */
-  readonly visitedIndices: readonly number[];
+  readonly visitedIndices: readonly number[]
 }
 
 /**
@@ -36,70 +29,70 @@ export function floodFill(
   startCoordinates: readonly RoomCoordinate[],
   canVisit?: (x: number, y: number) => boolean,
 ): FloodFillResult {
-  const distances = new Int16Array(ROOM_AREA);
-  distances.fill(-1);
+  const distances = new Int16Array(ROOM_AREA)
+  distances.fill(-1)
 
   // Use discovery order as the queue to avoid a second array and Array.shift().
-  const visitedIndices: number[] = [];
+  const visitedIndices: number[] = []
 
   for (const startCoordinate of startCoordinates) {
-    const { x, y } = startCoordinate;
+    const { x, y } = startCoordinate
 
     if (!isInsideRoom(x, y)) {
-      continue;
+      continue
     }
 
-    const index = toRoomIndex(x, y);
+    const index = toRoomIndex(x, y)
 
     if (terrain.get(x, y) === TERRAIN_MASK_WALL) {
-      continue;
+      continue
     }
 
     if (canVisit && !canVisit(x, y)) {
-      continue;
+      continue
     }
 
     if (distances[index] !== -1) {
-      continue;
+      continue
     }
 
-    distances[index] = 0;
-    visitedIndices.push(index);
+    distances[index] = 0
+    visitedIndices.push(index)
   }
 
-  let queueHead = 0;
+  let queueHead = 0
 
   while (queueHead < visitedIndices.length) {
-    const currentIndex = visitedIndices[queueHead];
-    queueHead++;
-    const currentCoordinate = fromRoomIndex(currentIndex);
+    const currentIndex = visitedIndices[queueHead]
+    queueHead++
+    const currentCoordinate = fromRoomIndex(currentIndex)
 
     for (const offset of NEIGHBOR_OFFSETS) {
-      const neighborX = currentCoordinate.x + offset.x;
-      const neighborY = currentCoordinate.y + offset.y;
+      const neighborX = currentCoordinate.x + offset.x
+      const neighborY = currentCoordinate.y + offset.y
 
       if (!isInsideRoom(neighborX, neighborY)) {
-        continue;
+        continue
       }
 
-      const neighborIndex = toRoomIndex(neighborX, neighborY);
+      const neighborIndex = toRoomIndex(neighborX, neighborY)
 
       if (distances[neighborIndex] !== -1) {
-        continue;
+        continue
       }
 
       if (terrain.get(neighborX, neighborY) === TERRAIN_MASK_WALL) {
-        continue;
+        continue
       }
 
       if (canVisit && !canVisit(neighborX, neighborY)) {
-        continue;
+        continue
       }
 
-      distances[neighborIndex] = distances[currentIndex] + 1;
-      visitedIndices.push(neighborIndex);
+      distances[neighborIndex] = distances[currentIndex] + 1
+      visitedIndices.push(neighborIndex)
     }
   }
 
-  return { distances, visitedIndices };
+  return { distances, visitedIndices }
 }

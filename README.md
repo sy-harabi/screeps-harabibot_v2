@@ -86,7 +86,7 @@ dist/                               Generated bundle; not committed
 ## Start developing
 
 ```sh
-npm install
+npm ci
 npm run check
 ```
 
@@ -95,8 +95,26 @@ Useful commands:
 - `npm run typecheck` — check TypeScript without emitting files.
 - `npm run build` — bundle `src/main.ts` as `dist/main.js`.
 - `npm run check` — run type checking, production build, and formatting checks.
+- `npm run format` — check formatting without changing files.
 - `npm run format:write` — format supported files.
 - `npm run push-private` — build and upload once to the configured private server.
+
+## Formatting
+
+Formatting is shared through `.prettierrc.json`, `.editorconfig`, `.gitattributes`, and `.prettierignore`. Prettier 3.9.6 is pinned in `package.json` and `package-lock.json`; use `npm ci` after cloning to install the locked dependencies.
+
+The project uses a print width of 120, omits optional semicolons, uses double quotes and trailing commas where supported, and uses two-space indentation and LF line endings. Markdown prose keeps its existing wrapping. Prettier may retain semicolons where needed to preserve JavaScript semantics.
+
+VS Code workspace settings select the repository-local Prettier module and enable formatting on save. Install the recommended Prettier extension; other editors and agents should use the same local package and configuration through the npm commands. Personal editor formatting preferences are not the project standard.
+
+For a focused change, format only the files you edited:
+
+```sh
+npm exec -- prettier --write path/to/changed-file.ts
+npm run format
+```
+
+`npm run format:write` formats the whole repository when an intentional style update requires it. Generated output, dependencies, the npm lockfile, and the maintained rewrite context are excluded by `.prettierignore`. CI checks formatting on pushes and pull requests alongside type checking and the production build.
 
 ## Upload to a private server
 

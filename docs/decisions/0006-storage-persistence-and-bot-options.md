@@ -111,10 +111,7 @@ segment payload
 The store must distinguish these states:
 
 ```ts
-type StoreResult<T> =
-  | { status: "loading" }
-  | { status: "missing" }
-  | { status: "ready"; value: T };
+type StoreResult<T> = { status: "loading" } | { status: "missing" } | { status: "ready"; value: T }
 ```
 
 This distinction is required because an inactive/not-yet-loaded segment must not be interpreted as a missing plan. Otherwise every global reset could cause unnecessary replanning.
@@ -157,8 +154,8 @@ Conceptually:
 
 ```ts
 interface Memory {
-  operations?: OperationsMemory;
-  options?: DeepPartial<BotOptions>;
+  operations?: OperationsMemory
+  options?: DeepPartial<BotOptions>
 }
 ```
 
@@ -178,12 +175,12 @@ over the old broad `config.settings.*` / `config.test.*` split.
 
 ## Ownership summary
 
-| Layer | Lifetime | Purpose | Examples |
-| --- | --- | --- | --- |
-| `TickContext` | one tick | shared transient data and tick memoization | owned rooms, spawn requests |
-| runtime / `RuntimeStore` | until global reset | recomputable multi-tick cache | decoded plans, paths, cost matrices |
-| `Memory` | persistent | small loss-sensitive state | operations, option overrides |
-| segments | persistent | large/cold domain data | base plans, intel, source info |
+| Layer                    | Lifetime           | Purpose                                    | Examples                            |
+| ------------------------ | ------------------ | ------------------------------------------ | ----------------------------------- |
+| `TickContext`            | one tick           | shared transient data and tick memoization | owned rooms, spawn requests         |
+| runtime / `RuntimeStore` | until global reset | recomputable multi-tick cache              | decoded plans, paths, cost matrices |
+| `Memory`                 | persistent         | small loss-sensitive state                 | operations, option overrides        |
+| segments                 | persistent         | large/cold domain data                     | base plans, intel, source info      |
 
 Domain stores are owners of their data model and persistence policy. They are not children of `RuntimeStore`.
 

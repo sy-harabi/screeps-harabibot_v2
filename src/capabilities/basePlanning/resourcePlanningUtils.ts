@@ -1,6 +1,6 @@
-import { dijkstraMap } from "../../world/map/dijkstraMap";
-import { RoomCoordinate } from "../../world/map/roomCoordinate";
-import { toRoomIndex } from "../../world/map/roomGrid";
+import { dijkstraMap } from "../../world/map/dijkstraMap"
+import { RoomCoordinate } from "../../world/map/roomCoordinate"
+import { toRoomIndex } from "../../world/map/roomGrid"
 
 export function buildResourceDistanceMap(
   terrain: RoomTerrain,
@@ -12,13 +12,9 @@ export function buildResourceDistanceMap(
     coreRoads,
     getResourceRoadCost,
     (x, y) => resourceRoadBlockedMask[toRoomIndex(x, y)] === 0,
-  );
+  )
 }
 
-export function getResourceRoadCost(
-  _x: number,
-  _y: number,
-  terrainType: number,
-): number {
-  return terrainType === TERRAIN_MASK_SWAMP ? 6 : 5;
+export function getResourceRoadCost(_x: number, _y: number, terrainType: number): number {
+  return terrainType === TERRAIN_MASK_SWAMP ? 6 : 5
 }

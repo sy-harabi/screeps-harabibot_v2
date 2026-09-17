@@ -114,11 +114,11 @@ maximum gap:           150 DPS
 
 The diameter split was very clear:
 
-| Final rampart diameter | n | Exact match | Mean gap |
-| --- | ---: | ---: | ---: |
-| `<= 25` | 73 | 68.5% | 14.0 DPS |
-| `26` | 15 | 40.0% | 24.0 DPS |
-| `>= 27` | 58 | 20.7% | 49.7 DPS |
+| Final rampart diameter |   n | Exact match | Mean gap |
+| ---------------------- | --: | ----------: | -------: |
+| `<= 25`                |  73 |       68.5% | 14.0 DPS |
+| `26`                   |  15 |       40.0% | 24.0 DPS |
+| `>= 27`                |  58 |       20.7% | 49.7 DPS |
 
 Large-diameter rooms were still the hard cases.
 
@@ -175,12 +175,12 @@ Once pair search was available, I tested deliberately different starting placeme
 
 On the original 146-room sample, after the then-current refinement pipeline:
 
-| Initial placement | Exact matches | Mean final gap | Maximum final gap |
-| --- | ---: | ---: | ---: |
-| first feasible six by room index | 138 / 146 | 1.64 DPS | 30 DPS |
-| old v2 seed | 136 / 146 | 2.26 DPS | 60 DPS |
-| global max-min greedy | **140 / 146** | **1.23 DPS** | **30 DPS** |
-| prior centered/distributed path | 137 / 146 | 1.85 DPS | 30 DPS |
+| Initial placement                | Exact matches | Mean final gap | Maximum final gap |
+| -------------------------------- | ------------: | -------------: | ----------------: |
+| first feasible six by room index |     138 / 146 |       1.64 DPS |            30 DPS |
+| old v2 seed                      |     136 / 146 |       2.26 DPS |            60 DPS |
+| global max-min greedy            | **140 / 146** |   **1.23 DPS** |        **30 DPS** |
+| prior centered/distributed path  |     137 / 146 |       1.85 DPS |            30 DPS |
 
 Even a bad feasible seed was usually repaired. The simple global greedy seed was actually best among these tests.
 
@@ -223,22 +223,22 @@ global max-min greedy for all 6 towers
 
 against exact MILP:
 
-| Stage | Exact matches | Mean gap | Maximum gap |
-| --- | ---: | ---: | ---: |
-| global greedy | 47 / 155 | 91.5 DPS | 840 DPS |
-| + single convergence | 73 / 155 | 65.8 DPS | 810 DPS |
-| + pair sweep 1 | 134 / 155 | 5.42 DPS | 120 DPS |
-| + pair sweep 2 | **147 / 155** | **1.55 DPS** | **30 DPS** |
+| Stage                | Exact matches |     Mean gap | Maximum gap |
+| -------------------- | ------------: | -----------: | ----------: |
+| global greedy        |      47 / 155 |     91.5 DPS |     840 DPS |
+| + single convergence |      73 / 155 |     65.8 DPS |     810 DPS |
+| + pair sweep 1       |     134 / 155 |     5.42 DPS |     120 DPS |
+| + pair sweep 2       | **147 / 155** | **1.55 DPS** |  **30 DPS** |
 
 The final 8 non-exact rooms were all only 30 DPS below exact.
 
 Diameter breakdown after pair sweep 2:
 
-| Diameter | n | Exact |
-| --- | ---: | ---: |
-| `<= 25` | 100 | 99 / 100 |
-| `26` | 14 | 12 / 14 |
-| `>= 27` | 41 | 36 / 41 |
+| Diameter |   n |    Exact |
+| -------- | --: | -------: |
+| `<= 25`  | 100 | 99 / 100 |
+| `26`     |  14 |  12 / 14 |
+| `>= 27`  |  41 |  36 / 41 |
 
 The small-base regime is still easier, but no diameter-specific production branch is needed.
 
@@ -263,11 +263,11 @@ The pair neighborhood already contains single-tower moves when one of the two re
 
 A follow-up benchmark used 400 evenly sampled controller rooms from the shardSeason snapshot. Base planning succeeded in 301 rooms. All three variants started from the same global greedy seed and used the same candidate set and MILP reference.
 
-| Refinement | Exact MILP | Mean gap | Max gap | Mean local time | Median | P95 | Worst |
-| --- | ---: | ---: | ---: | ---: | ---: | ---: | ---: |
-| pair sweep x2 | **283 / 301** | **2.59 DPS** | 210 DPS | 14.72 ms | 12.19 ms | 37.20 ms | 100.01 ms |
-| single convergence + pair sweep x2 | 282 / 301 | 2.69 DPS | 210 DPS | **14.67 ms** | **12.12 ms** | **37.13 ms** | **98.51 ms** |
-| pair sweeps to convergence | 284 / 301 | 2.49 DPS | 210 DPS | 17.30 ms | 12.81 ms | 43.05 ms | 197.86 ms |
+| Refinement                         |    Exact MILP |     Mean gap | Max gap | Mean local time |       Median |          P95 |        Worst |
+| ---------------------------------- | ------------: | -----------: | ------: | --------------: | -----------: | -----------: | -----------: |
+| pair sweep x2                      | **283 / 301** | **2.59 DPS** | 210 DPS |        14.72 ms |     12.19 ms |     37.20 ms |    100.01 ms |
+| single convergence + pair sweep x2 |     282 / 301 |     2.69 DPS | 210 DPS |    **14.67 ms** | **12.12 ms** | **37.13 ms** | **98.51 ms** |
+| pair sweeps to convergence         |     284 / 301 |     2.49 DPS | 210 DPS |        17.30 ms |     12.81 ms |     43.05 ms |    197.86 ms |
 
 The separate single stage had no quality advantage and no meaningful runtime advantage. `pair sweep x2` was also much better bounded than running pair sweeps to convergence: convergence gained only one additional exact room while nearly doubling the observed worst-case local runtime.
 

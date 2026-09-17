@@ -1,3 +1,1 @@
-export type {
-  OuterRampartRoadPlan as RegionBoundaryRoadPlan,
-} from "./planOuterRampartRoads";
+export type { OuterRampartRoadPlan as RegionBoundaryRoadPlan } from "./planOuterRampartRoads"

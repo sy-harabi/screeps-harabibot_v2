@@ -1,50 +1,44 @@
 // operationRuntime.ts
 
-import { runtimeRegistry } from "./runtimeRegistry";
+import { runtimeRegistry } from "./runtimeRegistry"
 
-const operationHeap = runtimeRegistry.createCache<string, unknown>(
-  "operationHeap",
-);
+const operationHeap = runtimeRegistry.createCache<string, unknown>("operationHeap")
 
-let tempTick = -1;
-const operationTemp = new Map<string, unknown>();
+let tempTick = -1
+const operationTemp = new Map<string, unknown>()
 
-export function getOperationHeap<T extends object>(
-  operationId: string,
-): Partial<T> {
-  let heap = operationHeap.get(operationId);
+export function getOperationHeap<T extends object>(operationId: string): Partial<T> {
+  let heap = operationHeap.get(operationId)
 
   if (heap === undefined) {
-    heap = {};
-    operationHeap.set(operationId, heap);
+    heap = {}
+    operationHeap.set(operationId, heap)
   }
 
-  return heap as Partial<T>;
+  return heap as Partial<T>
 }
 
-export function getOperationTemp<T extends object>(
-  operationId: string,
-): Partial<T> {
-  prepareTemp();
+export function getOperationTemp<T extends object>(operationId: string): Partial<T> {
+  prepareTemp()
 
-  let temp = operationTemp.get(operationId);
+  let temp = operationTemp.get(operationId)
 
   if (temp === undefined) {
-    temp = {};
-    operationTemp.set(operationId, temp);
+    temp = {}
+    operationTemp.set(operationId, temp)
   }
 
-  return temp as Partial<T>;
+  return temp as Partial<T>
 }
 
 function prepareTemp(): void {
-  if (tempTick === Game.time) return;
+  if (tempTick === Game.time) return
 
-  tempTick = Game.time;
-  operationTemp.clear();
+  tempTick = Game.time
+  operationTemp.clear()
 }
 
 export function clearOperationRuntime(operationId: string): void {
-  operationHeap.delete(operationId);
-  operationTemp.delete(operationId);
+  operationHeap.delete(operationId)
+  operationTemp.delete(operationId)
 }

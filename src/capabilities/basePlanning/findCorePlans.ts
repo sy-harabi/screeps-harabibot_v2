@@ -1,10 +1,7 @@
-import { getRange, RoomCoordinate } from "../../world/map/roomCoordinate";
-import { isInsideRoom, toRoomIndex } from "../../world/map/roomGrid";
+import { getRange, RoomCoordinate } from "../../world/map/roomCoordinate"
+import { isInsideRoom, toRoomIndex } from "../../world/map/roomGrid"
 
-import {
-  ControllerAreaCandidate,
-  UpgradeChains,
-} from "./findControllerAreaCandidates";
+import { ControllerAreaCandidate, UpgradeChains } from "./findControllerAreaCandidates"
 
 export const CORE_STAMP = {
   storage: { x: 0, y: 0 },
@@ -25,53 +22,43 @@ export const CORE_STAMP = {
     { x: 2, y: 2 },
     { x: 3, y: 1 },
   ],
-};
-
-export interface CorePlan {
-  manager: RoomCoordinate;
-  terminal: RoomCoordinate;
-  firstSpawn: RoomCoordinate;
-  link: RoomCoordinate;
-  factory: RoomCoordinate;
-  powerSpawn: RoomCoordinate;
-  parking: RoomCoordinate[];
-  roads: RoomCoordinate[];
 }
 
-export function findCorePlans(
-  controllerAreaCandidate: ControllerAreaCandidate,
-  planningMask: Uint8Array,
-): CorePlan[] {
-  const { storage, upgradeChains } = controllerAreaCandidate;
+export interface CorePlan {
+  manager: RoomCoordinate
+  terminal: RoomCoordinate
+  firstSpawn: RoomCoordinate
+  link: RoomCoordinate
+  factory: RoomCoordinate
+  powerSpawn: RoomCoordinate
+  parking: RoomCoordinate[]
+  roads: RoomCoordinate[]
+}
+
+export function findCorePlans(controllerAreaCandidate: ControllerAreaCandidate, planningMask: Uint8Array): CorePlan[] {
+  const { storage, upgradeChains } = controllerAreaCandidate
 
   const upgradeTileIndices = new Set(
     Object.values(upgradeChains)
       .flat()
       .map(({ x, y }) => toRoomIndex(x, y)),
-  );
+  )
 
-  const coreCandidates: CorePlan[] = [];
+  const coreCandidates: CorePlan[] = []
 
-  const middleRoot = upgradeChains.middle[0];
+  const middleRoot = upgradeChains.middle[0]
 
   for (const mirrored of [true, false]) {
-    const corePlan = tryCoreStamp(
-      storage,
-      planningMask,
-      upgradeTileIndices,
-      upgradeChains,
-      middleRoot,
-      mirrored,
-    );
+    const corePlan = tryCoreStamp(storage, planningMask, upgradeTileIndices, upgradeChains, middleRoot, mirrored)
 
     if (!corePlan) {
-      continue;
+      continue
     }
 
-    coreCandidates.push(corePlan);
+    coreCandidates.push(corePlan)
   }
 
-  return coreCandidates;
+  return coreCandidates
 }
 
 function isValidCoordinate(
@@ -80,20 +67,20 @@ function isValidCoordinate(
   upgradeTileIndices: Set<number>,
 ): boolean {
   if (!isInsideRoom(coordinate.x, coordinate.y)) {
-    return false;
+    return false
   }
 
-  const index = toRoomIndex(coordinate.x, coordinate.y);
+  const index = toRoomIndex(coordinate.x, coordinate.y)
 
   if (!planningMask[index]) {
-    return false;
+    return false
   }
 
   if (upgradeTileIndices.has(index)) {
-    return false;
+    return false
   }
 
-  return true;
+  return true
 }
 
 function tryCoreStamp(
@@ -107,63 +94,61 @@ function tryCoreStamp(
   const forward = {
     x: middleRoot.x - storage.x,
     y: middleRoot.y - storage.y,
-  };
+  }
 
-  const transform = (coordinate: RoomCoordinate) =>
-    transformCoreCoordinate(coordinate, storage, forward, mirrored);
+  const transform = (coordinate: RoomCoordinate) => transformCoreCoordinate(coordinate, storage, forward, mirrored)
 
-  const isValid = (coordinate: RoomCoordinate) =>
-    isValidCoordinate(coordinate, planningMask, upgradeTileIndices);
+  const isValid = (coordinate: RoomCoordinate) => isValidCoordinate(coordinate, planningMask, upgradeTileIndices)
 
-  const manager = transform(CORE_STAMP.manager);
+  const manager = transform(CORE_STAMP.manager)
 
   if (!isValid(manager)) {
-    return;
+    return
   }
 
-  const managerStructures = findManagerStructures(manager, upgradeChains);
+  const managerStructures = findManagerStructures(manager, upgradeChains)
 
   if (!managerStructures) {
-    return;
+    return
   }
 
-  const terminal = transform(CORE_STAMP.terminal);
+  const terminal = transform(CORE_STAMP.terminal)
 
   if (!isValid(terminal)) {
-    return;
+    return
   }
 
-  const firstSpawn = transform(CORE_STAMP.spawn);
+  const firstSpawn = transform(CORE_STAMP.spawn)
 
   if (!isValid(firstSpawn)) {
-    return;
+    return
   }
 
-  let link = transform(CORE_STAMP.link);
+  let link = transform(CORE_STAMP.link)
 
   if (!isValid(link)) {
-    link = transform(CORE_STAMP.linkFallback);
+    link = transform(CORE_STAMP.linkFallback)
     if (!isValid(link)) {
-      return;
+      return
     }
   }
 
-  const parking = CORE_STAMP.parking.map(transform);
+  const parking = CORE_STAMP.parking.map(transform)
 
   if (parking.some((coordinate) => !isValid(coordinate))) {
-    return;
+    return
   }
 
-  const optionalParking = transform(CORE_STAMP.parkingOptional);
+  const optionalParking = transform(CORE_STAMP.parkingOptional)
 
   if (isValid(optionalParking)) {
-    parking.push(optionalParking);
+    parking.push(optionalParking)
   }
 
-  const roads = CORE_STAMP.roads.map(transform);
+  const roads = CORE_STAMP.roads.map(transform)
 
   if (roads.some((road) => !isValid(road))) {
-    return;
+    return
   }
 
   return {
@@ -174,7 +159,7 @@ function tryCoreStamp(
     ...managerStructures,
     parking,
     roads,
-  };
+  }
 }
 
 function findManagerStructures(
@@ -182,19 +167,17 @@ function findManagerStructures(
   upgradeChains: UpgradeChains,
 ): Pick<CorePlan, "factory" | "powerSpawn"> | undefined {
   const adjacentChains = Object.values(upgradeChains)
-    .filter(
-      (chain) => chain.length > 0 && getRange(manager, chain[0]) === 1,
-    )
-    .sort((left, right) => left.length - right.length);
+    .filter((chain) => chain.length > 0 && getRange(manager, chain[0]) === 1)
+    .sort((left, right) => left.length - right.length)
 
   if (adjacentChains.length < 2) {
-    return;
+    return
   }
 
   return {
     factory: adjacentChains[0][0],
     powerSpawn: adjacentChains[adjacentChains.length - 1][0],
-  };
+  }
 }
 
 function transformCoreCoordinate(
@@ -203,13 +186,13 @@ function transformCoreCoordinate(
   forward: RoomCoordinate,
   mirrored: boolean,
 ): RoomCoordinate {
-  const localX = mirrored ? -coordinate.x : coordinate.x;
+  const localX = mirrored ? -coordinate.x : coordinate.x
 
-  const rightX = -forward.y;
-  const rightY = forward.x;
+  const rightX = -forward.y
+  const rightY = forward.x
 
   return {
     x: anchor.x + localX * rightX - coordinate.y * forward.x,
     y: anchor.y + localX * rightY - coordinate.y * forward.y,
-  };
+  }
 }

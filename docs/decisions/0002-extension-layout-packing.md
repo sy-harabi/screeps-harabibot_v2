@@ -14,14 +14,14 @@ The current resource planner also returns explicit per-target branch metadata:
 
 ```ts
 export interface ResourceBranchPlan {
-  readonly targetId: Id<Source> | Id<Mineral>;
-  readonly container: RoomCoordinate;
-  readonly roads: RoomCoordinate[];
+  readonly targetId: Id<Source> | Id<Mineral>
+  readonly container: RoomCoordinate
+  readonly roads: RoomCoordinate[]
 }
 
 export interface ResourceTreePlan {
-  readonly roads: RoomCoordinate[];
-  readonly branches: ResourceBranchPlan[];
+  readonly roads: RoomCoordinate[]
+  readonly branches: ResourceBranchPlan[]
 }
 ```
 
