@@ -108,8 +108,9 @@ export function run(room: Room, costProvider?: CostProvider, movementCostThresho
 
   let searchId = 0
 
-  // Keep the original one-pass behavior: each creep receives one chance to improve
-  // the current assignment, and successful earlier assignments remain in place.
+  // Keep the solver one-pass: each creep is processed once as a root request.
+  // A later, higher-score request may still replace an earlier lower-score assignment
+  // by letting the displaced creep fall back to its observed current position.
   for (let creepIndex = 0; creepIndex < creeps.length; creepIndex++) {
     const creep = creeps[creepIndex]
 
@@ -141,12 +142,14 @@ export function run(room: Room, costProvider?: CostProvider, movementCostThresho
         creepIndex,
         0,
         searchId,
+        false,
         creeps,
         terrain,
         costs,
         movementCostThreshold,
         occupancyScratch,
         matchedCoordinatesScratch,
+        currentCoordinatesScratch,
         visitedAtSearchScratch,
       ) > 0
     ) {
@@ -186,12 +189,14 @@ function depthFirstSearch(
   creepIndex: number,
   score: number,
   searchId: number,
+  allowCurrentPositionFallback: boolean,
   creeps: readonly TrafficCreep[],
   terrain: RoomTerrain,
   costs: CostMatrix | undefined,
   movementCostThreshold: number,
   occupancy: Int16Array,
   matchedCoordinates: Int16Array,
+  currentCoordinates: Int16Array,
   visitedAtSearch: Uint16Array,
 ): number {
   visitedAtSearch[creepIndex] = searchId
@@ -244,12 +249,14 @@ function depthFirstSearch(
         occupyingCreepIndex,
         nextScore,
         searchId,
+        true,
         creeps,
         terrain,
         costs,
         movementCostThreshold,
         occupancy,
         matchedCoordinates,
+        currentCoordinates,
         visitedAtSearch,
       )
 
@@ -260,7 +267,85 @@ function depthFirstSearch(
     }
   }
 
+  if (
+    allowCurrentPositionFallback &&
+    getIntendedPackedCoordinate(creep) !== undefined &&
+    matchedCoordinates[creepIndex] !== currentCoordinates[creepIndex]
+  ) {
+    return tryCurrentPositionFallback(
+      creepIndex,
+      score,
+      searchId,
+      creeps,
+      terrain,
+      costs,
+      movementCostThreshold,
+      occupancy,
+      matchedCoordinates,
+      currentCoordinates,
+      visitedAtSearch,
+    )
+  }
+
   return -Infinity
+}
+
+function tryCurrentPositionFallback(
+  creepIndex: number,
+  score: number,
+  searchId: number,
+  creeps: readonly TrafficCreep[],
+  terrain: RoomTerrain,
+  costs: CostMatrix | undefined,
+  movementCostThreshold: number,
+  occupancy: Int16Array,
+  matchedCoordinates: Int16Array,
+  currentCoordinates: Int16Array,
+  visitedAtSearch: Uint16Array,
+): number {
+  const packedCoordinate = currentCoordinates[creepIndex]
+  const occupantCode = occupancy[packedCoordinate]
+
+  if (occupantCode === EMPTY) {
+    if (score > 0) {
+      assignCreepToCoordinate(creepIndex, packedCoordinate, occupancy, matchedCoordinates)
+    }
+    return score
+  }
+
+  const occupyingCreepIndex = occupantCode - 1
+
+  if (visitedAtSearch[occupyingCreepIndex] === searchId) {
+    return -Infinity
+  }
+
+  let nextScore = score
+  const occupyingCreep = creeps[occupyingCreepIndex]
+
+  if (getIntendedPackedCoordinate(occupyingCreep) === packedCoordinate) {
+    nextScore -= getMoveScore(occupyingCreep)
+  }
+
+  const result = depthFirstSearch(
+    occupyingCreepIndex,
+    nextScore,
+    searchId,
+    true,
+    creeps,
+    terrain,
+    costs,
+    movementCostThreshold,
+    occupancy,
+    matchedCoordinates,
+    currentCoordinates,
+    visitedAtSearch,
+  )
+
+  if (result > 0) {
+    assignCreepToCoordinate(creepIndex, packedCoordinate, occupancy, matchedCoordinates)
+  }
+
+  return result
 }
 
 function getPossibleMoves(
