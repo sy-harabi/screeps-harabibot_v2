@@ -29,7 +29,7 @@ export function createColonyOperation(roomName: string): ColonyOperationRecord {
 }
 
 export const colonyOperationHandler: OperationHandler<ColonyOperationRecord> = {
-  execute(operation, context): void {
+  plan(operation, context): void {
     const { roomName } = operation;
 
     const terrain = Game.map.getRoomTerrain(roomName);
@@ -89,6 +89,8 @@ export const colonyOperationHandler: OperationHandler<ColonyOperationRecord> = {
       );
     }
   },
+
+  execute(operation, context): void {},
 };
 
 function visualizeFinalPlan(basePlan: BasePlan, visual: RoomVisual): void {
