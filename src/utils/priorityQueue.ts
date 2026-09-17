@@ -5,7 +5,7 @@ interface PriorityQueueEntry<T> {
 }
 
 /**
- * A max-priority queue with stable FIFO ordering for equal priorities.
+ * A min-priority queue with stable FIFO ordering for equal priorities.
  */
 export class PriorityQueue<T> {
   private readonly heap: PriorityQueueEntry<T>[] = []
@@ -85,7 +85,7 @@ export class PriorityQueue<T> {
 
   private comesBefore(first: PriorityQueueEntry<T>, second: PriorityQueueEntry<T>): boolean {
     if (first.priority !== second.priority) {
-      return first.priority > second.priority
+      return first.priority < second.priority
     }
 
     return first.order < second.order
