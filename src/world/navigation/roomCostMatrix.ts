@@ -8,9 +8,13 @@ interface RoomCostMatrixSignature {
 }
 
 interface RoomCostMatrixCacheEntry {
-  matrix: CostMatrix;
+  matrix?: CostMatrix;
   signature: RoomCostMatrixSignature;
+  lastUsed: number;
 }
+
+const CACHE_MAX_UNUSED_TICKS = 1000;
+const CACHE_CLEANUP_INTERVAL = 100;
 
 const obstacleStructureTypes = new Set<StructureConstant>(
   OBSTACLE_OBJECT_TYPES,
@@ -21,35 +25,39 @@ const cache = runtimeRegistry.createCache<string, RoomCostMatrixCacheEntry>(
 );
 
 let tempTick = -1;
+let lastCleanupTick = -Infinity;
 
-const temp = new Map<string, CostMatrix>();
+const temp = new Map<string, CostMatrix | undefined>();
 
-export function getRoomCostMatrix(roomName: string): CostMatrix {
+export function getRoomCostMatrix(roomName: string): CostMatrix | undefined {
   prepareTemp();
+  cleanupRoomCostMatrixCache();
 
-  const tempMatrix = temp.get(roomName);
-
-  if (tempMatrix !== undefined) {
-    return tempMatrix;
+  if (temp.has(roomName)) {
+    return temp.get(roomName);
   }
 
   const cached = cache.get(roomName);
   const room = Game.rooms[roomName];
 
   if (room === undefined) {
-    const matrix = cached?.matrix ?? new PathFinder.CostMatrix();
+    if (cached !== undefined) {
+      cached.lastUsed = Game.time;
+      temp.set(roomName, cached.matrix);
+      return cached.matrix;
+    }
 
-    temp.set(roomName, matrix);
-    return matrix;
+    temp.set(roomName, undefined);
+    return undefined;
   }
 
-  // visible room이면 현재 상태 확인
   const structures = room.find(FIND_STRUCTURES);
   const constructionSites = room.find(FIND_MY_CONSTRUCTION_SITES);
 
   const signature = createSignature(structures, constructionSites);
 
   if (cached !== undefined && signaturesEqual(cached.signature, signature)) {
+    cached.lastUsed = Game.time;
     temp.set(roomName, cached.matrix);
     return cached.matrix;
   }
@@ -59,6 +67,7 @@ export function getRoomCostMatrix(roomName: string): CostMatrix {
   cache.set(roomName, {
     matrix,
     signature,
+    lastUsed: Game.time,
   });
 
   temp.set(roomName, matrix);
@@ -69,7 +78,11 @@ export function getRoomCostMatrix(roomName: string): CostMatrix {
 function buildRoomCostMatrix(
   structures: Structure[],
   constructionSites: ConstructionSite[],
-): CostMatrix {
+): CostMatrix | undefined {
+  if (structures.length === 0 && constructionSites.length === 0) {
+    return undefined;
+  }
+
   const matrix = new PathFinder.CostMatrix();
 
   for (const structure of structures) {
@@ -137,6 +150,20 @@ function createSignature(
 export function invalidateRoomCostMatrix(roomName: string): void {
   cache.delete(roomName);
   temp.delete(roomName);
+}
+
+export function cleanupRoomCostMatrixCache(): void {
+  if (Game.time - lastCleanupTick < CACHE_CLEANUP_INTERVAL) {
+    return;
+  }
+
+  lastCleanupTick = Game.time;
+
+  for (const [roomName, entry] of cache) {
+    if (Game.time - entry.lastUsed > CACHE_MAX_UNUSED_TICKS) {
+      cache.delete(roomName);
+    }
+  }
 }
 
 function prepareTemp(): void {
