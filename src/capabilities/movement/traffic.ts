@@ -22,6 +22,12 @@ const ROOM_SIZE = 50
 const ROOM_AREA = ROOM_SIZE * ROOM_SIZE
 const EMPTY = 0
 const UNASSIGNED = -1
+const INITIAL_CREEP_CAPACITY = 16
+
+const occupancyScratch = new Int16Array(ROOM_AREA)
+let matchedCoordinatesScratch = new Int16Array(0)
+let currentCoordinatesScratch = new Int16Array(0)
+let visitedAtSearchScratch = new Uint16Array(0)
 
 const DIRECTIONS: readonly (Coordinate | undefined)[] = [
   undefined,
@@ -81,25 +87,23 @@ export function run(room: Room, costProvider?: CostProvider, movementCostThresho
     return
   }
 
-  // 0 means empty; creep index + 1 identifies the assigned occupant.
-  const occupancy = new Int16Array(ROOM_AREA)
-  const matchedCoordinates = new Int16Array(creeps.length)
-  const currentCoordinates = new Int16Array(creeps.length)
-  const visitedAtSearch = new Uint16Array(creeps.length)
+  ensureCreepScratchCapacity(creeps.length)
 
-  matchedCoordinates.fill(UNASSIGNED)
+  occupancyScratch.fill(EMPTY)
+  matchedCoordinatesScratch.fill(UNASSIGNED, 0, creeps.length)
+  visitedAtSearchScratch.fill(0, 0, creeps.length)
 
   for (let creepIndex = 0; creepIndex < creeps.length; creepIndex++) {
     const creep = creeps[creepIndex]
     const packedCoordinate = packCoordinate(creep.pos)
 
-    currentCoordinates[creepIndex] = packedCoordinate
+    currentCoordinatesScratch[creepIndex] = packedCoordinate
 
     if (vacatesEdgeTile(creep)) {
       continue
     }
 
-    assignCreepToCoordinate(creepIndex, packedCoordinate, occupancy, matchedCoordinates)
+    assignCreepToCoordinate(creepIndex, packedCoordinate, occupancyScratch, matchedCoordinatesScratch)
   }
 
   let searchId = 0
@@ -119,16 +123,16 @@ export function run(room: Room, costProvider?: CostProvider, movementCostThresho
       continue
     }
 
-    const matchedPackedCoordinate = matchedCoordinates[creepIndex]
+    const matchedPackedCoordinate = matchedCoordinatesScratch[creepIndex]
 
     if (matchedPackedCoordinate === intendedPackedCoordinate) {
       continue
     }
 
     if (matchedPackedCoordinate !== UNASSIGNED) {
-      occupancy[matchedPackedCoordinate] = EMPTY
+      occupancyScratch[matchedPackedCoordinate] = EMPTY
     }
-    matchedCoordinates[creepIndex] = UNASSIGNED
+    matchedCoordinatesScratch[creepIndex] = UNASSIGNED
 
     searchId++
 
@@ -141,20 +145,41 @@ export function run(room: Room, costProvider?: CostProvider, movementCostThresho
         terrain,
         costs,
         movementCostThreshold,
-        occupancy,
-        matchedCoordinates,
-        visitedAtSearch,
+        occupancyScratch,
+        matchedCoordinatesScratch,
+        visitedAtSearchScratch,
       ) > 0
     ) {
       continue
     }
 
-    assignCreepToCoordinate(creepIndex, currentCoordinates[creepIndex], occupancy, matchedCoordinates)
+    assignCreepToCoordinate(
+      creepIndex,
+      currentCoordinatesScratch[creepIndex],
+      occupancyScratch,
+      matchedCoordinatesScratch,
+    )
   }
 
   for (let creepIndex = 0; creepIndex < creeps.length; creepIndex++) {
-    resolveMovement(creeps[creepIndex], matchedCoordinates[creepIndex])
+    resolveMovement(creeps[creepIndex], matchedCoordinatesScratch[creepIndex])
   }
+}
+
+function ensureCreepScratchCapacity(creepCount: number): void {
+  if (matchedCoordinatesScratch.length >= creepCount) {
+    return
+  }
+
+  let capacity = Math.max(INITIAL_CREEP_CAPACITY, matchedCoordinatesScratch.length)
+
+  while (capacity < creepCount) {
+    capacity *= 2
+  }
+
+  matchedCoordinatesScratch = new Int16Array(capacity)
+  currentCoordinatesScratch = new Int16Array(capacity)
+  visitedAtSearchScratch = new Uint16Array(capacity)
 }
 
 function depthFirstSearch(
