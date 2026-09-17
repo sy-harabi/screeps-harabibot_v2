@@ -261,7 +261,7 @@ function enqueueUnassignedNeighbors(
       continue
     }
 
-    queue.push({ index: neighborIndex, regionId }, getWatershedPriority(neighborIndex, distances, edgeDistances))
+    queue.push({ index: neighborIndex, regionId }, -getWatershedPriority(neighborIndex, distances, edgeDistances))
   }
 }
 

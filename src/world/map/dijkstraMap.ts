@@ -95,7 +95,7 @@ export function dijkstraMap(
 
       distances[neighborIndex] = nextDistance
 
-      queue.push(neighborIndex, -nextDistance)
+      queue.push(neighborIndex, nextDistance)
     }
   }
 
