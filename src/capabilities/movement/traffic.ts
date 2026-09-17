@@ -109,8 +109,8 @@ export function run(room: Room, costProvider?: CostProvider, movementCostThresho
   let searchId = 0
 
   // Keep the solver one-pass: each creep is processed once as a root request.
-  // A later, higher-score request may still replace an earlier lower-score assignment
-  // by letting the displaced creep fall back to its observed current position.
+  // A later request may replace an earlier assignment only when its root score is
+  // strictly higher than the displaced creep's score and the total branch score stays positive.
   for (let creepIndex = 0; creepIndex < creeps.length; creepIndex++) {
     const creep = creeps[creepIndex]
 
@@ -141,6 +141,7 @@ export function run(room: Room, costProvider?: CostProvider, movementCostThresho
       depthFirstSearch(
         creepIndex,
         0,
+        getMoveScore(creep),
         searchId,
         false,
         creeps,
@@ -188,6 +189,7 @@ function ensureCreepScratchCapacity(creepCount: number): void {
 function depthFirstSearch(
   creepIndex: number,
   score: number,
+  rootMoveScore: number,
   searchId: number,
   allowCurrentPositionFallback: boolean,
   creeps: readonly TrafficCreep[],
@@ -248,6 +250,7 @@ function depthFirstSearch(
       const result = depthFirstSearch(
         occupyingCreepIndex,
         nextScore,
+        rootMoveScore,
         searchId,
         true,
         creeps,
@@ -269,12 +272,15 @@ function depthFirstSearch(
 
   if (
     allowCurrentPositionFallback &&
+    score > 0 &&
     getIntendedPackedCoordinate(creep) !== undefined &&
+    rootMoveScore > getMoveScore(creep) &&
     matchedCoordinates[creepIndex] !== currentCoordinates[creepIndex]
   ) {
     return tryCurrentPositionFallback(
       creepIndex,
       score,
+      rootMoveScore,
       searchId,
       creeps,
       terrain,
@@ -293,6 +299,7 @@ function depthFirstSearch(
 function tryCurrentPositionFallback(
   creepIndex: number,
   score: number,
+  rootMoveScore: number,
   searchId: number,
   creeps: readonly TrafficCreep[],
   terrain: RoomTerrain,
@@ -307,9 +314,7 @@ function tryCurrentPositionFallback(
   const occupantCode = occupancy[packedCoordinate]
 
   if (occupantCode === EMPTY) {
-    if (score > 0) {
-      assignCreepToCoordinate(creepIndex, packedCoordinate, occupancy, matchedCoordinates)
-    }
+    assignCreepToCoordinate(creepIndex, packedCoordinate, occupancy, matchedCoordinates)
     return score
   }
 
@@ -329,6 +334,7 @@ function tryCurrentPositionFallback(
   const result = depthFirstSearch(
     occupyingCreepIndex,
     nextScore,
+    rootMoveScore,
     searchId,
     true,
     creeps,
