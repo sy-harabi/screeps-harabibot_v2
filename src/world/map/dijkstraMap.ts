@@ -1,12 +1,6 @@
-import { PriorityQueue } from "../../utils/priorityQueue";
-import { RoomCoordinate } from "./roomCoordinate";
-import {
-  fromRoomIndex,
-  isInsideRoom,
-  NEIGHBOR_OFFSETS,
-  ROOM_AREA,
-  toRoomIndex,
-} from "./roomGrid";
+import { PriorityQueue } from "../../utils/priorityQueue"
+import { RoomCoordinate } from "./roomCoordinate"
+import { fromRoomIndex, isInsideRoom, NEIGHBOR_OFFSETS, ROOM_AREA, toRoomIndex } from "./roomGrid"
 
 /**
  * Builds minimum-cost distances from multiple starts.
@@ -20,93 +14,90 @@ export function dijkstraMap(
   getCost: (x: number, y: number, terrainType: number) => number,
   canVisit?: (x: number, y: number) => boolean,
 ): Int32Array {
-  const distances = new Int32Array(ROOM_AREA);
-  distances.fill(-1);
+  const distances = new Int32Array(ROOM_AREA)
+  distances.fill(-1)
 
-  const queue = new PriorityQueue<number>();
+  const queue = new PriorityQueue<number>()
 
-  const visited = new Uint8Array(ROOM_AREA);
+  const visited = new Uint8Array(ROOM_AREA)
 
   for (const coordinate of startCoordinates) {
-    const { x, y } = coordinate;
+    const { x, y } = coordinate
 
     if (!isInsideRoom(x, y)) {
-      continue;
+      continue
     }
 
     if (terrain.get(x, y) === TERRAIN_MASK_WALL) {
-      continue;
+      continue
     }
 
     if (canVisit && !canVisit(x, y)) {
-      continue;
+      continue
     }
 
-    const index = toRoomIndex(coordinate.x, coordinate.y);
+    const index = toRoomIndex(coordinate.x, coordinate.y)
 
     if (distances[index] !== -1) {
-      continue;
+      continue
     }
 
-    queue.push(index, 0);
-    distances[index] = 0;
+    queue.push(index, 0)
+    distances[index] = 0
   }
 
   while (queue.size > 0) {
-    const candidate = queue.pop();
+    const candidate = queue.pop()
 
     if (candidate === undefined) {
-      break;
+      break
     }
 
-    const index = candidate;
+    const index = candidate
 
     if (visited[index]) {
-      continue;
+      continue
     }
 
-    visited[index] = 1;
+    visited[index] = 1
 
-    const distance = distances[index];
+    const distance = distances[index]
 
-    const coordinate = fromRoomIndex(index);
+    const coordinate = fromRoomIndex(index)
 
     for (const offset of NEIGHBOR_OFFSETS) {
-      const neighborX = coordinate.x + offset.x;
-      const neighborY = coordinate.y + offset.y;
+      const neighborX = coordinate.x + offset.x
+      const neighborY = coordinate.y + offset.y
 
       if (!isInsideRoom(neighborX, neighborY)) {
-        continue;
+        continue
       }
 
-      const terrainType = terrain.get(neighborX, neighborY);
+      const terrainType = terrain.get(neighborX, neighborY)
 
       if (terrainType === TERRAIN_MASK_WALL) {
-        continue;
+        continue
       }
 
       if (canVisit && !canVisit(neighborX, neighborY)) {
-        continue;
+        continue
       }
 
-      const cost = getCost(neighborX, neighborY, terrainType);
+      const cost = getCost(neighborX, neighborY, terrainType)
 
-      const nextDistance = distance + cost;
+      const nextDistance = distance + cost
 
-      const neighborIndex = toRoomIndex(neighborX, neighborY);
+      const neighborIndex = toRoomIndex(neighborX, neighborY)
 
-      if (
-        distances[neighborIndex] !== -1 &&
-        nextDistance >= distances[neighborIndex]
-      ) {
-        continue;
+      if (distances[neighborIndex] !== -1 && nextDistance >= distances[neighborIndex]) {
+        continue
       }
 
-      distances[neighborIndex] = nextDistance;
+      distances[neighborIndex] = nextDistance
 
-      queue.push(neighborIndex, -nextDistance);
+      queue.push(neighborIndex, -nextDistance)
     }
   }
 
-  return distances;
+  return distances
 }

@@ -41,7 +41,7 @@ Domain code should normally access caches through domain APIs, not through the r
 For example:
 
 ```ts
-const basePlanCache = runtimeRegistry.createCache<string, BasePlan>("basePlans");
+const basePlanCache = runtimeRegistry.createCache<string, BasePlan>("basePlans")
 ```
 
 The `BasePlanStore` still owns the meaning, population, invalidation, and persistence policy of `basePlanCache`. Other systems should call `BasePlanStore`, not `runtimeRegistry.get("basePlans")`.
@@ -49,10 +49,10 @@ The `BasePlanStore` still owns the meaning, population, invalidation, and persis
 The registry exists so the bot can later provide tooling such as:
 
 ```ts
-runtimeRegistry.list();
-runtimeRegistry.stats();
-runtimeRegistry.clear("basePlans");
-runtimeRegistry.clearAll();
+runtimeRegistry.list()
+runtimeRegistry.stats()
+runtimeRegistry.clear("basePlans")
+runtimeRegistry.clearAll()
 ```
 
 and console helpers such as:
@@ -147,28 +147,28 @@ Possible shape:
 
 ```ts
 interface RuntimeCacheInfo {
-  readonly name: string;
-  readonly size: () => number;
-  readonly clear: () => void;
+  readonly name: string
+  readonly size: () => number
+  readonly clear: () => void
 }
 
 class RuntimeRegistry {
-  private readonly caches = new Map<string, RuntimeCacheInfo>();
+  private readonly caches = new Map<string, RuntimeCacheInfo>()
 
   createCache<K, V>(name: string): Map<K, V> {
     if (this.caches.has(name)) {
-      throw new Error(`Runtime cache already registered: ${name}`);
+      throw new Error(`Runtime cache already registered: ${name}`)
     }
 
-    const cache = new Map<K, V>();
+    const cache = new Map<K, V>()
 
     this.caches.set(name, {
       name,
       size: () => cache.size,
       clear: () => cache.clear(),
-    });
+    })
 
-    return cache;
+    return cache
   }
 
   // list / stats / clear APIs can be added when needed.
@@ -198,7 +198,7 @@ Therefore cleanup policy belongs to the owning domain. The registry may expose a
 Avoid creating unregistered module-level long-lived caches such as:
 
 ```ts
-const cache = new Map();
+const cache = new Map()
 ```
 
 when the map is intended to live across ticks.

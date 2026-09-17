@@ -122,7 +122,7 @@ export const CORE_STAMP = {
     { x: 2, y: 2 },
     { x: 3, y: 1 },
   ],
-};
+}
 ```
 
 Storage is the local origin. The forward direction is always:
@@ -249,14 +249,14 @@ The resource tree now exposes both the unique road union and target-specific bra
 
 ```ts
 export interface ResourceBranchPlan {
-  readonly targetId: Id<Source> | Id<Mineral>;
-  readonly container: RoomCoordinate;
-  readonly roads: RoomCoordinate[];
+  readonly targetId: Id<Source> | Id<Mineral>
+  readonly container: RoomCoordinate
+  readonly roads: RoomCoordinate[]
 }
 
 export interface ResourceTreePlan {
-  readonly roads: RoomCoordinate[];
-  readonly branches: ResourceBranchPlan[];
+  readonly roads: RoomCoordinate[]
+  readonly branches: ResourceBranchPlan[]
 }
 ```
 

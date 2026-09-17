@@ -1,68 +1,691 @@
-const PLANNER_COMMIT='7187a4579284bc27010db9b72740451b4f5d430b';
-const ASSET_BASE='https://raw.githubusercontent.com/admon84/screeps-room-planner/main/public/images';
-const OFFICIAL_RENDERER='https://raw.githubusercontent.com/screeps/renderer/a2db4a76bb8f4c70e0c2a9e3b7d22a35a8c6b504/metadata/images';
-const STRUCT_FILES={spawn:'spawn.png',storage:'storage.png',terminal:'terminal.png',factory:'factory.png',powerSpawn:'powerSpawn.png',link:'link.png',container:'container.png',extractor:'extractor.png',lab:'lab.png',tower:'tower.png',observer:'observer.png',nuker:'nuker.png',road:'road.png',rampart:'rampart.png',controller:'controller.png'};
-const GLYPH={spawn:'S',storage:'St',terminal:'T',factory:'F',powerSpawn:'P',link:'L',container:'C',extractor:'X',lab:'B',tower:'Tw',observer:'O',nuker:'N',road:'·',rampart:'R',controller:'@',source:'⚡',mineral:'M'};
-const imgs={};
-function loadImg(name,url){const im=new Image();im.crossOrigin='anonymous';im.src=url;imgs[name]=im;im.addEventListener('load',()=>{updateAssetState();renderCurrent()});im.addEventListener('error',updateAssetState);return im}
-for(const [k,f] of Object.entries(STRUCT_FILES))loadImg(k,`${ASSET_BASE}/structures/${f}`);
-loadImg('source',`${ASSET_BASE}/objects/source.png`);for(const m of ['H','O','U','L','K','Z','X'])loadImg('mineral-'+m,`${ASSET_BASE}/objects/${m}.png`);
-loadImg('extension-core',`${OFFICIAL_RENDERER}/extension.svg`);loadImg('extension-border',`${OFFICIAL_RENDERER}/extension-border200.svg`);
-const API_HOST='https://screeps.com';
-const SHARD_NAME='shardSeason';
-const roomDataCache=new Map();
-const planCache=new Map();
-const optimalTowerCache=new Map();
-let glpkPromise=null,glpkInstance=null,solverEpoch=0;
-let currentName='', currentRoom=null, currentResult=null, currentElapsed=0, lastObjects=[], cell=16;
-const cv=document.getElementById('cv'),ctx=cv.getContext('2d'),wrap=document.getElementById('canvasWrap'),tip=document.getElementById('tip'),input=document.getElementById('roomInput');
-function roomNameCompare(a,b){const p=/^([WE])(\d+)([NS])(\d+)$/;const A=a.match(p),B=b.match(p);if(!A||!B)return a.localeCompare(b);const ax=(A[1]==='W'?-1:1)*(+A[2]+(A[1]==='W'?1:0)), bx=(B[1]==='W'?-1:1)*(+B[2]+(B[1]==='W'?1:0));const ay=(A[3]==='N'?-1:1)*(+A[4]+(A[3]==='N'?1:0)), by=(B[3]==='N'?-1:1)*(+B[4]+(B[3]==='N'?1:0));return ay-by||ax-bx}
-const controllerNames=CONTROLLER_ROOM_NAMES.slice().sort(roomNameCompare);
-const allNames=controllerNames;
-function terrainChar(t){let s='';for(let i=0;i<t.length;i++)s+=String(t[i]);return s}
-function decodeApiTerrain(encoded){if(typeof encoded!=='string'||encoded.length<2500)throw new Error('Invalid terrain payload');const a=new Uint8Array(2500);for(let i=0;i<2500;i++){const v=encoded.charCodeAt(i)-48;a[i]=v===3?1:v}return a}
-async function fetchRoomData(name){if(roomDataCache.has(name))return roomDataCache.get(name);const q=`room=${encodeURIComponent(name)}&shard=${encodeURIComponent(SHARD_NAME)}`;const [tr,ob]=await Promise.all([fetch(`${API_HOST}/api/game/room-terrain?${q}&encoded=1`),fetch(`${API_HOST}/api/game/room-objects?${q}`)]);if(!tr.ok||!ob.ok)throw new Error(`Screeps API HTTP ${tr.status}/${ob.status}`);const [tj,oj]=await Promise.all([tr.json(),ob.json()]);const encoded=tj?.terrain?.[0]?.terrain;if(!encoded)throw new Error('Terrain not found');const objects=oj?.objects||[];const controllerObject=objects.find(o=>o.type==='controller');const room={roomName:name,terrain:decodeApiTerrain(encoded),controller:controllerObject?{x:controllerObject.x,y:controllerObject.y}:null,sources:objects.filter(o=>o.type==='source').map(o=>({x:o.x,y:o.y,id:o._id||o.id||`${name}:source:${o.x}:${o.y}`})),minerals:objects.filter(o=>o.type==='mineral').map(o=>({x:o.x,y:o.y,mineralType:o.mineralType||'X',id:o._id||o.id||`${name}:mineral:${o.x}:${o.y}`}))};roomDataCache.set(name,room);return room}
-function populateDatalist(){const dl=document.getElementById('roomList');const frag=document.createDocumentFragment();for(const n of controllerNames){const o=document.createElement('option');o.value=n;frag.appendChild(o)}dl.appendChild(frag);document.getElementById('datasetMeta').textContent=`live ${SHARD_NAME} · ${controllerNames.length.toLocaleString()} indexed controller rooms`}
-populateDatalist();
-function setupCanvas(){const rect=wrap.getBoundingClientRect(),size=Math.max(400,Math.floor(rect.width||700)),dpr=window.devicePixelRatio||1;cv.width=size*dpr;cv.height=size*dpr;cv.style.width=size+'px';cv.style.height=size+'px';ctx.setTransform(dpr,0,0,dpr,0,0);cell=size/50}
-function drawGlyph(type,x,y,label){ctx.save();ctx.fillStyle=type==='rampart'?'#45b56c':'#dce5ef';ctx.strokeStyle='#000a';ctx.lineWidth=1;ctx.beginPath();ctx.arc((x+.5)*cell,(y+.5)*cell,cell*.34,0,Math.PI*2);ctx.fill();ctx.stroke();ctx.fillStyle='#101318';ctx.font=`${Math.max(7,cell*.23)}px sans-serif`;ctx.textAlign='center';ctx.textBaseline='middle';ctx.fillText(label||GLYPH[type]||'?',(x+.5)*cell,(y+.5)*cell);ctx.restore()}
-function drawExtension(x,y){const px=x*cell,py=y*cell,b=imgs['extension-border'],c=imgs['extension-core'];if(b?.complete&&b.naturalWidth&&c?.complete&&c.naturalWidth){ctx.drawImage(b,px,py,cell,cell);ctx.drawImage(c,px,py,cell,cell);return} // official geometry fallback: border200 + extension.svg
- ctx.save();const cx=(x+.5)*cell,cy=(y+.5)*cell;ctx.fillStyle='#181818';ctx.strokeStyle='#dce5ef';ctx.lineWidth=Math.max(1.2,cell*.058);ctx.beginPath();ctx.arc(cx,cy,cell*.469,0,Math.PI*2);ctx.fill();ctx.stroke();ctx.fillStyle='#777';ctx.beginPath();ctx.arc(cx,cy,cell*.34,0,Math.PI*2);ctx.fill();ctx.restore()}
-function drawSprite(type,x,y,override){if(type==='extension'){drawExtension(x,y);return}const im=imgs[override||type],px=x*cell,py=y*cell;if(im?.complete&&im.naturalWidth)ctx.drawImage(im,px,py,cell,cell);else drawGlyph(type,x,y,override?.replace('mineral-','')||GLYPH[type])}
-function drawRoads(structures){const roads=structures.filter(s=>s.structureType==='road');const rs=new Set(roads.map(s=>s.coordinate.y*50+s.coordinate.x));ctx.save();ctx.strokeStyle='#777b82';ctx.fillStyle='#6a6d73';ctx.lineCap='round';ctx.lineWidth=Math.max(1.4,cell*.17);for(const s of roads){const r=s.coordinate,cx=(r.x+.5)*cell,cy=(r.y+.5)*cell;ctx.beginPath();ctx.arc(cx,cy,cell*.15,0,Math.PI*2);ctx.fill();for(const [dx,dy]of [[1,0],[0,1],[1,1],[-1,1]])if(rs.has((r.y+dy)*50+r.x+dx)){ctx.beginPath();ctx.moveTo(cx,cy);ctx.lineTo((r.x+dx+.5)*cell,(r.y+dy+.5)*cell);ctx.stroke()}}ctx.restore()}
-function drawRampartConnections(structures){const ramps=structures.filter(s=>s.structureType==='rampart'),rs=new Set(ramps.map(s=>s.coordinate.y*50+s.coordinate.x));ctx.save();ctx.strokeStyle='#42ad68';ctx.globalAlpha=.62;ctx.lineCap='round';ctx.lineWidth=Math.max(1.8,cell*.18);for(const s of ramps){const r=s.coordinate,cx=(r.x+.5)*cell,cy=(r.y+.5)*cell;for(const [dx,dy]of [[1,0],[0,1],[1,1],[-1,1]])if(rs.has((r.y+dy)*50+r.x+dx)){ctx.beginPath();ctx.moveTo(cx,cy);ctx.lineTo((r.x+dx+.5)*cell,(r.y+dy+.5)*cell);ctx.stroke()}}ctx.restore()}
-function renderTerrain(room){const t=room.terrain;for(let i=0;i<2500;i++){const v=t[i];ctx.fillStyle=v===1?'#10151b':v===2?'#454830':'#24272c';const x=i%50,y=(i/50)|0;ctx.fillRect(x*cell,y*cell,cell+.3,cell+.3)}}
+const PLANNER_COMMIT = "7187a4579284bc27010db9b72740451b4f5d430b"
+const ASSET_BASE = "https://raw.githubusercontent.com/admon84/screeps-room-planner/main/public/images"
+const OFFICIAL_RENDERER =
+  "https://raw.githubusercontent.com/screeps/renderer/a2db4a76bb8f4c70e0c2a9e3b7d22a35a8c6b504/metadata/images"
+const STRUCT_FILES = {
+  spawn: "spawn.png",
+  storage: "storage.png",
+  terminal: "terminal.png",
+  factory: "factory.png",
+  powerSpawn: "powerSpawn.png",
+  link: "link.png",
+  container: "container.png",
+  extractor: "extractor.png",
+  lab: "lab.png",
+  tower: "tower.png",
+  observer: "observer.png",
+  nuker: "nuker.png",
+  road: "road.png",
+  rampart: "rampart.png",
+  controller: "controller.png",
+}
+const GLYPH = {
+  spawn: "S",
+  storage: "St",
+  terminal: "T",
+  factory: "F",
+  powerSpawn: "P",
+  link: "L",
+  container: "C",
+  extractor: "X",
+  lab: "B",
+  tower: "Tw",
+  observer: "O",
+  nuker: "N",
+  road: "·",
+  rampart: "R",
+  controller: "@",
+  source: "⚡",
+  mineral: "M",
+}
+const imgs = {}
+function loadImg(name, url) {
+  const im = new Image()
+  im.crossOrigin = "anonymous"
+  im.src = url
+  imgs[name] = im
+  im.addEventListener("load", () => {
+    updateAssetState()
+    renderCurrent()
+  })
+  im.addEventListener("error", updateAssetState)
+  return im
+}
+for (const [k, f] of Object.entries(STRUCT_FILES)) loadImg(k, `${ASSET_BASE}/structures/${f}`)
+loadImg("source", `${ASSET_BASE}/objects/source.png`)
+for (const m of ["H", "O", "U", "L", "K", "Z", "X"]) loadImg("mineral-" + m, `${ASSET_BASE}/objects/${m}.png`)
+loadImg("extension-core", `${OFFICIAL_RENDERER}/extension.svg`)
+loadImg("extension-border", `${OFFICIAL_RENDERER}/extension-border200.svg`)
+const API_HOST = "https://screeps.com"
+const SHARD_NAME = "shardSeason"
+const roomDataCache = new Map()
+const planCache = new Map()
+const optimalTowerCache = new Map()
+let glpkPromise = null,
+  glpkInstance = null,
+  solverEpoch = 0
+let currentName = "",
+  currentRoom = null,
+  currentResult = null,
+  currentElapsed = 0,
+  lastObjects = [],
+  cell = 16
+const cv = document.getElementById("cv"),
+  ctx = cv.getContext("2d"),
+  wrap = document.getElementById("canvasWrap"),
+  tip = document.getElementById("tip"),
+  input = document.getElementById("roomInput")
+function roomNameCompare(a, b) {
+  const p = /^([WE])(\d+)([NS])(\d+)$/
+  const A = a.match(p),
+    B = b.match(p)
+  if (!A || !B) return a.localeCompare(b)
+  const ax = (A[1] === "W" ? -1 : 1) * (+A[2] + (A[1] === "W" ? 1 : 0)),
+    bx = (B[1] === "W" ? -1 : 1) * (+B[2] + (B[1] === "W" ? 1 : 0))
+  const ay = (A[3] === "N" ? -1 : 1) * (+A[4] + (A[3] === "N" ? 1 : 0)),
+    by = (B[3] === "N" ? -1 : 1) * (+B[4] + (B[3] === "N" ? 1 : 0))
+  return ay - by || ax - bx
+}
+const controllerNames = CONTROLLER_ROOM_NAMES.slice().sort(roomNameCompare)
+const allNames = controllerNames
+function terrainChar(t) {
+  let s = ""
+  for (let i = 0; i < t.length; i++) s += String(t[i])
+  return s
+}
+function decodeApiTerrain(encoded) {
+  if (typeof encoded !== "string" || encoded.length < 2500) throw new Error("Invalid terrain payload")
+  const a = new Uint8Array(2500)
+  for (let i = 0; i < 2500; i++) {
+    const v = encoded.charCodeAt(i) - 48
+    a[i] = v === 3 ? 1 : v
+  }
+  return a
+}
+async function fetchRoomData(name) {
+  if (roomDataCache.has(name)) return roomDataCache.get(name)
+  const q = `room=${encodeURIComponent(name)}&shard=${encodeURIComponent(SHARD_NAME)}`
+  const [tr, ob] = await Promise.all([
+    fetch(`${API_HOST}/api/game/room-terrain?${q}&encoded=1`),
+    fetch(`${API_HOST}/api/game/room-objects?${q}`),
+  ])
+  if (!tr.ok || !ob.ok) throw new Error(`Screeps API HTTP ${tr.status}/${ob.status}`)
+  const [tj, oj] = await Promise.all([tr.json(), ob.json()])
+  const encoded = tj?.terrain?.[0]?.terrain
+  if (!encoded) throw new Error("Terrain not found")
+  const objects = oj?.objects || []
+  const controllerObject = objects.find((o) => o.type === "controller")
+  const room = {
+    roomName: name,
+    terrain: decodeApiTerrain(encoded),
+    controller: controllerObject ? { x: controllerObject.x, y: controllerObject.y } : null,
+    sources: objects
+      .filter((o) => o.type === "source")
+      .map((o) => ({ x: o.x, y: o.y, id: o._id || o.id || `${name}:source:${o.x}:${o.y}` })),
+    minerals: objects
+      .filter((o) => o.type === "mineral")
+      .map((o) => ({
+        x: o.x,
+        y: o.y,
+        mineralType: o.mineralType || "X",
+        id: o._id || o.id || `${name}:mineral:${o.x}:${o.y}`,
+      })),
+  }
+  roomDataCache.set(name, room)
+  return room
+}
+function populateDatalist() {
+  const dl = document.getElementById("roomList")
+  const frag = document.createDocumentFragment()
+  for (const n of controllerNames) {
+    const o = document.createElement("option")
+    o.value = n
+    frag.appendChild(o)
+  }
+  dl.appendChild(frag)
+  document.getElementById("datasetMeta").textContent =
+    `live ${SHARD_NAME} · ${controllerNames.length.toLocaleString()} indexed controller rooms`
+}
+populateDatalist()
+function setupCanvas() {
+  const rect = wrap.getBoundingClientRect(),
+    size = Math.max(400, Math.floor(rect.width || 700)),
+    dpr = window.devicePixelRatio || 1
+  cv.width = size * dpr
+  cv.height = size * dpr
+  cv.style.width = size + "px"
+  cv.style.height = size + "px"
+  ctx.setTransform(dpr, 0, 0, dpr, 0, 0)
+  cell = size / 50
+}
+function drawGlyph(type, x, y, label) {
+  ctx.save()
+  ctx.fillStyle = type === "rampart" ? "#45b56c" : "#dce5ef"
+  ctx.strokeStyle = "#000a"
+  ctx.lineWidth = 1
+  ctx.beginPath()
+  ctx.arc((x + 0.5) * cell, (y + 0.5) * cell, cell * 0.34, 0, Math.PI * 2)
+  ctx.fill()
+  ctx.stroke()
+  ctx.fillStyle = "#101318"
+  ctx.font = `${Math.max(7, cell * 0.23)}px sans-serif`
+  ctx.textAlign = "center"
+  ctx.textBaseline = "middle"
+  ctx.fillText(label || GLYPH[type] || "?", (x + 0.5) * cell, (y + 0.5) * cell)
+  ctx.restore()
+}
+function drawExtension(x, y) {
+  const px = x * cell,
+    py = y * cell,
+    b = imgs["extension-border"],
+    c = imgs["extension-core"]
+  if (b?.complete && b.naturalWidth && c?.complete && c.naturalWidth) {
+    ctx.drawImage(b, px, py, cell, cell)
+    ctx.drawImage(c, px, py, cell, cell)
+    return
+  } // official geometry fallback: border200 + extension.svg
+  ctx.save()
+  const cx = (x + 0.5) * cell,
+    cy = (y + 0.5) * cell
+  ctx.fillStyle = "#181818"
+  ctx.strokeStyle = "#dce5ef"
+  ctx.lineWidth = Math.max(1.2, cell * 0.058)
+  ctx.beginPath()
+  ctx.arc(cx, cy, cell * 0.469, 0, Math.PI * 2)
+  ctx.fill()
+  ctx.stroke()
+  ctx.fillStyle = "#777"
+  ctx.beginPath()
+  ctx.arc(cx, cy, cell * 0.34, 0, Math.PI * 2)
+  ctx.fill()
+  ctx.restore()
+}
+function drawSprite(type, x, y, override) {
+  if (type === "extension") {
+    drawExtension(x, y)
+    return
+  }
+  const im = imgs[override || type],
+    px = x * cell,
+    py = y * cell
+  if (im?.complete && im.naturalWidth) ctx.drawImage(im, px, py, cell, cell)
+  else drawGlyph(type, x, y, override?.replace("mineral-", "") || GLYPH[type])
+}
+function drawRoads(structures) {
+  const roads = structures.filter((s) => s.structureType === "road")
+  const rs = new Set(roads.map((s) => s.coordinate.y * 50 + s.coordinate.x))
+  ctx.save()
+  ctx.strokeStyle = "#777b82"
+  ctx.fillStyle = "#6a6d73"
+  ctx.lineCap = "round"
+  ctx.lineWidth = Math.max(1.4, cell * 0.17)
+  for (const s of roads) {
+    const r = s.coordinate,
+      cx = (r.x + 0.5) * cell,
+      cy = (r.y + 0.5) * cell
+    ctx.beginPath()
+    ctx.arc(cx, cy, cell * 0.15, 0, Math.PI * 2)
+    ctx.fill()
+    for (const [dx, dy] of [
+      [1, 0],
+      [0, 1],
+      [1, 1],
+      [-1, 1],
+    ])
+      if (rs.has((r.y + dy) * 50 + r.x + dx)) {
+        ctx.beginPath()
+        ctx.moveTo(cx, cy)
+        ctx.lineTo((r.x + dx + 0.5) * cell, (r.y + dy + 0.5) * cell)
+        ctx.stroke()
+      }
+  }
+  ctx.restore()
+}
+function drawRampartConnections(structures) {
+  const ramps = structures.filter((s) => s.structureType === "rampart"),
+    rs = new Set(ramps.map((s) => s.coordinate.y * 50 + s.coordinate.x))
+  ctx.save()
+  ctx.strokeStyle = "#42ad68"
+  ctx.globalAlpha = 0.62
+  ctx.lineCap = "round"
+  ctx.lineWidth = Math.max(1.8, cell * 0.18)
+  for (const s of ramps) {
+    const r = s.coordinate,
+      cx = (r.x + 0.5) * cell,
+      cy = (r.y + 0.5) * cell
+    for (const [dx, dy] of [
+      [1, 0],
+      [0, 1],
+      [1, 1],
+      [-1, 1],
+    ])
+      if (rs.has((r.y + dy) * 50 + r.x + dx)) {
+        ctx.beginPath()
+        ctx.moveTo(cx, cy)
+        ctx.lineTo((r.x + dx + 0.5) * cell, (r.y + dy + 0.5) * cell)
+        ctx.stroke()
+      }
+  }
+  ctx.restore()
+}
+function renderTerrain(room) {
+  const t = room.terrain
+  for (let i = 0; i < 2500; i++) {
+    const v = t[i]
+    ctx.fillStyle = v === 1 ? "#10151b" : v === 2 ? "#454830" : "#24272c"
+    const x = i % 50,
+      y = (i / 50) | 0
+    ctx.fillRect(x * cell, y * cell, cell + 0.3, cell + 0.3)
+  }
+}
 
-function towerDamageAtRange(r){return r<=5?600:r>=20?150:750-30*r}
-function towerDamageToRampart(tower,rampart){return towerDamageAtRange(range(tower,rampart))}
-function evaluateTowerPlacement(towers,ramparts){if(!towers?.length||!ramparts?.length)return{minDps:0,weakCount:0,totalDps:0,totals:[]};let minDps=Infinity,totalDps=0;const totals=[];for(const r of ramparts){let total=0;for(const t of towers)total+=towerDamageToRampart(t,r);totals.push(total);totalDps+=total;if(total<minDps)minDps=total}let weakCount=0;for(const total of totals)if(total===minDps)weakCount++;return{minDps:minDps===Infinity?0:minDps,weakCount,totalDps,totals}}
-function placementCoordinates(selection){return(selection||[]).map(v=>v.coordinate||v)}
-function candidateState(){return{slot:0,spawn:0}}
-function canTakeCandidate(c,state,context){return(!c.usesStructureSlot||state.slot<context.maxSlotTowers)&&(!c.usesSpawnSlot||state.spawn<context.maxSpawnSlotTowers)}
-function takeCandidate(c,state){if(c.usesStructureSlot)state.slot++;if(c.usesSpawnSlot)state.spawn++}
-function centralDistance(c,center){return Math.max(Math.abs(c.x-center.x),Math.abs(c.y-center.y))}
-function theoreticalCenter(ramparts){let minX=Infinity,maxX=-Infinity,minY=Infinity,maxY=-Infinity;for(const r of ramparts){minX=Math.min(minX,r.x);maxX=Math.max(maxX,r.x);minY=Math.min(minY,r.y);maxY=Math.max(maxY,r.y)}const radius=Math.ceil(Math.max(maxX-minX,maxY-minY)/2),minCenterX=maxX-radius,maxCenterX=minX+radius,minCenterY=maxY-radius,maxCenterY=minY+radius;return{x:(minCenterX+maxCenterX)/2,y:(minCenterY+maxCenterY)/2,minX,maxX,minY,maxY,radius,minCenterX,maxCenterX,minCenterY,maxCenterY}}
-function centerRegionDistance(c,center){const dx=c.x<center.minCenterX?center.minCenterX-c.x:c.x>center.maxCenterX?c.x-center.maxCenterX:0,dy=c.y<center.minCenterY?center.minCenterY-c.y:c.y>center.maxCenterY?c.y-center.maxCenterY:0;return Math.max(dx,dy)}
-function canCompleteTowerSelection(candidates,state,context,need){if(need<=0)return true;let states=new Set([`0,${state.slot},${state.spawn}`]);for(const c of candidates){const next=new Set(states);for(const key of states){const [count,slot,spawn]=key.split(',').map(Number);if(count>=need)continue;const ns=slot+(c.usesStructureSlot?1:0),np=spawn+(c.usesSpawnSlot?1:0);if(ns<=context.maxSlotTowers&&np<=context.maxSpawnSlotTowers)next.add(`${count+1},${ns},${np}`)}states=next;for(const key of states)if(+key.split(',')[0]>=need)return true}return false}
-const CENTRAL_BEAM_WIDTH=64
-function compareCentralBeamState(a,b){if(a.minDps!==b.minDps)return b.minDps-a.minDps;if(a.weakCount!==b.weakCount)return a.weakCount-b.weakCount;if(a.totalDps!==b.totalDps)return b.totalDps-a.totalDps;if(a.centerDistance!==b.centerDistance)return a.centerDistance-b.centerDistance;const n=Math.min(a.selected.length,b.selected.length);for(let i=0;i<n;i++){const d=a.selected[i].roomIndex-b.selected[i].roomIndex;if(d)return d}return a.selected.length-b.selected.length}
-function buildCentralPlacement(context){const center=theoreticalCenter(context.topology.ramparts),distances=context.candidates.map(c=>centerRegionDistance(c.coordinate,center)),maxDistance=Math.max(...distances),emptyState=candidateState();let baseRadius;for(let r=0;r<=maxDistance;r++){const pool=context.candidates.filter((_,i)=>distances[i]<=r);if(canCompleteTowerSelection(pool,emptyState,context,6)){baseRadius=r;break}}if(baseRadius===undefined)return;const searchRadius=baseRadius+3,centralCandidates=context.candidates.filter(c=>centerRegionDistance(c.coordinate,center)<=searchRadius).slice().sort((a,b)=>a.roomIndex-b.roomIndex);let beam=[{selected:[],nextIndex:0,state:candidateState(),centerDistance:0,minDps:0,weakCount:context.topology.ramparts.length,totalDps:0}];for(let depth=0;depth<6;depth++){const next=[];for(const branch of beam){for(let i=branch.nextIndex;i<centralCandidates.length;i++){const c=centralCandidates[i];if(!canTakeCandidate(c,branch.state,context))continue;const nextState={slot:branch.state.slot,spawn:branch.state.spawn};takeCandidate(c,nextState);const need=5-depth;if(!canCompleteTowerSelection(centralCandidates.slice(i+1),nextState,context,need))continue;const selected=[...branch.selected,c],coordinates=placementCoordinates(selected),evaluation=evaluateTowerPlacement(coordinates,context.topology.ramparts);next.push({selected,nextIndex:i+1,state:nextState,centerDistance:branch.centerDistance+centerRegionDistance(c.coordinate,center),...evaluation})}}if(!next.length)return;next.sort(compareCentralBeamState);beam=next.slice(0,CENTRAL_BEAM_WIDTH)}const best=beam[0],coordinates=placementCoordinates(best.selected);return{kind:'central',center,baseRadius,searchRadius,centralCandidateCount:centralCandidates.length,beamWidth:CENTRAL_BEAM_WIDTH,selected:best.selected,coordinates,...evaluateTowerPlacement(coordinates,context.topology.ramparts)}}
-function certifyCentralPlacement(context,central){if(!central)return{status:'unavailable'};const ranked=context.topology.ramparts.map((r,i)=>({r,total:central.totals[i],roomIndex:idx(r.x,r.y)})).sort((a,b)=>a.total-b.total||a.roomIndex-b.roomIndex),exactWeakCount=ranked.filter(v=>v.total===central.minDps).length,certificateCount=Math.min(ranked.length,Math.max(3,exactWeakCount)),weak=ranked.slice(0,certificateCount).map(v=>v.r);if(!weak.length)return{status:'invalid'};const supports=[];for(const c of context.candidates){let support=0;for(const r of weak)support+=towerDamageToRampart(c.coordinate,r);supports.push({support,roomIndex:c.roomIndex})}supports.sort((a,b)=>b.support-a.support||a.roomIndex-b.roomIndex);if(supports.length<6)return{status:'unavailable'};const supportUpper=supports.slice(0,6).reduce((sum,v)=>sum+v.support,0),rawUpper=supportUpper/weak.length,integerUpper=30*Math.floor((supportUpper+1e-9)/(30*weak.length));if(integerUpper<central.minDps)return{status:'invalid',weakCount:weak.length,exactWeakCount,supportUpper,rawUpper,integerUpper};return{status:integerUpper===central.minDps?'certified':'unknown',weakCount:weak.length,exactWeakCount,supportUpper,rawUpper,integerUpper}}
-function diameterRampartPair(ramparts){let best=null,bestD=-1;for(let i=0;i<ramparts.length;i++)for(let j=i+1;j<ramparts.length;j++){const a=ramparts[i],b=ramparts[j],d=range(a,b),ai=idx(a.x,a.y),bi=idx(b.x,b.y);if(d>bestD||d===bestD&&best&&(ai<best.ai||ai===best.ai&&bi<best.bi)){bestD=d;best={a,b,ai,bi}}}return best?{a:best.a,b:best.b,diameter:bestD}:null}
-function candidateOverallDamage(c,ramparts){let total=0;for(const r of ramparts)total+=towerDamageToRampart(c.coordinate,r);return total}
-function endpointSeedPool(endpoint,context,overallDamage){let pool=context.candidates.filter(c=>range(c.coordinate,endpoint)<=5);if(!pool.length){let minRange=Infinity;for(const c of context.candidates)minRange=Math.min(minRange,range(c.coordinate,endpoint));pool=context.candidates.filter(c=>range(c.coordinate,endpoint)===minRange)}return pool.slice().sort((a,b)=>(overallDamage.get(b.roomIndex)-overallDamage.get(a.roomIndex))||a.roomIndex-b.roomIndex)}
-function seedsJointlyFeasible(a,b,context){if(!a||!b||a.roomIndex===b.roomIndex)return false;const slot=(a.usesStructureSlot?1:0)+(b.usesStructureSlot?1:0),spawn=(a.usesSpawnSlot?1:0)+(b.usesSpawnSlot?1:0);return slot<=context.maxSlotTowers&&spawn<=context.maxSpawnSlotTowers}
-function chooseDiameterSeeds(pair,context,overallDamage){const poolA=endpointSeedPool(pair.a,context,overallDamage),poolB=endpointSeedPool(pair.b,context,overallDamage);for(const a of poolA)for(const b of poolB)if(seedsJointlyFeasible(a,b,context))return[a,b]}
-function averageRampartRange(coordinate,ramparts){let total=0;for(const r of ramparts)total+=range(coordinate,r);return total/ramparts.length}
-function weakestRampartForSelection(selected,ramparts){let weakest,minDamage=Infinity;for(const rampart of ramparts){let damage=0;for(const tower of selected)damage+=towerDamageToRampart(tower.coordinate,rampart);if(damage<minDamage){minDamage=damage;weakest=rampart}}return weakest}
-function getMinV2Candidate(candidates,ramparts){let best,bestScore=Infinity;for(const c of candidates){const score=averageRampartRange(c.coordinate,ramparts);if(score>bestScore)continue;if(score===bestScore&&best){if(c.usesStructureSlot!==best.usesStructureSlot){if(c.usesStructureSlot)continue}else if(c.roomIndex>=best.roomIndex)continue}best=c;bestScore=score}return best}
-function chooseV2ContinuationCandidate(context,selected,state){const used=new Set(selected.map(c=>c.roomIndex)),eligible=context.candidates.filter(c=>!used.has(c.roomIndex)&&canTakeCandidate(c,state,context)),weakest=weakestRampartForSelection(selected,context.topology.ramparts);if(!weakest||!eligible.length)return;let minRange=Infinity;for(const c of eligible)minRange=Math.min(minRange,range(c.coordinate,weakest));const nearWeakest=eligible.filter(c=>range(c.coordinate,weakest)<=minRange+1);return getMinV2Candidate(nearWeakest,context.topology.ramparts)}
-function buildDistributedPlacement(context){const pair=diameterRampartPair(context.topology.ramparts);if(!pair)return;const overallDamage=new Map(context.candidates.map(c=>[c.roomIndex,candidateOverallDamage(c,context.topology.ramparts)])),seeds=chooseDiameterSeeds(pair,context,overallDamage);if(!seeds)return;const state=candidateState(),selected=[...seeds];for(const seed of selected)takeCandidate(seed,state);while(selected.length<6){const tower=chooseV2ContinuationCandidate(context,selected,state);if(!tower)return;selected.push(tower);takeCandidate(tower,state)}const coordinates=placementCoordinates(selected);return{kind:'distributed',diameterPair:pair,continuation:'v2-weakest',selected,coordinates,...evaluateTowerPlacement(coordinates,context.topology.ramparts)}}
-function compareCompletePlacements(a,b){if(!a)return b;if(!b)return a;if(a.minDps!==b.minDps)return a.minDps>b.minDps?a:b;if(a.weakCount!==b.weakCount)return a.weakCount<b.weakCount?a:b;if(a.totalDps!==b.totalDps)return a.totalDps>b.totalDps?a:b;return a}
-function buildFastTowerComparison(result){const context=result?.towerContext;if(!result?.ok||!context)return;const central=buildCentralPlacement(context),certificate=certifyCentralPlacement(context,central),distributed=certificate.status==='certified'?null:buildDistributedPlacement(context),plannerCoords=context.plannerTowers||result.plan.structures.filter(s=>s.structureType==='tower').map(s=>s.coordinate),planner={kind:'planner',coordinates:plannerCoords,...evaluateTowerPlacement(plannerCoords,context.topology.ramparts)},preferred=certificate.status==='certified'?central:compareCompletePlacements(central,distributed);return{context,central,certificate,distributed,planner,preferred}}
-function getSolutionVars(solution){return solution?.result?.vars||solution?.vars||{}}
-function selectedTowerCoordinates(solution,candidates){const vars=getSolutionVars(solution),out=[];for(let i=0;i<candidates.length;i++)if((vars['x'+i]||0)>.5)out.push(candidates[i].coordinate);return out}
-function towerCancellationError(){const e=new Error('Tower optimization cancelled');e.name='AbortError';return e}
-function hasActiveTowerSolve(){for(const entry of optimalTowerCache.values())if(entry?.status==='loading'||entry?.status==='solving')return true;return false}
-function cancelOptimalTowerSolve(){if(!hasActiveTowerSolve())return;solverEpoch++;for(const [name,entry] of optimalTowerCache)if(entry?.status==='loading'||entry?.status==='solving')optimalTowerCache.delete(name);if(glpkInstance){try{glpkInstance.terminate?.(true)}catch(e){console.warn('failed to terminate GLPK worker',e)}}glpkInstance=null;glpkPromise=null}
-async function getGlpk(epoch=solverEpoch){if(!glpkPromise){const loadEpoch=solverEpoch;glpkPromise=import('https://cdn.jsdelivr.net/npm/glpk.js@5.0.0/+esm').then(async mod=>{const factory=mod.default||mod.GLPK||mod;if(typeof factory!=='function')throw new Error('glpk.js module did not expose a factory');const instance=await factory();if(loadEpoch!==solverEpoch){try{instance.terminate?.(true)}catch{}throw towerCancellationError()}glpkInstance=instance;return instance}).catch(e=>{if(loadEpoch===solverEpoch){glpkPromise=null;glpkInstance=null}throw e})}const instance=await glpkPromise;if(epoch!==solverEpoch)throw towerCancellationError();return instance}
+function towerDamageAtRange(r) {
+  return r <= 5 ? 600 : r >= 20 ? 150 : 750 - 30 * r
+}
+function towerDamageToRampart(tower, rampart) {
+  return towerDamageAtRange(range(tower, rampart))
+}
+function evaluateTowerPlacement(towers, ramparts) {
+  if (!towers?.length || !ramparts?.length) return { minDps: 0, weakCount: 0, totalDps: 0, totals: [] }
+  let minDps = Infinity,
+    totalDps = 0
+  const totals = []
+  for (const r of ramparts) {
+    let total = 0
+    for (const t of towers) total += towerDamageToRampart(t, r)
+    totals.push(total)
+    totalDps += total
+    if (total < minDps) minDps = total
+  }
+  let weakCount = 0
+  for (const total of totals) if (total === minDps) weakCount++
+  return { minDps: minDps === Infinity ? 0 : minDps, weakCount, totalDps, totals }
+}
+function placementCoordinates(selection) {
+  return (selection || []).map((v) => v.coordinate || v)
+}
+function candidateState() {
+  return { slot: 0, spawn: 0 }
+}
+function canTakeCandidate(c, state, context) {
+  return (
+    (!c.usesStructureSlot || state.slot < context.maxSlotTowers) &&
+    (!c.usesSpawnSlot || state.spawn < context.maxSpawnSlotTowers)
+  )
+}
+function takeCandidate(c, state) {
+  if (c.usesStructureSlot) state.slot++
+  if (c.usesSpawnSlot) state.spawn++
+}
+function centralDistance(c, center) {
+  return Math.max(Math.abs(c.x - center.x), Math.abs(c.y - center.y))
+}
+function theoreticalCenter(ramparts) {
+  let minX = Infinity,
+    maxX = -Infinity,
+    minY = Infinity,
+    maxY = -Infinity
+  for (const r of ramparts) {
+    minX = Math.min(minX, r.x)
+    maxX = Math.max(maxX, r.x)
+    minY = Math.min(minY, r.y)
+    maxY = Math.max(maxY, r.y)
+  }
+  const radius = Math.ceil(Math.max(maxX - minX, maxY - minY) / 2),
+    minCenterX = maxX - radius,
+    maxCenterX = minX + radius,
+    minCenterY = maxY - radius,
+    maxCenterY = minY + radius
+  return {
+    x: (minCenterX + maxCenterX) / 2,
+    y: (minCenterY + maxCenterY) / 2,
+    minX,
+    maxX,
+    minY,
+    maxY,
+    radius,
+    minCenterX,
+    maxCenterX,
+    minCenterY,
+    maxCenterY,
+  }
+}
+function centerRegionDistance(c, center) {
+  const dx = c.x < center.minCenterX ? center.minCenterX - c.x : c.x > center.maxCenterX ? c.x - center.maxCenterX : 0,
+    dy = c.y < center.minCenterY ? center.minCenterY - c.y : c.y > center.maxCenterY ? c.y - center.maxCenterY : 0
+  return Math.max(dx, dy)
+}
+function canCompleteTowerSelection(candidates, state, context, need) {
+  if (need <= 0) return true
+  let states = new Set([`0,${state.slot},${state.spawn}`])
+  for (const c of candidates) {
+    const next = new Set(states)
+    for (const key of states) {
+      const [count, slot, spawn] = key.split(",").map(Number)
+      if (count >= need) continue
+      const ns = slot + (c.usesStructureSlot ? 1 : 0),
+        np = spawn + (c.usesSpawnSlot ? 1 : 0)
+      if (ns <= context.maxSlotTowers && np <= context.maxSpawnSlotTowers) next.add(`${count + 1},${ns},${np}`)
+    }
+    states = next
+    for (const key of states) if (+key.split(",")[0] >= need) return true
+  }
+  return false
+}
+const CENTRAL_BEAM_WIDTH = 64
+function compareCentralBeamState(a, b) {
+  if (a.minDps !== b.minDps) return b.minDps - a.minDps
+  if (a.weakCount !== b.weakCount) return a.weakCount - b.weakCount
+  if (a.totalDps !== b.totalDps) return b.totalDps - a.totalDps
+  if (a.centerDistance !== b.centerDistance) return a.centerDistance - b.centerDistance
+  const n = Math.min(a.selected.length, b.selected.length)
+  for (let i = 0; i < n; i++) {
+    const d = a.selected[i].roomIndex - b.selected[i].roomIndex
+    if (d) return d
+  }
+  return a.selected.length - b.selected.length
+}
+function buildCentralPlacement(context) {
+  const center = theoreticalCenter(context.topology.ramparts),
+    distances = context.candidates.map((c) => centerRegionDistance(c.coordinate, center)),
+    maxDistance = Math.max(...distances),
+    emptyState = candidateState()
+  let baseRadius
+  for (let r = 0; r <= maxDistance; r++) {
+    const pool = context.candidates.filter((_, i) => distances[i] <= r)
+    if (canCompleteTowerSelection(pool, emptyState, context, 6)) {
+      baseRadius = r
+      break
+    }
+  }
+  if (baseRadius === undefined) return
+  const searchRadius = baseRadius + 3,
+    centralCandidates = context.candidates
+      .filter((c) => centerRegionDistance(c.coordinate, center) <= searchRadius)
+      .slice()
+      .sort((a, b) => a.roomIndex - b.roomIndex)
+  let beam = [
+    {
+      selected: [],
+      nextIndex: 0,
+      state: candidateState(),
+      centerDistance: 0,
+      minDps: 0,
+      weakCount: context.topology.ramparts.length,
+      totalDps: 0,
+    },
+  ]
+  for (let depth = 0; depth < 6; depth++) {
+    const next = []
+    for (const branch of beam) {
+      for (let i = branch.nextIndex; i < centralCandidates.length; i++) {
+        const c = centralCandidates[i]
+        if (!canTakeCandidate(c, branch.state, context)) continue
+        const nextState = { slot: branch.state.slot, spawn: branch.state.spawn }
+        takeCandidate(c, nextState)
+        const need = 5 - depth
+        if (!canCompleteTowerSelection(centralCandidates.slice(i + 1), nextState, context, need)) continue
+        const selected = [...branch.selected, c],
+          coordinates = placementCoordinates(selected),
+          evaluation = evaluateTowerPlacement(coordinates, context.topology.ramparts)
+        next.push({
+          selected,
+          nextIndex: i + 1,
+          state: nextState,
+          centerDistance: branch.centerDistance + centerRegionDistance(c.coordinate, center),
+          ...evaluation,
+        })
+      }
+    }
+    if (!next.length) return
+    next.sort(compareCentralBeamState)
+    beam = next.slice(0, CENTRAL_BEAM_WIDTH)
+  }
+  const best = beam[0],
+    coordinates = placementCoordinates(best.selected)
+  return {
+    kind: "central",
+    center,
+    baseRadius,
+    searchRadius,
+    centralCandidateCount: centralCandidates.length,
+    beamWidth: CENTRAL_BEAM_WIDTH,
+    selected: best.selected,
+    coordinates,
+    ...evaluateTowerPlacement(coordinates, context.topology.ramparts),
+  }
+}
+function certifyCentralPlacement(context, central) {
+  if (!central) return { status: "unavailable" }
+  const ranked = context.topology.ramparts
+      .map((r, i) => ({ r, total: central.totals[i], roomIndex: idx(r.x, r.y) }))
+      .sort((a, b) => a.total - b.total || a.roomIndex - b.roomIndex),
+    exactWeakCount = ranked.filter((v) => v.total === central.minDps).length,
+    certificateCount = Math.min(ranked.length, Math.max(3, exactWeakCount)),
+    weak = ranked.slice(0, certificateCount).map((v) => v.r)
+  if (!weak.length) return { status: "invalid" }
+  const supports = []
+  for (const c of context.candidates) {
+    let support = 0
+    for (const r of weak) support += towerDamageToRampart(c.coordinate, r)
+    supports.push({ support, roomIndex: c.roomIndex })
+  }
+  supports.sort((a, b) => b.support - a.support || a.roomIndex - b.roomIndex)
+  if (supports.length < 6) return { status: "unavailable" }
+  const supportUpper = supports.slice(0, 6).reduce((sum, v) => sum + v.support, 0),
+    rawUpper = supportUpper / weak.length,
+    integerUpper = 30 * Math.floor((supportUpper + 1e-9) / (30 * weak.length))
+  if (integerUpper < central.minDps)
+    return { status: "invalid", weakCount: weak.length, exactWeakCount, supportUpper, rawUpper, integerUpper }
+  return {
+    status: integerUpper === central.minDps ? "certified" : "unknown",
+    weakCount: weak.length,
+    exactWeakCount,
+    supportUpper,
+    rawUpper,
+    integerUpper,
+  }
+}
+function diameterRampartPair(ramparts) {
+  let best = null,
+    bestD = -1
+  for (let i = 0; i < ramparts.length; i++)
+    for (let j = i + 1; j < ramparts.length; j++) {
+      const a = ramparts[i],
+        b = ramparts[j],
+        d = range(a, b),
+        ai = idx(a.x, a.y),
+        bi = idx(b.x, b.y)
+      if (d > bestD || (d === bestD && best && (ai < best.ai || (ai === best.ai && bi < best.bi)))) {
+        bestD = d
+        best = { a, b, ai, bi }
+      }
+    }
+  return best ? { a: best.a, b: best.b, diameter: bestD } : null
+}
+function candidateOverallDamage(c, ramparts) {
+  let total = 0
+  for (const r of ramparts) total += towerDamageToRampart(c.coordinate, r)
+  return total
+}
+function endpointSeedPool(endpoint, context, overallDamage) {
+  let pool = context.candidates.filter((c) => range(c.coordinate, endpoint) <= 5)
+  if (!pool.length) {
+    let minRange = Infinity
+    for (const c of context.candidates) minRange = Math.min(minRange, range(c.coordinate, endpoint))
+    pool = context.candidates.filter((c) => range(c.coordinate, endpoint) === minRange)
+  }
+  return pool
+    .slice()
+    .sort((a, b) => overallDamage.get(b.roomIndex) - overallDamage.get(a.roomIndex) || a.roomIndex - b.roomIndex)
+}
+function seedsJointlyFeasible(a, b, context) {
+  if (!a || !b || a.roomIndex === b.roomIndex) return false
+  const slot = (a.usesStructureSlot ? 1 : 0) + (b.usesStructureSlot ? 1 : 0),
+    spawn = (a.usesSpawnSlot ? 1 : 0) + (b.usesSpawnSlot ? 1 : 0)
+  return slot <= context.maxSlotTowers && spawn <= context.maxSpawnSlotTowers
+}
+function chooseDiameterSeeds(pair, context, overallDamage) {
+  const poolA = endpointSeedPool(pair.a, context, overallDamage),
+    poolB = endpointSeedPool(pair.b, context, overallDamage)
+  for (const a of poolA) for (const b of poolB) if (seedsJointlyFeasible(a, b, context)) return [a, b]
+}
+function averageRampartRange(coordinate, ramparts) {
+  let total = 0
+  for (const r of ramparts) total += range(coordinate, r)
+  return total / ramparts.length
+}
+function weakestRampartForSelection(selected, ramparts) {
+  let weakest,
+    minDamage = Infinity
+  for (const rampart of ramparts) {
+    let damage = 0
+    for (const tower of selected) damage += towerDamageToRampart(tower.coordinate, rampart)
+    if (damage < minDamage) {
+      minDamage = damage
+      weakest = rampart
+    }
+  }
+  return weakest
+}
+function getMinV2Candidate(candidates, ramparts) {
+  let best,
+    bestScore = Infinity
+  for (const c of candidates) {
+    const score = averageRampartRange(c.coordinate, ramparts)
+    if (score > bestScore) continue
+    if (score === bestScore && best) {
+      if (c.usesStructureSlot !== best.usesStructureSlot) {
+        if (c.usesStructureSlot) continue
+      } else if (c.roomIndex >= best.roomIndex) continue
+    }
+    best = c
+    bestScore = score
+  }
+  return best
+}
+function chooseV2ContinuationCandidate(context, selected, state) {
+  const used = new Set(selected.map((c) => c.roomIndex)),
+    eligible = context.candidates.filter((c) => !used.has(c.roomIndex) && canTakeCandidate(c, state, context)),
+    weakest = weakestRampartForSelection(selected, context.topology.ramparts)
+  if (!weakest || !eligible.length) return
+  let minRange = Infinity
+  for (const c of eligible) minRange = Math.min(minRange, range(c.coordinate, weakest))
+  const nearWeakest = eligible.filter((c) => range(c.coordinate, weakest) <= minRange + 1)
+  return getMinV2Candidate(nearWeakest, context.topology.ramparts)
+}
+function buildDistributedPlacement(context) {
+  const pair = diameterRampartPair(context.topology.ramparts)
+  if (!pair) return
+  const overallDamage = new Map(
+      context.candidates.map((c) => [c.roomIndex, candidateOverallDamage(c, context.topology.ramparts)]),
+    ),
+    seeds = chooseDiameterSeeds(pair, context, overallDamage)
+  if (!seeds) return
+  const state = candidateState(),
+    selected = [...seeds]
+  for (const seed of selected) takeCandidate(seed, state)
+  while (selected.length < 6) {
+    const tower = chooseV2ContinuationCandidate(context, selected, state)
+    if (!tower) return
+    selected.push(tower)
+    takeCandidate(tower, state)
+  }
+  const coordinates = placementCoordinates(selected)
+  return {
+    kind: "distributed",
+    diameterPair: pair,
+    continuation: "v2-weakest",
+    selected,
+    coordinates,
+    ...evaluateTowerPlacement(coordinates, context.topology.ramparts),
+  }
+}
+function compareCompletePlacements(a, b) {
+  if (!a) return b
+  if (!b) return a
+  if (a.minDps !== b.minDps) return a.minDps > b.minDps ? a : b
+  if (a.weakCount !== b.weakCount) return a.weakCount < b.weakCount ? a : b
+  if (a.totalDps !== b.totalDps) return a.totalDps > b.totalDps ? a : b
+  return a
+}
+function buildFastTowerComparison(result) {
+  const context = result?.towerContext
+  if (!result?.ok || !context) return
+  const central = buildCentralPlacement(context),
+    certificate = certifyCentralPlacement(context, central),
+    distributed = certificate.status === "certified" ? null : buildDistributedPlacement(context),
+    plannerCoords =
+      context.plannerTowers ||
+      result.plan.structures.filter((s) => s.structureType === "tower").map((s) => s.coordinate),
+    planner = {
+      kind: "planner",
+      coordinates: plannerCoords,
+      ...evaluateTowerPlacement(plannerCoords, context.topology.ramparts),
+    },
+    preferred = certificate.status === "certified" ? central : compareCompletePlacements(central, distributed)
+  return { context, central, certificate, distributed, planner, preferred }
+}
+function getSolutionVars(solution) {
+  return solution?.result?.vars || solution?.vars || {}
+}
+function selectedTowerCoordinates(solution, candidates) {
+  const vars = getSolutionVars(solution),
+    out = []
+  for (let i = 0; i < candidates.length; i++) if ((vars["x" + i] || 0) > 0.5) out.push(candidates[i].coordinate)
+  return out
+}
+function towerCancellationError() {
+  const e = new Error("Tower optimization cancelled")
+  e.name = "AbortError"
+  return e
+}
+function hasActiveTowerSolve() {
+  for (const entry of optimalTowerCache.values())
+    if (entry?.status === "loading" || entry?.status === "solving") return true
+  return false
+}
+function cancelOptimalTowerSolve() {
+  if (!hasActiveTowerSolve()) return
+  solverEpoch++
+  for (const [name, entry] of optimalTowerCache)
+    if (entry?.status === "loading" || entry?.status === "solving") optimalTowerCache.delete(name)
+  if (glpkInstance) {
+    try {
+      glpkInstance.terminate?.(true)
+    } catch (e) {
+      console.warn("failed to terminate GLPK worker", e)
+    }
+  }
+  glpkInstance = null
+  glpkPromise = null
+}
+async function getGlpk(epoch = solverEpoch) {
+  if (!glpkPromise) {
+    const loadEpoch = solverEpoch
+    glpkPromise = import("https://cdn.jsdelivr.net/npm/glpk.js@5.0.0/+esm")
+      .then(async (mod) => {
+        const factory = mod.default || mod.GLPK || mod
+        if (typeof factory !== "function") throw new Error("glpk.js module did not expose a factory")
+        const instance = await factory()
+        if (loadEpoch !== solverEpoch) {
+          try {
+            instance.terminate?.(true)
+          } catch {}
+          throw towerCancellationError()
+        }
+        glpkInstance = instance
+        return instance
+      })
+      .catch((e) => {
+        if (loadEpoch === solverEpoch) {
+          glpkPromise = null
+          glpkInstance = null
+        }
+        throw e
+      })
+  }
+  const instance = await glpkPromise
+  if (epoch !== solverEpoch) throw towerCancellationError()
+  return instance
+}

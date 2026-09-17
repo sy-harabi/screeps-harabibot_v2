@@ -2,28 +2,26 @@
 
 export interface BotOptions {
   visuals: {
-    basePlan: boolean;
-  };
+    basePlan: boolean
+  }
 }
 
 export interface BotOptionsOverride {
   visuals?: {
-    basePlan?: boolean;
-  };
+    basePlan?: boolean
+  }
 }
 
 export const DEFAULT_BOT_OPTIONS: BotOptions = {
   visuals: {
     basePlan: false,
   },
-};
+}
 
 export function getBotOptions(): BotOptions {
   return {
     visuals: {
-      basePlan:
-        Memory.options?.visuals?.basePlan ??
-        DEFAULT_BOT_OPTIONS.visuals.basePlan,
+      basePlan: Memory.options?.visuals?.basePlan ?? DEFAULT_BOT_OPTIONS.visuals.basePlan,
     },
-  };
+  }
 }

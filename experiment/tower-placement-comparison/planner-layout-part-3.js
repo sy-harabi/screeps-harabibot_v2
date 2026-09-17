@@ -1,40 +1,345 @@
 // ---- structure records / RCL metadata ----
-const RCL_LIMITS={
- spawn:[0,1,1,1,1,1,1,2,3],extension:[0,0,5,10,20,30,40,50,60],road:[0,2500,2500,2500,2500,2500,2500,2500,2500],rampart:[0,0,2500,2500,2500,2500,2500,2500,2500],
- link:[0,0,0,0,0,2,3,4,6],storage:[0,0,0,0,1,1,1,1,1],tower:[0,0,0,1,1,2,2,3,6],observer:[0,0,0,0,0,0,0,0,1],powerSpawn:[0,0,0,0,0,0,0,0,1],extractor:[0,0,0,0,0,0,1,1,1],lab:[0,0,0,0,0,0,3,6,10],terminal:[0,0,0,0,0,0,1,1,1],container:[0,5,5,5,5,5,5,5,5],nuker:[0,0,0,0,0,0,0,0,1],factory:[0,0,0,0,0,0,0,1,1]
-};
-function rclFor(type,ord=0){const a=RCL_LIMITS[type]||[];for(let r=1;r<=8;r++)if((a[r]||0)>ord)return r;return 8}
-function S(type,c,rcl,tag){const o={structureType:type,coordinate:{x:c.x,y:c.y},rcl:rcl??rclFor(type)};if(tag)o.tag=tag;return o}
-function resourceTag(id,sources,minerals){if(sources.some(s=>s.id===id))return{kind:'source',id};if(minerals.some(m=>m.id===id))return{kind:'mineral',id}}
-function buildProvisionalBasePlanStructures(sources,minerals,ca,core,resourceTree,outer,boundary,lab,slot){
- const out=[],seen=new Set();const add=(t,c,r,tag)=>{const k=`${t}:${c.x}:${c.y}`;if(seen.has(k))return;seen.add(k);out.push(S(t,c,r,tag))};
- add('spawn',core.firstSpawn,rclFor('spawn',0));add('storage',ca.storage,rclFor('storage',0));add('terminal',core.terminal,rclFor('terminal',0));add('factory',core.factory,rclFor('factory',0));add('powerSpawn',core.powerSpawn,rclFor('powerSpawn',0));add('link',core.link,rclFor('link',0),{kind:'storage'});
- let lo=1,co=0;for(const b of resourceTree.branches){const tag=resourceTag(b.targetId,sources,minerals);add('container',b.container,rclFor('container',co++),tag);if(b.link)add('link',b.link,rclFor('link',lo++),tag)}
- minerals.forEach((m,i)=>add('extractor',m.pos,rclFor('extractor',i),{kind:'mineral',id:m.id}));[...lab.inputLabs,...lab.outputLabs].forEach((c,i)=>add('lab',c,rclFor('lab',i)));
- slot.slots.forEach(({coordinate})=>add('extension',coordinate,8));
- for(const c of [...core.roads,...resourceTree.roads,...boundary.roads,...lab.serviceRoads,...slot.roads])add('road',c,rclFor('road',0));
- outer.ramparts.forEach(c=>add('rampart',c,rclFor('rampart',0))); return out;
+const RCL_LIMITS = {
+  spawn: [0, 1, 1, 1, 1, 1, 1, 2, 3],
+  extension: [0, 0, 5, 10, 20, 30, 40, 50, 60],
+  road: [0, 2500, 2500, 2500, 2500, 2500, 2500, 2500, 2500],
+  rampart: [0, 0, 2500, 2500, 2500, 2500, 2500, 2500, 2500],
+  link: [0, 0, 0, 0, 0, 2, 3, 4, 6],
+  storage: [0, 0, 0, 0, 1, 1, 1, 1, 1],
+  tower: [0, 0, 0, 1, 1, 2, 2, 3, 6],
+  observer: [0, 0, 0, 0, 0, 0, 0, 0, 1],
+  powerSpawn: [0, 0, 0, 0, 0, 0, 0, 0, 1],
+  extractor: [0, 0, 0, 0, 0, 0, 1, 1, 1],
+  lab: [0, 0, 0, 0, 0, 0, 3, 6, 10],
+  terminal: [0, 0, 0, 0, 0, 0, 1, 1, 1],
+  container: [0, 5, 5, 5, 5, 5, 5, 5, 5],
+  nuker: [0, 0, 0, 0, 0, 0, 0, 0, 1],
+  factory: [0, 0, 0, 0, 0, 0, 0, 1, 1],
 }
-function coordsFromMask(m){const a=[];for(let i=0;i<ROOM_AREA;i++)if(m[i])a.push(coord(i));return a}
-function exitsOf(terrain){const a=[];for(let x=0;x<50;x++)for(const y of [0,49])if(terrain.get(x,y)!==1)a.push({x,y});for(let y=1;y<49;y++)for(const x of [0,49])if(terrain.get(x,y)!==1)a.push({x,y});return a}
-function rebuildRampartPlan(terrain,rampartMask){const exits=exitsOf(terrain).filter(c=>!rampartMask[idx(c.x,c.y)]),d=floodFill(terrain,exits,(x,y)=>!rampartMask[idx(x,y)]).distances,out=new Uint8Array(ROOM_AREA),ins=new Uint8Array(ROOM_AREA);for(let i=0;i<ROOM_AREA;i++){const c=coord(i);if(terrain.get(c.x,c.y)===1||rampartMask[i])continue;if(d[i]>=0)out[i]=1;else ins[i]=1}return{ramparts:coordsFromMask(rampartMask),rampartMask,insideMask:ins,outsideMask:out}}
-function standingBlocked(controller,sources,minerals,structures){const m=new Uint8Array(ROOM_AREA),block=c=>m[idx(c.x,c.y)]=1;block(controller.pos);sources.forEach(s=>block(s.pos));minerals.forEach(s=>block(s.pos));for(const s of structures)if(s.structureType!=='container')block(s.coordinate);return m}
-function isProtected(s){return !['road','rampart','container','extractor'].includes(s.structureType)&&s.tag?.kind!=='source'&&s.tag?.kind!=='mineral'}
-function pruneCivilRoadNetwork(structures,coreRoads){const rm=new Uint8Array(ROOM_AREA);for(const s of structures)if(s.structureType==='road')rm[idx(s.coordinate.x,s.coordinate.y)]=1;const d=new Int16Array(ROOM_AREA),par=new Int16Array(ROOM_AREA),q=new Int16Array(ROOM_AREA),ret=new Uint8Array(ROOM_AREA);d.fill(-1);par.fill(-1);let h=0,z=0;for(const c of coreRoads){const i=idx(c.x,c.y);if(!rm[i]||d[i]>=0)continue;d[i]=0;par[i]=i;ret[i]=1;q[z++]=i}while(h<z){const ci=q[h++],c=coord(ci);for(const o of NEIGHBOR_OFFSETS){const x=c.x+o.x,y=c.y+o.y;if(!inside(x,y))continue;const ni=idx(x,y);if(!rm[ni]||d[ni]>=0)continue;d[ni]=d[ci]+1;par[ni]=ci;q[z++]=ni}}
- const target=s=>!['road','rampart','extractor'].includes(s.structureType);for(const s of structures){if(!target(s))continue;let bi=-1,bd=Infinity;const consider=(x,y)=>{if(!inside(x,y))return;const i=idx(x,y),dd=d[i];if(!rm[i]||dd<0||dd>bd||(dd===bd&&bi>=0&&i>=bi))return;bi=i;bd=dd};consider(s.coordinate.x,s.coordinate.y);for(const o of NEIGHBOR_OFFSETS)consider(s.coordinate.x+o.x,s.coordinate.y+o.y);if(bi<0)continue;let cur=bi;while(cur>=0&&!ret[cur]){ret[cur]=1;const n=par[cur];if(n===cur)break;cur=n}}
- return coordsFromMask(ret)}
-function finalRamparts(terrain,controller,structures,forced){const src=forced.slice();for(const s of structures)if(isProtected(s))forInRange(s.coordinate,3,(x,y)=>{if(terrain.get(x,y)!==1)src[idx(x,y)]=1});const r=minCut(terrain,src,exitSinkMask(terrain),controllerDistanceCosts(terrain,controller.pos));if(!r||!r.cuts.length)return;return{ramparts:r.cuts,rampartMask:r.cutMask,insideMask:r.insideMask,outsideMask:r.outsideMask}}
-function discardInaccessibleRampartComponents(terrain,rp,civilRoads,blocked,structures){const comps=findMaskComponents(rp.rampartMask);if(!comps.length)return;const starts=civilRoads.filter(c=>{const i=idx(c.x,c.y);return (rp.insideMask[i]||rp.rampartMask[i])&&!blocked[i]});if(!starts.length)return;const d=floodFill(terrain,starts,(x,y)=>{const i=idx(x,y);return (rp.insideMask[i]||rp.rampartMask[i])&&!blocked[i]}).distances,kept=new Uint8Array(ROOM_AREA);let n=0;for(const comp of comps){if(!comp.some(i=>d[i]>=0))continue;n++;comp.forEach(i=>kept[i]=1)}if(!n)return;if(n===comps.length)return rp;const fp=rebuildRampartPlan(terrain,kept);for(const s of structures)if(isProtected(s)&&fp.outsideMask[idx(s.coordinate.x,s.coordinate.y)])return;return fp}
-function planRampartRepairRoads(terrain,controller,sources,minerals,structures,coreRoads,existingRoads,rp){if(!coreRoads.length)return;const blocked=standingBlocked(controller,sources,minerals,structures),def=classifyDefensiveTiles(rp),road=new Uint8Array(ROOM_AREA);existingRoads.forEach(c=>road[idx(c.x,c.y)]=1);const selected=new Uint8Array(ROOM_AREA),counts=new Uint8Array(ROOM_AREA),adds=[];
- const dist=()=>dijkstraMap(terrain,coreRoads,(x,y,t)=>{const i=idx(x,y);if(def.dangerousMask[i])return 15;if(road[i])return 3;return t===2?6:5},(x,y)=>{const i=idx(x,y);return !!(rp.insideMask[i]&&!rp.rampartMask[i]&&!blocked[i])});
- const addCoverage=c=>forInRange(c,3,(x,y)=>{const i=idx(x,y);if(rp.rampartMask[i]&&counts[i]<2)counts[i]++});
- const reg=c=>{const i=idx(c.x,c.y);if(!def.repairMask[i]||blocked[i]||rp.rampartMask[i]||selected[i])return;selected[i]=1;addCoverage(c)};
- let d0=dist();for(let i=0;i<ROOM_AREA;i++)if(road[i]&&def.repairMask[i]&&!blocked[i]&&!rp.rampartMask[i]&&d0[i]>=0)reg(coord(i));
- const below=t=>rp.ramparts.some(c=>counts[idx(c.x,c.y)]<t);
- const extend=target=>{while(below(target)){const d=dist();let best=null;for(let i=0;i<ROOM_AREA;i++){if(!def.repairMask[i]||blocked[i]||selected[i]||d[i]<0)continue;const c=coord(i);let cov=0;forInRange(c,3,(x,y)=>{const k=idx(x,y);if(rp.rampartMask[k]&&counts[k]<target)cov++});if(!cov)continue;const cand={coordinate:c,distance:d[i],coverage:cov,index:i};if(!best||cand.distance*best.coverage<best.distance*cand.coverage||(cand.distance*best.coverage===best.distance*cand.coverage&&(cand.coverage>best.coverage||(cand.coverage===best.coverage&&(cand.distance<best.distance||(cand.distance===best.distance&&i<best.index))))))best=cand}if(!best)return;
-      let cur=best.index,path=[];if(d[cur]<0)return;while(d[cur]>0){const c=coord(cur),cd=d[cur];if(!road[cur])path.push(c);const cc=def.dangerousMask[cur]?15:road[cur]?3:terrain.get(c.x,c.y)===2?6:5;let br=-1,b=-1;for(const o of NEIGHBOR_OFFSETS){const x=c.x+o.x,y=c.y+o.y;if(!inside(x,y))continue;const ni=idx(x,y),nd=d[ni];if(nd<0||nd+cc!==cd)continue;if(road[ni]){if(br<0||ni<br)br=ni}else if(b<0||ni<b)b=ni}cur=br>=0?br:b;if(cur<0)return}
-      for(const c of path){const i=idx(c.x,c.y);if(!road[i]){road[i]=1;adds.push(c)};reg(c)}reg(best.coordinate)
-    }};
- extend(1);const unresolved=rp.ramparts.filter(c=>counts[idx(c.x,c.y)]<1);if(unresolved.length)return{roads:adds,unresolvedRamparts:unresolved};extend(2);return{roads:adds,unresolvedRamparts:[]}
+function rclFor(type, ord = 0) {
+  const a = RCL_LIMITS[type] || []
+  for (let r = 1; r <= 8; r++) if ((a[r] || 0) > ord) return r
+  return 8
 }
-function finalizeDefensePlan(terrain,controller,sources,minerals,provisional,core){const base=provisional.filter(s=>s.structureType!=='road'&&s.structureType!=='rampart'),civil=pruneCivilRoadNetwork(provisional,core.roads);if(!civil.length)return;const forced=new Uint8Array(ROOM_AREA);for(let at=0;at<5;at++){const raw=finalRamparts(terrain,controller,base,forced);if(!raw)return;const blocked=standingBlocked(controller,sources,minerals,base),rp=discardInaccessibleRampartComponents(terrain,raw,civil,blocked,base);if(!rp||!rp.ramparts.length)return;const internal=civil.filter(c=>rp.insideMask[idx(c.x,c.y)]);const repair=planRampartRepairRoads(terrain,controller,sources,minerals,base,core.roads,internal,rp);if(!repair)return;if(!repair.unresolvedRamparts.length){const finalRoads=[...civil,...repair.roads],danger=classifyDefensiveTiles(rp).dangerousMask,dm=new Uint8Array(ROOM_AREA);for(const s of base){const i=idx(s.coordinate.x,s.coordinate.y);if(danger[i])dm[i]=1}for(const c of finalRoads){const i=idx(c.x,c.y);if(danger[i])dm[i]=1}const out=[...base],seen=new Set(out.map(s=>`${s.structureType}:${s.coordinate.x}:${s.coordinate.y}`)),add=(t,c,r)=>{const k=`${t}:${c.x}:${c.y}`;if(!seen.has(k)){seen.add(k);out.push(S(t,c,r))}};[...civil,...repair.roads].forEach(c=>add('road',c,rclFor('road')));rp.ramparts.forEach(c=>add('rampart',c,rclFor('rampart')));coordsFromMask(dm).forEach(c=>add('rampart',c,rclFor('rampart')));return out}for(const c of repair.unresolvedRamparts)forced[idx(c.x,c.y)]=1}}
+function S(type, c, rcl, tag) {
+  const o = { structureType: type, coordinate: { x: c.x, y: c.y }, rcl: rcl ?? rclFor(type) }
+  if (tag) o.tag = tag
+  return o
+}
+function resourceTag(id, sources, minerals) {
+  if (sources.some((s) => s.id === id)) return { kind: "source", id }
+  if (minerals.some((m) => m.id === id)) return { kind: "mineral", id }
+}
+function buildProvisionalBasePlanStructures(sources, minerals, ca, core, resourceTree, outer, boundary, lab, slot) {
+  const out = [],
+    seen = new Set()
+  const add = (t, c, r, tag) => {
+    const k = `${t}:${c.x}:${c.y}`
+    if (seen.has(k)) return
+    seen.add(k)
+    out.push(S(t, c, r, tag))
+  }
+  add("spawn", core.firstSpawn, rclFor("spawn", 0))
+  add("storage", ca.storage, rclFor("storage", 0))
+  add("terminal", core.terminal, rclFor("terminal", 0))
+  add("factory", core.factory, rclFor("factory", 0))
+  add("powerSpawn", core.powerSpawn, rclFor("powerSpawn", 0))
+  add("link", core.link, rclFor("link", 0), { kind: "storage" })
+  let lo = 1,
+    co = 0
+  for (const b of resourceTree.branches) {
+    const tag = resourceTag(b.targetId, sources, minerals)
+    add("container", b.container, rclFor("container", co++), tag)
+    if (b.link) add("link", b.link, rclFor("link", lo++), tag)
+  }
+  minerals.forEach((m, i) => add("extractor", m.pos, rclFor("extractor", i), { kind: "mineral", id: m.id }))
+  ;[...lab.inputLabs, ...lab.outputLabs].forEach((c, i) => add("lab", c, rclFor("lab", i)))
+  slot.slots.forEach(({ coordinate }) => add("extension", coordinate, 8))
+  for (const c of [...core.roads, ...resourceTree.roads, ...boundary.roads, ...lab.serviceRoads, ...slot.roads])
+    add("road", c, rclFor("road", 0))
+  outer.ramparts.forEach((c) => add("rampart", c, rclFor("rampart", 0)))
+  return out
+}
+function coordsFromMask(m) {
+  const a = []
+  for (let i = 0; i < ROOM_AREA; i++) if (m[i]) a.push(coord(i))
+  return a
+}
+function exitsOf(terrain) {
+  const a = []
+  for (let x = 0; x < 50; x++) for (const y of [0, 49]) if (terrain.get(x, y) !== 1) a.push({ x, y })
+  for (let y = 1; y < 49; y++) for (const x of [0, 49]) if (terrain.get(x, y) !== 1) a.push({ x, y })
+  return a
+}
+function rebuildRampartPlan(terrain, rampartMask) {
+  const exits = exitsOf(terrain).filter((c) => !rampartMask[idx(c.x, c.y)]),
+    d = floodFill(terrain, exits, (x, y) => !rampartMask[idx(x, y)]).distances,
+    out = new Uint8Array(ROOM_AREA),
+    ins = new Uint8Array(ROOM_AREA)
+  for (let i = 0; i < ROOM_AREA; i++) {
+    const c = coord(i)
+    if (terrain.get(c.x, c.y) === 1 || rampartMask[i]) continue
+    if (d[i] >= 0) out[i] = 1
+    else ins[i] = 1
+  }
+  return { ramparts: coordsFromMask(rampartMask), rampartMask, insideMask: ins, outsideMask: out }
+}
+function standingBlocked(controller, sources, minerals, structures) {
+  const m = new Uint8Array(ROOM_AREA),
+    block = (c) => (m[idx(c.x, c.y)] = 1)
+  block(controller.pos)
+  sources.forEach((s) => block(s.pos))
+  minerals.forEach((s) => block(s.pos))
+  for (const s of structures) if (s.structureType !== "container") block(s.coordinate)
+  return m
+}
+function isProtected(s) {
+  return (
+    !["road", "rampart", "container", "extractor"].includes(s.structureType) &&
+    s.tag?.kind !== "source" &&
+    s.tag?.kind !== "mineral"
+  )
+}
+function pruneCivilRoadNetwork(structures, coreRoads) {
+  const rm = new Uint8Array(ROOM_AREA)
+  for (const s of structures) if (s.structureType === "road") rm[idx(s.coordinate.x, s.coordinate.y)] = 1
+  const d = new Int16Array(ROOM_AREA),
+    par = new Int16Array(ROOM_AREA),
+    q = new Int16Array(ROOM_AREA),
+    ret = new Uint8Array(ROOM_AREA)
+  d.fill(-1)
+  par.fill(-1)
+  let h = 0,
+    z = 0
+  for (const c of coreRoads) {
+    const i = idx(c.x, c.y)
+    if (!rm[i] || d[i] >= 0) continue
+    d[i] = 0
+    par[i] = i
+    ret[i] = 1
+    q[z++] = i
+  }
+  while (h < z) {
+    const ci = q[h++],
+      c = coord(ci)
+    for (const o of NEIGHBOR_OFFSETS) {
+      const x = c.x + o.x,
+        y = c.y + o.y
+      if (!inside(x, y)) continue
+      const ni = idx(x, y)
+      if (!rm[ni] || d[ni] >= 0) continue
+      d[ni] = d[ci] + 1
+      par[ni] = ci
+      q[z++] = ni
+    }
+  }
+  const target = (s) => !["road", "rampart", "extractor"].includes(s.structureType)
+  for (const s of structures) {
+    if (!target(s)) continue
+    let bi = -1,
+      bd = Infinity
+    const consider = (x, y) => {
+      if (!inside(x, y)) return
+      const i = idx(x, y),
+        dd = d[i]
+      if (!rm[i] || dd < 0 || dd > bd || (dd === bd && bi >= 0 && i >= bi)) return
+      bi = i
+      bd = dd
+    }
+    consider(s.coordinate.x, s.coordinate.y)
+    for (const o of NEIGHBOR_OFFSETS) consider(s.coordinate.x + o.x, s.coordinate.y + o.y)
+    if (bi < 0) continue
+    let cur = bi
+    while (cur >= 0 && !ret[cur]) {
+      ret[cur] = 1
+      const n = par[cur]
+      if (n === cur) break
+      cur = n
+    }
+  }
+  return coordsFromMask(ret)
+}
+function finalRamparts(terrain, controller, structures, forced) {
+  const src = forced.slice()
+  for (const s of structures)
+    if (isProtected(s))
+      forInRange(s.coordinate, 3, (x, y) => {
+        if (terrain.get(x, y) !== 1) src[idx(x, y)] = 1
+      })
+  const r = minCut(terrain, src, exitSinkMask(terrain), controllerDistanceCosts(terrain, controller.pos))
+  if (!r || !r.cuts.length) return
+  return { ramparts: r.cuts, rampartMask: r.cutMask, insideMask: r.insideMask, outsideMask: r.outsideMask }
+}
+function discardInaccessibleRampartComponents(terrain, rp, civilRoads, blocked, structures) {
+  const comps = findMaskComponents(rp.rampartMask)
+  if (!comps.length) return
+  const starts = civilRoads.filter((c) => {
+    const i = idx(c.x, c.y)
+    return (rp.insideMask[i] || rp.rampartMask[i]) && !blocked[i]
+  })
+  if (!starts.length) return
+  const d = floodFill(terrain, starts, (x, y) => {
+      const i = idx(x, y)
+      return (rp.insideMask[i] || rp.rampartMask[i]) && !blocked[i]
+    }).distances,
+    kept = new Uint8Array(ROOM_AREA)
+  let n = 0
+  for (const comp of comps) {
+    if (!comp.some((i) => d[i] >= 0)) continue
+    n++
+    comp.forEach((i) => (kept[i] = 1))
+  }
+  if (!n) return
+  if (n === comps.length) return rp
+  const fp = rebuildRampartPlan(terrain, kept)
+  for (const s of structures) if (isProtected(s) && fp.outsideMask[idx(s.coordinate.x, s.coordinate.y)]) return
+  return fp
+}
+function planRampartRepairRoads(terrain, controller, sources, minerals, structures, coreRoads, existingRoads, rp) {
+  if (!coreRoads.length) return
+  const blocked = standingBlocked(controller, sources, minerals, structures),
+    def = classifyDefensiveTiles(rp),
+    road = new Uint8Array(ROOM_AREA)
+  existingRoads.forEach((c) => (road[idx(c.x, c.y)] = 1))
+  const selected = new Uint8Array(ROOM_AREA),
+    counts = new Uint8Array(ROOM_AREA),
+    adds = []
+  const dist = () =>
+    dijkstraMap(
+      terrain,
+      coreRoads,
+      (x, y, t) => {
+        const i = idx(x, y)
+        if (def.dangerousMask[i]) return 15
+        if (road[i]) return 3
+        return t === 2 ? 6 : 5
+      },
+      (x, y) => {
+        const i = idx(x, y)
+        return !!(rp.insideMask[i] && !rp.rampartMask[i] && !blocked[i])
+      },
+    )
+  const addCoverage = (c) =>
+    forInRange(c, 3, (x, y) => {
+      const i = idx(x, y)
+      if (rp.rampartMask[i] && counts[i] < 2) counts[i]++
+    })
+  const reg = (c) => {
+    const i = idx(c.x, c.y)
+    if (!def.repairMask[i] || blocked[i] || rp.rampartMask[i] || selected[i]) return
+    selected[i] = 1
+    addCoverage(c)
+  }
+  let d0 = dist()
+  for (let i = 0; i < ROOM_AREA; i++)
+    if (road[i] && def.repairMask[i] && !blocked[i] && !rp.rampartMask[i] && d0[i] >= 0) reg(coord(i))
+  const below = (t) => rp.ramparts.some((c) => counts[idx(c.x, c.y)] < t)
+  const extend = (target) => {
+    while (below(target)) {
+      const d = dist()
+      let best = null
+      for (let i = 0; i < ROOM_AREA; i++) {
+        if (!def.repairMask[i] || blocked[i] || selected[i] || d[i] < 0) continue
+        const c = coord(i)
+        let cov = 0
+        forInRange(c, 3, (x, y) => {
+          const k = idx(x, y)
+          if (rp.rampartMask[k] && counts[k] < target) cov++
+        })
+        if (!cov) continue
+        const cand = { coordinate: c, distance: d[i], coverage: cov, index: i }
+        if (
+          !best ||
+          cand.distance * best.coverage < best.distance * cand.coverage ||
+          (cand.distance * best.coverage === best.distance * cand.coverage &&
+            (cand.coverage > best.coverage ||
+              (cand.coverage === best.coverage &&
+                (cand.distance < best.distance || (cand.distance === best.distance && i < best.index)))))
+        )
+          best = cand
+      }
+      if (!best) return
+      let cur = best.index,
+        path = []
+      if (d[cur] < 0) return
+      while (d[cur] > 0) {
+        const c = coord(cur),
+          cd = d[cur]
+        if (!road[cur]) path.push(c)
+        const cc = def.dangerousMask[cur] ? 15 : road[cur] ? 3 : terrain.get(c.x, c.y) === 2 ? 6 : 5
+        let br = -1,
+          b = -1
+        for (const o of NEIGHBOR_OFFSETS) {
+          const x = c.x + o.x,
+            y = c.y + o.y
+          if (!inside(x, y)) continue
+          const ni = idx(x, y),
+            nd = d[ni]
+          if (nd < 0 || nd + cc !== cd) continue
+          if (road[ni]) {
+            if (br < 0 || ni < br) br = ni
+          } else if (b < 0 || ni < b) b = ni
+        }
+        cur = br >= 0 ? br : b
+        if (cur < 0) return
+      }
+      for (const c of path) {
+        const i = idx(c.x, c.y)
+        if (!road[i]) {
+          road[i] = 1
+          adds.push(c)
+        }
+        reg(c)
+      }
+      reg(best.coordinate)
+    }
+  }
+  extend(1)
+  const unresolved = rp.ramparts.filter((c) => counts[idx(c.x, c.y)] < 1)
+  if (unresolved.length) return { roads: adds, unresolvedRamparts: unresolved }
+  extend(2)
+  return { roads: adds, unresolvedRamparts: [] }
+}
+function finalizeDefensePlan(terrain, controller, sources, minerals, provisional, core) {
+  const base = provisional.filter((s) => s.structureType !== "road" && s.structureType !== "rampart"),
+    civil = pruneCivilRoadNetwork(provisional, core.roads)
+  if (!civil.length) return
+  const forced = new Uint8Array(ROOM_AREA)
+  for (let at = 0; at < 5; at++) {
+    const raw = finalRamparts(terrain, controller, base, forced)
+    if (!raw) return
+    const blocked = standingBlocked(controller, sources, minerals, base),
+      rp = discardInaccessibleRampartComponents(terrain, raw, civil, blocked, base)
+    if (!rp || !rp.ramparts.length) return
+    const internal = civil.filter((c) => rp.insideMask[idx(c.x, c.y)])
+    const repair = planRampartRepairRoads(terrain, controller, sources, minerals, base, core.roads, internal, rp)
+    if (!repair) return
+    if (!repair.unresolvedRamparts.length) {
+      const finalRoads = [...civil, ...repair.roads],
+        danger = classifyDefensiveTiles(rp).dangerousMask,
+        dm = new Uint8Array(ROOM_AREA)
+      for (const s of base) {
+        const i = idx(s.coordinate.x, s.coordinate.y)
+        if (danger[i]) dm[i] = 1
+      }
+      for (const c of finalRoads) {
+        const i = idx(c.x, c.y)
+        if (danger[i]) dm[i] = 1
+      }
+      const out = [...base],
+        seen = new Set(out.map((s) => `${s.structureType}:${s.coordinate.x}:${s.coordinate.y}`)),
+        add = (t, c, r) => {
+          const k = `${t}:${c.x}:${c.y}`
+          if (!seen.has(k)) {
+            seen.add(k)
+            out.push(S(t, c, r))
+          }
+        }
+      ;[...civil, ...repair.roads].forEach((c) => add("road", c, rclFor("road")))
+      rp.ramparts.forEach((c) => add("rampart", c, rclFor("rampart")))
+      coordsFromMask(dm).forEach((c) => add("rampart", c, rclFor("rampart")))
+      return out
+    }
+    for (const c of repair.unresolvedRamparts) forced[idx(c.x, c.y)] = 1
+  }
+}

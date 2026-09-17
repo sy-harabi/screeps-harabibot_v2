@@ -1,11 +1,172 @@
 // ---- towers (current v2 selection behavior + shared candidate context) ----
-function countAdjacentRoads(c,road){let n=0;for(const o of NEIGHBOR_OFFSETS){const x=c.x+o.x,y=c.y+o.y;if(inside(x,y)&&road[idx(x,y)])n++}return n}
-function rebuildFinalRampartPlan(terrain,structures){const all=new Uint8Array(ROOM_AREA);for(const s of structures)if(s.structureType==='rampart')all[idx(s.coordinate.x,s.coordinate.y)]=1;if(!all.some(v=>v))return;const outsideAll=floodFill(terrain,exitsOf(terrain).filter(c=>!all[idx(c.x,c.y)]),(x,y)=>!all[idx(x,y)]).distances,outer=new Uint8Array(ROOM_AREA);for(let i=0;i<ROOM_AREA;i++){if(!all[i])continue;const c=coord(i);for(const o of NEIGHBOR_OFFSETS){const x=c.x+o.x,y=c.y+o.y;if(inside(x,y)&&outsideAll[idx(x,y)]>=0){outer[i]=1;break}}}if(!outer.some(v=>v))return;return rebuildRampartPlan(terrain,outer)}
-function buildTowerPlanningContext(terrain,controller,sources,minerals,ca,core,slotPlan,structures){const REQ=64;if(slotPlan.slots.length<REQ)return;const top=rebuildFinalRampartPlan(terrain,structures);if(!top||!top.ramparts.length)return;const danger=classifyDefensiveTiles(top).dangerousMask,road=new Uint8Array(ROOM_AREA),slotMask=new Uint8Array(ROOM_AREA),ramp=new Uint8Array(ROOM_AREA),occ=new Uint8Array(ROOM_AREA);for(const s of slotPlan.slots)slotMask[idx(s.coordinate.x,s.coordinate.y)]=1;for(const s of structures){const i=idx(s.coordinate.x,s.coordinate.y);if(s.structureType==='road'){road[i]=1;continue}if(s.structureType==='rampart'){ramp[i]=1;continue}if(s.structureType==='extension'&&slotMask[i])continue;occ[i]=1}
- let spawnSlots=0;for(const s of slotPlan.slots)if(countAdjacentRoads(s.coordinate,road)>=2)spawnSlots++;if(spawnSlots<2)return;
- const reserved=new Uint8Array(ROOM_AREA),block=c=>reserved[idx(c.x,c.y)]=1;block(core.manager);core.parking.forEach(block);const late=new Set([idx(core.factory.x,core.factory.y),idx(core.powerSpawn.x,core.powerSpawn.y)]);for(const ch of Object.values(ca.upgradeChains))if(!ch.some(c=>late.has(idx(c.x,c.y))))block(ch[0]);const obj=new Uint8Array(ROOM_AREA);obj[idx(controller.pos.x,controller.pos.y)]=1;sources.forEach(s=>obj[idx(s.pos.x,s.pos.y)]=1);minerals.forEach(m=>obj[idx(m.pos.x,m.pos.y)]=1);
- const seen=new Uint8Array(ROOM_AREA),cands=[];for(let ri=0;ri<ROOM_AREA;ri++){if(!road[ri]||!top.insideMask[ri])continue;const r=coord(ri);for(const o of NEIGHBOR_OFFSETS){const x=r.x+o.x,y=r.y+o.y;if(!inside(x,y))continue;const i=idx(x,y);if(seen[i])continue;seen[i]=1;if(!top.insideMask[i]||terrain.get(x,y)===1||road[i]||occ[i]||reserved[i]||obj[i])continue;if(danger[i]&&!ramp[i])continue;const uses=!!slotMask[i];cands.push({coordinate:{x,y},roomIndex:i,usesStructureSlot:uses,usesSpawnSlot:uses&&countAdjacentRoads({x,y},road)>=2})}}
- if(cands.length<6)return;return{topology:top,candidates:cands,maxSlotTowers:Math.max(0,slotPlan.slots.length-REQ),maxSpawnSlotTowers:spawnSlots-2}}
-function selectCurrentV2TowerCandidates(context){const NUM=6,{candidates,topology,maxSlotTowers,maxSpawnSlotTowers}=context;let ss=0,sps=0,remaining=candidates.slice(),selected=[];const eligible=()=>remaining.filter(c=>(!c.usesStructureSlot||ss<maxSlotTowers)&&(!c.usesSpawnSlot||sps<maxSpawnSlotTowers));const avg=c=>topology.ramparts.reduce((a,r)=>a+range(c,r),0)/topology.ramparts.length;const minCand=(arr,score)=>{let best,bv=Infinity;for(const c of arr){const v=score(c);if(v>bv)continue;if(v===bv&&best){if(c.usesStructureSlot!==best.usesStructureSlot){if(c.usesStructureSlot)continue}else if(c.roomIndex>=best.roomIndex)continue}best=c;bv=v}return best};let t=minCand(eligible(),c=>avg(c.coordinate));if(!t)return;const take=c=>{remaining.splice(remaining.indexOf(c),1);selected.push(c);if(c.usesStructureSlot)ss++;if(c.usesSpawnSlot)sps++};take(t);
- const dmg=r=>r<=5?600:600*(1-0.75*(Math.min(r,20)-5)/15);while(selected.length<NUM){let weak,md=Infinity;for(const rp of topology.ramparts){let d=0;for(const tw of selected)d+=dmg(range(tw.coordinate,rp));if(d<md){md=d;weak=rp}}if(!weak)return;const el=eligible();if(!el.length)return;let mr=Infinity;for(const c of el)mr=Math.min(mr,range(c.coordinate,weak));t=minCand(el.filter(c=>range(c.coordinate,weak)<=mr+1),c=>avg(c.coordinate));if(!t)return;take(t)}return selected}
-function planTowers(terrain,controller,sources,minerals,ca,core,slotPlan,structures){const context=buildTowerPlanningContext(terrain,controller,sources,minerals,ca,core,slotPlan,structures),selected=context&&selectCurrentV2TowerCandidates(context);if(!selected||selected.length!==6)return;return selected.map(c=>c.coordinate)}
+function countAdjacentRoads(c, road) {
+  let n = 0
+  for (const o of NEIGHBOR_OFFSETS) {
+    const x = c.x + o.x,
+      y = c.y + o.y
+    if (inside(x, y) && road[idx(x, y)]) n++
+  }
+  return n
+}
+function rebuildFinalRampartPlan(terrain, structures) {
+  const all = new Uint8Array(ROOM_AREA)
+  for (const s of structures) if (s.structureType === "rampart") all[idx(s.coordinate.x, s.coordinate.y)] = 1
+  if (!all.some((v) => v)) return
+  const outsideAll = floodFill(
+      terrain,
+      exitsOf(terrain).filter((c) => !all[idx(c.x, c.y)]),
+      (x, y) => !all[idx(x, y)],
+    ).distances,
+    outer = new Uint8Array(ROOM_AREA)
+  for (let i = 0; i < ROOM_AREA; i++) {
+    if (!all[i]) continue
+    const c = coord(i)
+    for (const o of NEIGHBOR_OFFSETS) {
+      const x = c.x + o.x,
+        y = c.y + o.y
+      if (inside(x, y) && outsideAll[idx(x, y)] >= 0) {
+        outer[i] = 1
+        break
+      }
+    }
+  }
+  if (!outer.some((v) => v)) return
+  return rebuildRampartPlan(terrain, outer)
+}
+function buildTowerPlanningContext(terrain, controller, sources, minerals, ca, core, slotPlan, structures) {
+  const REQ = 64
+  if (slotPlan.slots.length < REQ) return
+  const top = rebuildFinalRampartPlan(terrain, structures)
+  if (!top || !top.ramparts.length) return
+  const danger = classifyDefensiveTiles(top).dangerousMask,
+    road = new Uint8Array(ROOM_AREA),
+    slotMask = new Uint8Array(ROOM_AREA),
+    ramp = new Uint8Array(ROOM_AREA),
+    occ = new Uint8Array(ROOM_AREA)
+  for (const s of slotPlan.slots) slotMask[idx(s.coordinate.x, s.coordinate.y)] = 1
+  for (const s of structures) {
+    const i = idx(s.coordinate.x, s.coordinate.y)
+    if (s.structureType === "road") {
+      road[i] = 1
+      continue
+    }
+    if (s.structureType === "rampart") {
+      ramp[i] = 1
+      continue
+    }
+    if (s.structureType === "extension" && slotMask[i]) continue
+    occ[i] = 1
+  }
+  let spawnSlots = 0
+  for (const s of slotPlan.slots) if (countAdjacentRoads(s.coordinate, road) >= 2) spawnSlots++
+  if (spawnSlots < 2) return
+  const reserved = new Uint8Array(ROOM_AREA),
+    block = (c) => (reserved[idx(c.x, c.y)] = 1)
+  block(core.manager)
+  core.parking.forEach(block)
+  const late = new Set([idx(core.factory.x, core.factory.y), idx(core.powerSpawn.x, core.powerSpawn.y)])
+  for (const ch of Object.values(ca.upgradeChains)) if (!ch.some((c) => late.has(idx(c.x, c.y)))) block(ch[0])
+  const obj = new Uint8Array(ROOM_AREA)
+  obj[idx(controller.pos.x, controller.pos.y)] = 1
+  sources.forEach((s) => (obj[idx(s.pos.x, s.pos.y)] = 1))
+  minerals.forEach((m) => (obj[idx(m.pos.x, m.pos.y)] = 1))
+  const seen = new Uint8Array(ROOM_AREA),
+    cands = []
+  for (let ri = 0; ri < ROOM_AREA; ri++) {
+    if (!road[ri] || !top.insideMask[ri]) continue
+    const r = coord(ri)
+    for (const o of NEIGHBOR_OFFSETS) {
+      const x = r.x + o.x,
+        y = r.y + o.y
+      if (!inside(x, y)) continue
+      const i = idx(x, y)
+      if (seen[i]) continue
+      seen[i] = 1
+      if (!top.insideMask[i] || terrain.get(x, y) === 1 || road[i] || occ[i] || reserved[i] || obj[i]) continue
+      if (danger[i] && !ramp[i]) continue
+      const uses = !!slotMask[i]
+      cands.push({
+        coordinate: { x, y },
+        roomIndex: i,
+        usesStructureSlot: uses,
+        usesSpawnSlot: uses && countAdjacentRoads({ x, y }, road) >= 2,
+      })
+    }
+  }
+  if (cands.length < 6) return
+  return {
+    topology: top,
+    candidates: cands,
+    maxSlotTowers: Math.max(0, slotPlan.slots.length - REQ),
+    maxSpawnSlotTowers: spawnSlots - 2,
+  }
+}
+function selectCurrentV2TowerCandidates(context) {
+  const NUM = 6,
+    { candidates, topology, maxSlotTowers, maxSpawnSlotTowers } = context
+  let ss = 0,
+    sps = 0,
+    remaining = candidates.slice(),
+    selected = []
+  const eligible = () =>
+    remaining.filter(
+      (c) => (!c.usesStructureSlot || ss < maxSlotTowers) && (!c.usesSpawnSlot || sps < maxSpawnSlotTowers),
+    )
+  const avg = (c) => topology.ramparts.reduce((a, r) => a + range(c, r), 0) / topology.ramparts.length
+  const minCand = (arr, score) => {
+    let best,
+      bv = Infinity
+    for (const c of arr) {
+      const v = score(c)
+      if (v > bv) continue
+      if (v === bv && best) {
+        if (c.usesStructureSlot !== best.usesStructureSlot) {
+          if (c.usesStructureSlot) continue
+        } else if (c.roomIndex >= best.roomIndex) continue
+      }
+      best = c
+      bv = v
+    }
+    return best
+  }
+  let t = minCand(eligible(), (c) => avg(c.coordinate))
+  if (!t) return
+  const take = (c) => {
+    remaining.splice(remaining.indexOf(c), 1)
+    selected.push(c)
+    if (c.usesStructureSlot) ss++
+    if (c.usesSpawnSlot) sps++
+  }
+  take(t)
+  const dmg = (r) => (r <= 5 ? 600 : 600 * (1 - (0.75 * (Math.min(r, 20) - 5)) / 15))
+  while (selected.length < NUM) {
+    let weak,
+      md = Infinity
+    for (const rp of topology.ramparts) {
+      let d = 0
+      for (const tw of selected) d += dmg(range(tw.coordinate, rp))
+      if (d < md) {
+        md = d
+        weak = rp
+      }
+    }
+    if (!weak) return
+    const el = eligible()
+    if (!el.length) return
+    let mr = Infinity
+    for (const c of el) mr = Math.min(mr, range(c.coordinate, weak))
+    t = minCand(
+      el.filter((c) => range(c.coordinate, weak) <= mr + 1),
+      (c) => avg(c.coordinate),
+    )
+    if (!t) return
+    take(t)
+  }
+  return selected
+}
+function planTowers(terrain, controller, sources, minerals, ca, core, slotPlan, structures) {
+  const context = buildTowerPlanningContext(terrain, controller, sources, minerals, ca, core, slotPlan, structures),
+    selected = context && selectCurrentV2TowerCandidates(context)
+  if (!selected || selected.length !== 6) return
+  return selected.map((c) => c.coordinate)
+}

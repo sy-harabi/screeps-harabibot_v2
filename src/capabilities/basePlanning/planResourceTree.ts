@@ -1,36 +1,27 @@
-import { RoomCoordinate } from "../../world/map/roomCoordinate";
-import {
-  fromRoomIndex,
-  isInsideRoom,
-  NEIGHBOR_OFFSETS,
-  ROOM_AREA,
-  toRoomIndex,
-} from "../../world/map/roomGrid";
-import { ControllerAreaCandidate } from "./findControllerAreaCandidates";
-import { CorePlan } from "./findCorePlans";
-import { planResourceEndpoints } from "./planResourceEndpoints";
-import {
-  buildResourceDistanceMap,
-  getResourceRoadCost,
-} from "./resourcePlanningUtils";
+import { RoomCoordinate } from "../../world/map/roomCoordinate"
+import { fromRoomIndex, isInsideRoom, NEIGHBOR_OFFSETS, ROOM_AREA, toRoomIndex } from "../../world/map/roomGrid"
+import { ControllerAreaCandidate } from "./findControllerAreaCandidates"
+import { CorePlan } from "./findCorePlans"
+import { planResourceEndpoints } from "./planResourceEndpoints"
+import { buildResourceDistanceMap, getResourceRoadCost } from "./resourcePlanningUtils"
 
-const INF = 30000;
+const INF = 30000
 
-const DECISION_NONE = 0;
-const DECISION_TARGET = 1;
-const DECISION_CONTINUE = 2;
-const DECISION_SPLIT = 3;
+const DECISION_NONE = 0
+const DECISION_TARGET = 1
+const DECISION_CONTINUE = 2
+const DECISION_SPLIT = 3
 
 export interface ResourceBranchPlan {
-  readonly targetId: Id<Source> | Id<Mineral>;
-  readonly container: RoomCoordinate;
-  readonly link?: RoomCoordinate;
-  readonly roads: RoomCoordinate[];
+  readonly targetId: Id<Source> | Id<Mineral>
+  readonly container: RoomCoordinate
+  readonly link?: RoomCoordinate
+  readonly roads: RoomCoordinate[]
 }
 
 export interface ResourceTreePlan {
-  readonly roads: RoomCoordinate[];
-  readonly branches: ResourceBranchPlan[];
+  readonly roads: RoomCoordinate[]
+  readonly branches: ResourceBranchPlan[]
 }
 
 export function planResourceTree(
@@ -49,232 +40,208 @@ export function planResourceTree(
     controllerArea,
     corePlan,
     existingSpawn,
-  );
+  )
 
   if (!endpointPlanningResult) {
-    return;
+    return
   }
 
-  const targets = [...endpointPlanningResult.endpoints].sort(
-    (left, right) => left.bit - right.bit,
-  );
-  const distanceMap = buildResourceDistanceMap(
-    terrain,
-    endpointPlanningResult.resourceRoadBlockedMask,
-    corePlan.roads,
-  );
+  const targets = [...endpointPlanningResult.endpoints].sort((left, right) => left.bit - right.bit)
+  const distanceMap = buildResourceDistanceMap(terrain, endpointPlanningResult.resourceRoadBlockedMask, corePlan.roads)
 
   if (targets.length === 0) {
     return {
       roads: [],
       branches: [],
-    };
+    }
   }
 
-  const resourcePathMask = new Uint8Array(ROOM_AREA);
-  const targetMask = new Uint8Array(ROOM_AREA);
+  const resourcePathMask = new Uint8Array(ROOM_AREA)
+  const targetMask = new Uint8Array(ROOM_AREA)
 
   for (const target of targets) {
-    const roadEndpoints = findClosestReachableAdjacentCoordinates(
-      target.container,
-      distanceMap,
-    );
+    const roadEndpoints = findClosestReachableAdjacentCoordinates(target.container, distanceMap)
 
     if (roadEndpoints.length === 0) {
-      return;
+      return
     }
 
     for (const coordinate of roadEndpoints) {
-      targetMask[toRoomIndex(coordinate.x, coordinate.y)] |= target.bit;
+      targetMask[toRoomIndex(coordinate.x, coordinate.y)] |= target.bit
     }
 
-    const pathMask = buildShortestPathMask(
-      roadEndpoints,
-      terrain,
-      distanceMap,
-      getResourceRoadCost,
-    );
+    const pathMask = buildShortestPathMask(roadEndpoints, terrain, distanceMap, getResourceRoadCost)
 
     for (let index = 0; index < ROOM_AREA; index++) {
       if (pathMask[index]) {
-        resourcePathMask[index] |= target.bit;
+        resourcePathMask[index] |= target.bit
       }
     }
   }
 
-  const maskCount = 1 << targets.length;
-  const fullMask = maskCount - 1;
-  const stateCount = ROOM_AREA * maskCount;
+  const maskCount = 1 << targets.length
+  const fullMask = maskCount - 1
+  const stateCount = ROOM_AREA * maskCount
 
-  const dp = new Int16Array(stateCount);
-  dp.fill(INF);
+  const dp = new Int16Array(stateCount)
+  dp.fill(INF)
 
-  const decisionType = new Uint8Array(stateCount);
-  const decisionValue = new Int16Array(stateCount);
-  decisionValue.fill(-1);
+  const decisionType = new Uint8Array(stateCount)
+  const decisionValue = new Int16Array(stateCount)
+  decisionValue.fill(-1)
 
-  const pathIndices: number[] = [];
+  const pathIndices: number[] = []
 
   for (let index = 0; index < ROOM_AREA; index++) {
     if (resourcePathMask[index]) {
-      pathIndices.push(index);
+      pathIndices.push(index)
     }
   }
 
-  pathIndices.sort(
-    (left, right) => distanceMap[right] - distanceMap[left] || left - right,
-  );
+  pathIndices.sort((left, right) => distanceMap[right] - distanceMap[left] || left - right)
 
   for (const index of pathIndices) {
-    const coordinate = fromRoomIndex(index);
-    const tileCost = distanceMap[index] === 0 ? 0 : 1;
+    const coordinate = fromRoomIndex(index)
+    const tileCost = distanceMap[index] === 0 ? 0 : 1
 
     for (let mask = 1; mask <= fullMask; mask++) {
       if ((resourcePathMask[index] & mask) !== mask) {
-        continue;
+        continue
       }
 
-      const key = index * maskCount + mask;
-      let best = INF;
-      let bestDecisionType = DECISION_NONE;
-      let bestDecisionValue = -1;
+      const key = index * maskCount + mask
+      let best = INF
+      let bestDecisionType = DECISION_NONE
+      let bestDecisionValue = -1
 
       if ((targetMask[index] & mask) === mask) {
-        best = tileCost;
-        bestDecisionType = DECISION_TARGET;
+        best = tileCost
+        bestDecisionType = DECISION_TARGET
       }
 
       for (const offset of NEIGHBOR_OFFSETS) {
-        const nextX = coordinate.x + offset.x;
-        const nextY = coordinate.y + offset.y;
+        const nextX = coordinate.x + offset.x
+        const nextY = coordinate.y + offset.y
 
         if (!isInsideRoom(nextX, nextY)) {
-          continue;
+          continue
         }
 
-        const nextIndex = toRoomIndex(nextX, nextY);
+        const nextIndex = toRoomIndex(nextX, nextY)
 
         if ((resourcePathMask[nextIndex] & mask) !== mask) {
-          continue;
+          continue
         }
 
-        const terrainType = terrain.get(nextX, nextY);
-        const nextCost = getResourceRoadCost(nextX, nextY, terrainType);
+        const terrainType = terrain.get(nextX, nextY)
+        const nextCost = getResourceRoadCost(nextX, nextY, terrainType)
 
         if (distanceMap[index] + nextCost !== distanceMap[nextIndex]) {
-          continue;
+          continue
         }
 
-        const rest = dp[nextIndex * maskCount + mask];
+        const rest = dp[nextIndex * maskCount + mask]
 
         if (rest >= INF) {
-          continue;
+          continue
         }
 
-        const candidate = tileCost + rest;
+        const candidate = tileCost + rest
 
         if (candidate < best) {
-          best = candidate;
-          bestDecisionType = DECISION_CONTINUE;
-          bestDecisionValue = nextIndex;
+          best = candidate
+          bestDecisionType = DECISION_CONTINUE
+          bestDecisionValue = nextIndex
         }
       }
 
-      for (
-        let leftMask = (mask - 1) & mask;
-        leftMask > 0;
-        leftMask = (leftMask - 1) & mask
-      ) {
-        const rightMask = mask ^ leftMask;
+      for (let leftMask = (mask - 1) & mask; leftMask > 0; leftMask = (leftMask - 1) & mask) {
+        const rightMask = mask ^ leftMask
 
         if (leftMask > rightMask) {
-          continue;
+          continue
         }
 
-        const leftCost = dp[index * maskCount + leftMask];
-        const rightCost = dp[index * maskCount + rightMask];
+        const leftCost = dp[index * maskCount + leftMask]
+        const rightCost = dp[index * maskCount + rightMask]
 
         if (leftCost >= INF || rightCost >= INF) {
-          continue;
+          continue
         }
 
-        const candidate = leftCost + rightCost - tileCost;
+        const candidate = leftCost + rightCost - tileCost
 
         if (candidate < best) {
-          best = candidate;
-          bestDecisionType = DECISION_SPLIT;
-          bestDecisionValue = leftMask;
+          best = candidate
+          bestDecisionType = DECISION_SPLIT
+          bestDecisionValue = leftMask
         }
       }
 
-      dp[key] = best;
-      decisionType[key] = bestDecisionType;
-      decisionValue[key] = bestDecisionValue;
+      dp[key] = best
+      decisionType[key] = bestDecisionType
+      decisionValue[key] = bestDecisionValue
     }
   }
 
-  const rootDp = new Int16Array(maskCount);
-  rootDp.fill(INF);
+  const rootDp = new Int16Array(maskCount)
+  rootDp.fill(INF)
 
-  const rootDecisionType = new Uint8Array(maskCount);
-  const rootDecisionValue = new Int16Array(maskCount);
-  rootDecisionValue.fill(-1);
+  const rootDecisionType = new Uint8Array(maskCount)
+  const rootDecisionValue = new Int16Array(maskCount)
+  rootDecisionValue.fill(-1)
 
-  const rootIndices = corePlan.roads.map((road) => toRoomIndex(road.x, road.y));
+  const rootIndices = corePlan.roads.map((road) => toRoomIndex(road.x, road.y))
 
   for (let mask = 1; mask <= fullMask; mask++) {
-    let best = INF;
-    let bestDecisionType = DECISION_NONE;
-    let bestDecisionValue = -1;
+    let best = INF
+    let bestDecisionType = DECISION_NONE
+    let bestDecisionValue = -1
 
     for (const index of rootIndices) {
       if ((resourcePathMask[index] & mask) !== mask) {
-        continue;
+        continue
       }
 
-      const candidate = dp[index * maskCount + mask];
+      const candidate = dp[index * maskCount + mask]
 
       if (candidate < best) {
-        best = candidate;
-        bestDecisionType = DECISION_CONTINUE;
-        bestDecisionValue = index;
+        best = candidate
+        bestDecisionType = DECISION_CONTINUE
+        bestDecisionValue = index
       }
     }
 
-    for (
-      let leftMask = (mask - 1) & mask;
-      leftMask > 0;
-      leftMask = (leftMask - 1) & mask
-    ) {
-      const rightMask = mask ^ leftMask;
+    for (let leftMask = (mask - 1) & mask; leftMask > 0; leftMask = (leftMask - 1) & mask) {
+      const rightMask = mask ^ leftMask
 
       if (leftMask > rightMask) {
-        continue;
+        continue
       }
 
-      const leftCost = rootDp[leftMask];
-      const rightCost = rootDp[rightMask];
+      const leftCost = rootDp[leftMask]
+      const rightCost = rootDp[rightMask]
 
       if (leftCost >= INF || rightCost >= INF) {
-        continue;
+        continue
       }
 
-      const candidate = leftCost + rightCost;
+      const candidate = leftCost + rightCost
 
       if (candidate < best) {
-        best = candidate;
-        bestDecisionType = DECISION_SPLIT;
-        bestDecisionValue = leftMask;
+        best = candidate
+        bestDecisionType = DECISION_SPLIT
+        bestDecisionValue = leftMask
       }
     }
 
-    rootDp[mask] = best;
-    rootDecisionType[mask] = bestDecisionType;
-    rootDecisionValue[mask] = bestDecisionValue;
+    rootDp[mask] = best
+    rootDecisionType[mask] = bestDecisionType
+    rootDecisionValue[mask] = bestDecisionValue
   }
 
   if (rootDp[fullMask] >= INF) {
-    return;
+    return
   }
 
   const roadMask = traceResourceTree(
@@ -285,21 +252,21 @@ export function planResourceTree(
     decisionValue,
     rootDecisionType,
     rootDecisionValue,
-  );
+  )
 
-  const roads: RoomCoordinate[] = [];
+  const roads: RoomCoordinate[] = []
 
   for (let index = 0; index < ROOM_AREA; index++) {
     if (!roadMask[index]) {
-      continue;
+      continue
     }
 
-    const coordinate = fromRoomIndex(index);
-    roads.push(coordinate);
-    visual.structure(coordinate.x, coordinate.y, STRUCTURE_ROAD);
+    const coordinate = fromRoomIndex(index)
+    roads.push(coordinate)
+    visual.structure(coordinate.x, coordinate.y, STRUCTURE_ROAD)
   }
 
-  const branches: ResourceBranchPlan[] = [];
+  const branches: ResourceBranchPlan[] = []
 
   for (const target of targets) {
     const branchRoadIndices = traceResourceBranch(
@@ -311,71 +278,61 @@ export function planResourceTree(
       decisionValue,
       rootDecisionType,
       rootDecisionValue,
-    );
+    )
 
     branches.push({
       targetId: target.targetId,
       container: target.container,
       link: target.link,
       roads: branchRoadIndices.map(fromRoomIndex),
-    });
+    })
 
-    visual.structure(
-      target.container.x,
-      target.container.y,
-      STRUCTURE_CONTAINER,
-    );
+    visual.structure(target.container.x, target.container.y, STRUCTURE_CONTAINER)
 
     if (target.link) {
-      visual.structure(target.link.x, target.link.y, STRUCTURE_LINK);
+      visual.structure(target.link.x, target.link.y, STRUCTURE_LINK)
     }
   }
 
-  return { roads, branches };
+  return { roads, branches }
 }
 
-function findClosestReachableAdjacentCoordinates(
-  center: RoomCoordinate,
-  distanceMap: Int32Array,
-): RoomCoordinate[] {
-  const candidates: RoomCoordinate[] = [];
+function findClosestReachableAdjacentCoordinates(center: RoomCoordinate, distanceMap: Int32Array): RoomCoordinate[] {
+  const candidates: RoomCoordinate[] = []
 
   for (const offset of NEIGHBOR_OFFSETS) {
-    const x = center.x + offset.x;
-    const y = center.y + offset.y;
+    const x = center.x + offset.x
+    const y = center.y + offset.y
 
     if (!isInsideRoom(x, y)) {
-      continue;
+      continue
     }
 
     if (distanceMap[toRoomIndex(x, y)] >= 0) {
-      candidates.push({ x, y });
+      candidates.push({ x, y })
     }
   }
 
-  return findClosestCoordinates(candidates, distanceMap);
+  return findClosestCoordinates(candidates, distanceMap)
 }
 
-function findClosestCoordinates(
-  candidates: readonly RoomCoordinate[],
-  distanceMap: Int32Array,
-): RoomCoordinate[] {
-  const closest: RoomCoordinate[] = [];
-  let minDistance = Infinity;
+function findClosestCoordinates(candidates: readonly RoomCoordinate[], distanceMap: Int32Array): RoomCoordinate[] {
+  const closest: RoomCoordinate[] = []
+  let minDistance = Infinity
 
   for (const coordinate of candidates) {
-    const distance = distanceMap[toRoomIndex(coordinate.x, coordinate.y)];
+    const distance = distanceMap[toRoomIndex(coordinate.x, coordinate.y)]
 
     if (distance < minDistance) {
-      minDistance = distance;
-      closest.length = 0;
-      closest.push(coordinate);
+      minDistance = distance
+      closest.length = 0
+      closest.push(coordinate)
     } else if (distance === minDistance) {
-      closest.push(coordinate);
+      closest.push(coordinate)
     }
   }
 
-  return closest;
+  return closest
 }
 
 function traceResourceTree(
@@ -387,51 +344,49 @@ function traceResourceTree(
   rootDecisionType: Uint8Array,
   rootDecisionValue: Int16Array,
 ): Uint8Array {
-  const roadMask = new Uint8Array(ROOM_AREA);
-  const traceStack: { index: number; mask: number }[] = [
-    { index: -1, mask: fullMask },
-  ];
+  const roadMask = new Uint8Array(ROOM_AREA)
+  const traceStack: { index: number; mask: number }[] = [{ index: -1, mask: fullMask }]
 
   while (traceStack.length > 0) {
-    const task = traceStack.pop();
+    const task = traceStack.pop()
 
     if (!task) {
-      break;
+      break
     }
 
-    const { index, mask } = task;
+    const { index, mask } = task
 
     if (index === -1) {
-      const type = rootDecisionType[mask];
-      const value = rootDecisionValue[mask];
+      const type = rootDecisionType[mask]
+      const value = rootDecisionValue[mask]
 
       if (type === DECISION_CONTINUE) {
-        traceStack.push({ index: value, mask });
+        traceStack.push({ index: value, mask })
       } else if (type === DECISION_SPLIT) {
-        traceStack.push({ index: -1, mask: value });
-        traceStack.push({ index: -1, mask: mask ^ value });
+        traceStack.push({ index: -1, mask: value })
+        traceStack.push({ index: -1, mask: mask ^ value })
       }
 
-      continue;
+      continue
     }
 
     if (distanceMap[index] > 0) {
-      roadMask[index] = 1;
+      roadMask[index] = 1
     }
 
-    const key = index * maskCount + mask;
-    const type = decisionType[key];
-    const value = decisionValue[key];
+    const key = index * maskCount + mask
+    const type = decisionType[key]
+    const value = decisionValue[key]
 
     if (type === DECISION_CONTINUE) {
-      traceStack.push({ index: value, mask });
+      traceStack.push({ index: value, mask })
     } else if (type === DECISION_SPLIT) {
-      traceStack.push({ index, mask: value });
-      traceStack.push({ index, mask: mask ^ value });
+      traceStack.push({ index, mask: value })
+      traceStack.push({ index, mask: mask ^ value })
     }
   }
 
-  return roadMask;
+  return roadMask
 }
 
 function traceResourceBranch(
@@ -444,57 +399,54 @@ function traceResourceBranch(
   rootDecisionType: Uint8Array,
   rootDecisionValue: Int16Array,
 ): number[] {
-  const roadIndices: number[] = [];
-  let index = -1;
-  let mask = fullMask;
+  const roadIndices: number[] = []
+  let index = -1
+  let mask = fullMask
 
   while (true) {
     if (index === -1) {
-      const type = rootDecisionType[mask];
-      const value = rootDecisionValue[mask];
+      const type = rootDecisionType[mask]
+      const value = rootDecisionValue[mask]
 
       if (type === DECISION_CONTINUE) {
-        index = value;
-        continue;
+        index = value
+        continue
       }
 
       if (type === DECISION_SPLIT) {
-        mask = value & targetBit ? value : mask ^ value;
-        continue;
+        mask = value & targetBit ? value : mask ^ value
+        continue
       }
 
-      break;
+      break
     }
 
-    if (
-      distanceMap[index] > 0 &&
-      roadIndices[roadIndices.length - 1] !== index
-    ) {
-      roadIndices.push(index);
+    if (distanceMap[index] > 0 && roadIndices[roadIndices.length - 1] !== index) {
+      roadIndices.push(index)
     }
 
-    const key = index * maskCount + mask;
-    const type = decisionType[key];
-    const value = decisionValue[key];
+    const key = index * maskCount + mask
+    const type = decisionType[key]
+    const value = decisionValue[key]
 
     if (type === DECISION_TARGET) {
-      break;
+      break
     }
 
     if (type === DECISION_CONTINUE) {
-      index = value;
-      continue;
+      index = value
+      continue
     }
 
     if (type === DECISION_SPLIT) {
-      mask = value & targetBit ? value : mask ^ value;
-      continue;
+      mask = value & targetBit ? value : mask ^ value
+      continue
     }
 
-    break;
+    break
   }
 
-  return roadIndices;
+  return roadIndices
 }
 
 function buildShortestPathMask(
@@ -503,52 +455,52 @@ function buildShortestPathMask(
   distanceMap: Int32Array,
   getCost: (x: number, y: number, terrainType: number) => number,
 ): Uint8Array {
-  const mask = new Uint8Array(ROOM_AREA);
-  const queue: number[] = [];
+  const mask = new Uint8Array(ROOM_AREA)
+  const queue: number[] = []
 
   for (const target of targetCoordinates) {
-    const index = toRoomIndex(target.x, target.y);
+    const index = toRoomIndex(target.x, target.y)
 
-    mask[index] = 1;
-    queue.push(index);
+    mask[index] = 1
+    queue.push(index)
   }
 
-  let queueHead = 0;
+  let queueHead = 0
 
   while (queueHead < queue.length) {
-    const index = queue[queueHead++];
-    const current = fromRoomIndex(index);
-    const currentDistance = distanceMap[index];
+    const index = queue[queueHead++]
+    const current = fromRoomIndex(index)
+    const currentDistance = distanceMap[index]
 
     if (currentDistance === 0) {
-      continue;
+      continue
     }
 
-    const terrainType = terrain.get(current.x, current.y);
-    const currentCost = getCost(current.x, current.y, terrainType);
+    const terrainType = terrain.get(current.x, current.y)
+    const currentCost = getCost(current.x, current.y, terrainType)
 
     for (const offset of NEIGHBOR_OFFSETS) {
-      const neighborX = current.x + offset.x;
-      const neighborY = current.y + offset.y;
+      const neighborX = current.x + offset.x
+      const neighborY = current.y + offset.y
 
       if (!isInsideRoom(neighborX, neighborY)) {
-        continue;
+        continue
       }
 
-      const neighborIndex = toRoomIndex(neighborX, neighborY);
+      const neighborIndex = toRoomIndex(neighborX, neighborY)
 
       if (distanceMap[neighborIndex] < 0 || mask[neighborIndex]) {
-        continue;
+        continue
       }
 
       if (distanceMap[neighborIndex] + currentCost !== currentDistance) {
-        continue;
+        continue
       }
 
-      mask[neighborIndex] = 1;
-      queue.push(neighborIndex);
+      mask[neighborIndex] = 1
+      queue.push(neighborIndex)
     }
   }
 
-  return mask;
+  return mask
 }

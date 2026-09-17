@@ -1,18 +1,18 @@
-import { isInsideRoom, ROOM_AREA, ROOM_SIZE, toRoomIndex } from "./roomGrid";
+import { isInsideRoom, ROOM_AREA, ROOM_SIZE, toRoomIndex } from "./roomGrid"
 
 const FORWARD_OFFSETS = [
   { x: -1, y: 0 },
   { x: 0, y: -1 },
   { x: -1, y: -1 },
   { x: -1, y: 1 },
-];
+]
 
 const BACKWARD_OFFSETS = [
   { x: 1, y: 0 },
   { x: 0, y: +1 },
   { x: 1, y: 1 },
   { x: 1, y: -1 },
-];
+]
 
 /**
  * Computes the Chebyshev distance to the nearest terrain wall within the room.
@@ -23,68 +23,68 @@ const BACKWARD_OFFSETS = [
  * all tiles have distance 255 if the room contains no walls.
  */
 export function distanceTransform(terrain: RoomTerrain): Uint8Array {
-  const distances = new Uint8Array(ROOM_AREA);
+  const distances = new Uint8Array(ROOM_AREA)
 
   for (let x = 0; x <= ROOM_SIZE - 1; x++) {
     for (let y = 0; y <= ROOM_SIZE - 1; y++) {
-      const index = toRoomIndex(x, y);
+      const index = toRoomIndex(x, y)
 
       if (terrain.get(x, y) === TERRAIN_MASK_WALL) {
-        distances[index] = 0;
-        continue;
+        distances[index] = 0
+        continue
       }
 
-      distances[index] = 255;
+      distances[index] = 255
     }
   }
 
   for (let x = 0; x <= ROOM_SIZE - 1; x++) {
     for (let y = 0; y <= ROOM_SIZE - 1; y++) {
-      const index = toRoomIndex(x, y);
-      let minDistance = distances[index];
+      const index = toRoomIndex(x, y)
+      let minDistance = distances[index]
 
       for (const offset of FORWARD_OFFSETS) {
-        const neighborX = x + offset.x;
-        const neighborY = y + offset.y;
+        const neighborX = x + offset.x
+        const neighborY = y + offset.y
 
         if (!isInsideRoom(neighborX, neighborY)) {
-          continue;
+          continue
         }
 
-        const neighborIndex = toRoomIndex(neighborX, neighborY);
-        const candidateDistance = distances[neighborIndex] + 1;
+        const neighborIndex = toRoomIndex(neighborX, neighborY)
+        const candidateDistance = distances[neighborIndex] + 1
         if (candidateDistance < minDistance) {
-          minDistance = candidateDistance;
+          minDistance = candidateDistance
         }
       }
 
-      distances[index] = minDistance;
+      distances[index] = minDistance
     }
   }
 
   for (let x = ROOM_SIZE - 1; x >= 0; x--) {
     for (let y = ROOM_SIZE - 1; y >= 0; y--) {
-      const index = toRoomIndex(x, y);
-      let minDistance = distances[index];
+      const index = toRoomIndex(x, y)
+      let minDistance = distances[index]
 
       for (const offset of BACKWARD_OFFSETS) {
-        const neighborX = x + offset.x;
-        const neighborY = y + offset.y;
+        const neighborX = x + offset.x
+        const neighborY = y + offset.y
 
         if (!isInsideRoom(neighborX, neighborY)) {
-          continue;
+          continue
         }
 
-        const neighborIndex = toRoomIndex(neighborX, neighborY);
-        const candidateDistance = distances[neighborIndex] + 1;
+        const neighborIndex = toRoomIndex(neighborX, neighborY)
+        const candidateDistance = distances[neighborIndex] + 1
         if (candidateDistance < minDistance) {
-          minDistance = candidateDistance;
+          minDistance = candidateDistance
         }
       }
 
-      distances[index] = minDistance;
+      distances[index] = minDistance
     }
   }
 
-  return distances;
+  return distances
 }

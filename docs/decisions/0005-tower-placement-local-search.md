@@ -108,11 +108,11 @@ A pair replacement neighborhood already includes single-tower moves whenever one
 
 A follow-up comparison on 400 evenly sampled controller rooms from the shardSeason snapshot produced 301 successful base plans and compared three refinements from the same global greedy seed:
 
-| Refinement | Exact MILP | Mean gap | Max gap | Mean local time | Worst local time |
-| --- | ---: | ---: | ---: | ---: | ---: |
-| pair sweep x2 | **283 / 301** | **2.59 DPS** | 210 DPS | 14.72 ms | 100.01 ms |
-| single convergence + pair sweep x2 | 282 / 301 | 2.69 DPS | 210 DPS | **14.67 ms** | **98.51 ms** |
-| pair sweeps to convergence | 284 / 301 | 2.49 DPS | 210 DPS | 17.30 ms | 197.86 ms |
+| Refinement                         |    Exact MILP |     Mean gap | Max gap | Mean local time | Worst local time |
+| ---------------------------------- | ------------: | -----------: | ------: | --------------: | ---------------: |
+| pair sweep x2                      | **283 / 301** | **2.59 DPS** | 210 DPS |        14.72 ms |        100.01 ms |
+| single convergence + pair sweep x2 |     282 / 301 |     2.69 DPS | 210 DPS |    **14.67 ms** |     **98.51 ms** |
+| pair sweeps to convergence         |     284 / 301 |     2.49 DPS | 210 DPS |        17.30 ms |        197.86 ms |
 
 The separate single stage provided no quality advantage and no meaningful runtime advantage. It was therefore removed.
 

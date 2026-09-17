@@ -32,3 +32,4 @@ Date: YYYY-MM-DD
 - [0005: Tower placement by greedy seed and local pair search](0005-tower-placement-local-search.md)
 - [0006: Storage, persistence, and bot options](0006-storage-persistence-and-bot-options.md)
 - [0007: Runtime cache ownership and registry](0007-runtime-cache-ownership-and-registry.md)
+- [0008: Movement navigation and traffic](0008-movement-navigation-and-traffic.md)

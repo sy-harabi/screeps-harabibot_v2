@@ -86,8 +86,8 @@ A lab candidate is a buildable, unreserved tile at range `1` from at least one r
 
 ```ts
 interface LabCandidate {
-  readonly coordinate: RoomCoordinate;
-  readonly serviceDistance: number;
+  readonly coordinate: RoomCoordinate
+  readonly serviceDistance: number
 }
 ```
 
@@ -273,9 +273,9 @@ No weighted score is used for compactness, symmetry, branch shape, average dista
 
 ```ts
 export interface LabPlan {
-  readonly inputLabs: [RoomCoordinate, RoomCoordinate];
-  readonly outputLabs: RoomCoordinate[];
-  readonly serviceRoads: RoomCoordinate[];
+  readonly inputLabs: [RoomCoordinate, RoomCoordinate]
+  readonly outputLabs: RoomCoordinate[]
+  readonly serviceRoads: RoomCoordinate[]
 }
 ```
 

@@ -1,16 +1,13 @@
-import { requestSpawn } from "../../capabilities/spawning/spawnQueue";
-import { getOperationCreeps, TickContext } from "../../kernel/tickContext";
-import { OwnedSourceOperationRecord } from "./ownedSourceOperation";
+import { requestSpawn } from "../../capabilities/spawning/spawnQueue"
+import { getOperationCreeps, TickContext } from "../../kernel/tickContext"
+import { OwnedSourceOperationRecord } from "./ownedSourceOperation"
 
-export const MINER_ROLE = "miner";
+export const MINER_ROLE = "miner"
 
-export function planMiner(
-  operation: OwnedSourceOperationRecord,
-  context: TickContext,
-): void {
-  const miners = getOperationCreeps(context, operation.id, MINER_ROLE);
+export function planMiner(operation: OwnedSourceOperationRecord, context: TickContext): void {
+  const miners = getOperationCreeps(context, operation.id, MINER_ROLE)
   if (miners.length > 0) {
-    return;
+    return
   }
 
   requestSpawn(
@@ -23,45 +20,37 @@ export function planMiner(
     },
     () => createMinerBody(operation.roomName),
     MINER_ROLE,
-  );
+  )
 }
 
-export function runMiners(
-  operation: OwnedSourceOperationRecord,
-  context: TickContext,
-): void {
-  const miners = getOperationCreeps(context, operation.id, MINER_ROLE);
-  const source = Game.getObjectById(operation.sourceId);
+export function runMiners(operation: OwnedSourceOperationRecord, context: TickContext): void {
+  const miners = getOperationCreeps(context, operation.id, MINER_ROLE)
+  const source = Game.getObjectById(operation.sourceId)
   if (!source) {
-    return;
+    return
   }
 
   for (const miner of miners) {
     if (miner.harvest(source) === ERR_NOT_IN_RANGE) {
-      miner.moveTo(source);
+      miner.moveTo(source)
     }
   }
 }
 
-function createMinerBody(
-  roomName: string,
-): readonly BodyPartConstant[] | undefined {
-  const room = Game.rooms[roomName];
+function createMinerBody(roomName: string): readonly BodyPartConstant[] | undefined {
+  const room = Game.rooms[roomName]
 
   if (!room) {
-    return undefined;
+    return undefined
   }
 
-  const budget = room.energyAvailable;
+  const budget = room.energyAvailable
 
   if (budget < 200) {
-    return undefined;
+    return undefined
   }
 
-  const workCount = Math.min(
-    5,
-    Math.floor((budget - 100) / BODYPART_COST[WORK]),
-  );
+  const workCount = Math.min(5, Math.floor((budget - 100) / BODYPART_COST[WORK]))
 
-  return [...Array<BodyPartConstant>(workCount).fill(WORK), CARRY, MOVE];
+  return [...Array<BodyPartConstant>(workCount).fill(WORK), CARRY, MOVE]
 }
