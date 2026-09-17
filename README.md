@@ -1,10 +1,85 @@
 # HarabiBot v2
 
-A TypeScript rewrite of HarabiBot for [Screeps](https://screeps.com/). The design direction and collaboration rules live in [docs/rewrite-context.md](./docs/rewrite-context.md).
+HarabiBot v2 is an in-progress TypeScript rewrite of HarabiBot for [Screeps](https://screeps.com/).
+
+The rewrite is not a line-by-line port. It is being rebuilt around explicit data flow, hierarchical operations, reusable capabilities, and a clearer separation between persistent state and per-tick runtime state. The design direction and collaboration rules are documented in [docs/rewrite-context.md](./docs/rewrite-context.md).
+
+> **Status:** active development. The current vertical slice reaches owned-source miner spawning and harvesting, but this is not yet a complete autonomous bot.
+
+## Current implementation
+
+Implemented so far:
+
+- Tick orchestration with a `plan -> allocate -> execute` flow.
+- Hierarchical operations: `EmpireOperation -> ColonyOperation -> OwnedSourceOperation`.
+- Persistent operation records in `Memory.operations` with typed handlers.
+- Per-tick `TickContext` indexes for owned rooms and operation creeps.
+- Spawn requests, priority ordering, queueing, and global spawn allocation.
+- The first economy role: owned-source miners can request a body, spawn, and harvest.
+- A runtime base planner with in-game `RoomVisual` output.
+- Base-plan persistence through `RawMemory` segments.
+- Map/planner primitives including distance transform, Dijkstra maps, flood fill, terrain regions, and min-cut.
+- Console options for enabling and disabling base-plan visuals.
+
+The base planner currently covers the core layout, controller/upgrader area, resource endpoints and road tree, labs, structure slots, towers, outer ramparts, rampart access roads, and repair roads. Existing manually placed spawns are respected by the planner.
+
+Still under construction are the dedicated movement capability, haulers, upgrader/scout roles, construction execution, the rest of the economy, remotes, combat, market/logistics, and other late-game systems. The miner currently uses Screeps `moveTo()` as a temporary movement implementation.
+
+## Runtime flow
+
+Each tick currently runs in this order:
+
+```text
+segmentManager.pretick()
+        |
+create TickContext
+        |
+plan operation tree
+        |
+allocate spawns
+        |
+execute operation tree
+        |
+segmentManager.endTick()
+```
+
+Operations own persistent goals and coordination. Capabilities provide reusable mechanisms such as base planning and spawning. World modules provide map-level algorithms and data structures. Temporary indexes and caches belong to the per-tick/runtime layer rather than persistent Memory.
+
+The current operation tree is intentionally small:
+
+```text
+EmpireOperation
+└─ ColonyOperation:<roomName>
+   └─ OwnedSourceOperation:<sourceId>
+      └─ miner role
+```
+
+## Project layout
+
+```text
+src/main.ts                         Screeps tick entry point
+src/kernel/                         Tick context and operation runner
+src/operations/                     Persistent hierarchical goals
+  empire/
+  colony/
+  ownedSource/
+src/capabilities/basePlanning/      Runtime base planner
+src/capabilities/spawning/          Spawn requests, queue, priority, allocator
+src/world/map/                      Map algorithms and room-grid utilities
+src/persistence/                    RawMemory segment lifecycle
+src/runtime/                        Runtime-only registries/caches
+src/options/                        Bot option definitions
+src/console/                        Screeps console API
+src/visuals/                        RoomVisual helpers
+docs/decisions/                     Architecture/design decision records
+docs/rewrite-log/                   Rewrite and experiment notes
+experiment/                         Standalone research/visualization experiments
+dist/                               Generated bundle; not committed
+```
 
 ## Requirements
 
-- Node.js 24 (the tested version is in `.node-version`)
+- Node.js 24 (`.node-version` contains the tested version)
 - npm 11 or newer
 - VS Code is optional; repository settings and extension recommendations are included
 
@@ -17,38 +92,62 @@ npm run check
 
 Useful commands:
 
-- `npm run typecheck` checks TypeScript without producing files.
-- `npm run build` bundles `src/main.ts` as `dist/main.js` for Screeps.
-- `npm run push-private` builds and uploads once to your private server.
-- `npm run format:write` formats supported files.
-
-## Project layout
-
-```text
-src/main.ts       Screeps tick entry point
-dist/             Generated Screeps bundle (not committed)
-```
-
-The architecture brief suggests `kernel`, `operations`, `capabilities`, `world`, and `infrastructure` as concepts. Add those directories only as implementation gives them real responsibilities.
+- `npm run typecheck` — check TypeScript without emitting files.
+- `npm run build` — bundle `src/main.ts` as `dist/main.js`.
+- `npm run check` — run type checking, production build, and formatting checks.
+- `npm run format:write` — format supported files.
+- `npm run push-private` — build and upload once to the configured private server.
 
 ## Upload to a private server
 
-Create your local deployment configuration:
+Copy the included sample configuration:
 
 ```powershell
 Copy-Item screeps.sample.json screeps.json
 ```
 
-Edit `screeps.json` with your server hostname, port, branch, and credentials. The sample uses username/password authentication. If your server uses `screepsmod-auth` tokens, remove `email` and `password` and add `"token": "your-token"` instead.
+Or on a POSIX shell:
 
-Upload with one command:
+```sh
+cp screeps.sample.json screeps.json
+```
+
+Edit the `private` entry in `screeps.json` with your server hostname, port, and credentials. The included sample uses username/password authentication. If the server uses `screepsmod-auth` tokens, replace `email` and `password` with:
+
+```json
+"token": "YOUR_TOKEN"
+```
+
+Then upload:
 
 ```sh
 npm run push-private
 ```
 
-`screeps.json` is ignored by Git. Never commit passwords or tokens. `npm run build` only creates the local bundle and does not connect to any server. The upload command targets the `default` Screeps code branch; change `--branch default` in `package.json` if your private server uses another branch.
+`push-private` selects the `private` server entry and uploads `dist/main.js` to the Screeps `default` code branch. `screeps.json` is ignored by Git; never commit real passwords or tokens.
+
+## Screeps console
+
+The bot exposes a small console API:
+
+```js
+bot.help()
+bot.options.show()
+bot.options.setBasePlanVisual(true)
+bot.options.setBasePlanVisual(false)
+bot.options.clearBasePlanVisual()
+```
+
+Base-plan visuals are disabled by default.
+
+## Design notes
+
+Start with these documents when reading the rewrite:
+
+- [Rewrite context](./docs/rewrite-context.md) — overall direction and current architecture rules.
+- [Design decisions](./docs/decisions/README.md) — planner, persistence, runtime, and other architectural decisions.
+- [Rewrite log](./docs/rewrite-log/README.md) — chronological development and experiment notes.
 
 ## Verification
 
-`npm run check` verifies TypeScript, the production bundle, and formatting. Gameplay behavior is validated on the private server. Introduce targeted verification for complex or high-risk algorithms only when it provides concrete value; the baseline project does not require a unit-test framework.
+`npm run check` verifies TypeScript, the production bundle, and formatting. Gameplay behavior is validated in Screeps. Targeted tests or experiments are added for algorithms where they provide concrete value; the project does not currently require a general-purpose unit-test framework.

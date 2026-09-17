@@ -1,7 +1,6 @@
 import { createColonyOperation } from "../colony/colonyOperation";
-import { OperationBase } from "../operation";
+import { ensureOperation, OperationBase } from "../operation";
 import type { OperationHandler } from "../operationHandler";
-import { ensureOperation } from "../operationStore";
 
 export const empireOperationId = "empire";
 

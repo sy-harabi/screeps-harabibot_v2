@@ -2,9 +2,9 @@ import { BasePlan } from "../../capabilities/basePlanning/basePlan";
 import { basePlanStore } from "../../capabilities/basePlanning/basePlanStore";
 import { planBase } from "../../capabilities/basePlanning/planBase";
 import type { EmpireOperationRecord } from "../empire/empireOperation";
-import { OperationBase } from "../operation";
+import { ensureOperation, OperationBase } from "../operation";
 import type { OperationHandler } from "../operationHandler";
-import { ensureOperation } from "../operationStore";
+
 import { createOwnedSourceOperation } from "../ownedSource/ownedSourceOperation";
 
 export interface ColonyOperationRecord extends OperationBase {

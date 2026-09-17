@@ -4,7 +4,7 @@ import {
   planOperationTree,
 } from "./kernel/operationRunner";
 import { createEmpireOperation } from "./operations/empire/empireOperation";
-import { ensureOperation } from "./operations/operationStore";
+import { ensureOperation } from "./operations/operation";
 import "./visuals/roomVisual";
 import "./console/consoleApi";
 import { segmentManager } from "./persistence/segmentManager";
