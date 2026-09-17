@@ -6,6 +6,8 @@ import "./visuals/roomVisual"
 import "./console/consoleApi"
 import { segmentManager } from "./persistence/segmentManager"
 import { allocateSpawns } from "./capabilities/spawning/spawnAllocator"
+import { runTraffic } from "./capabilities/movement/traffic"
+import { getRoomCostMatrix } from "./world/navigation/roomCostMatrix"
 
 export function loop(): void {
   segmentManager.pretick()
@@ -18,6 +20,10 @@ export function loop(): void {
   allocateSpawns()
 
   executeOperationTree(rootOperation, context)
+
+  for (const room of Object.values(Game.rooms)) {
+    runTraffic(room, () => getRoomCostMatrix(room.name))
+  }
 
   segmentManager.endTick()
 }
