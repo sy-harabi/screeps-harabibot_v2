@@ -44,6 +44,13 @@ export function registerMove(
   ;(creep.room as TrafficRoom)._runTrafficManager = true
 }
 
+export function clearMoveRequest(creep: Creep | PowerCreep): void {
+  const trafficCreep = creep as TrafficCreep
+
+  delete trafficCreep._intendedPackedCoord
+  delete trafficCreep._movePriority
+}
+
 export function setWorkingArea(creep: Creep | PowerCreep, pos: RoomPosition, range: number): void {
   const trafficCreep = creep as TrafficCreep
 
@@ -51,13 +58,13 @@ export function setWorkingArea(creep: Creep | PowerCreep, pos: RoomPosition, ran
   trafficCreep._workingRange = range
 }
 
-export function getIntendedCoordinate(creep: Creep | PowerCreep): Coordinate | undefined {
+export function getIntendedCoord(creep: Creep | PowerCreep): Coordinate | undefined {
   const packedCoordinate = getIntendedPackedCoordinate(creep as TrafficCreep)
 
   return packedCoordinate === undefined ? undefined : unpackCoordinate(packedCoordinate)
 }
 
-export function runTraffic(room: Room, costProvider?: CostProvider, movementCostThreshold = 255): void {
+export function run(room: Room, costProvider?: CostProvider, movementCostThreshold = 255): void {
   if (!(room as TrafficRoom)._runTrafficManager) {
     return
   }
@@ -102,9 +109,7 @@ export function runTraffic(room: Room, costProvider?: CostProvider, movementCost
     }
     deleteMatchedPackedCoordinate(creep)
 
-    if (
-      depthFirstSearch(creep, 0, terrain, costs, movementCostThreshold, movementMap, visitedCreeps) > 0
-    ) {
+    if (depthFirstSearch(creep, 0, terrain, costs, movementCostThreshold, movementMap, visitedCreeps) > 0) {
       continue
     }
 
@@ -144,19 +149,18 @@ function depthFirstSearch(
 
   for (const coordinate of [...emptyTiles, ...occupiedTiles]) {
     const packedCoordinate = packCoordinate(coordinate)
-    let nextScore = score
 
     if (getIntendedPackedCoordinate(creep) === packedCoordinate) {
-      nextScore += getMovePriority(creep)
+      score += getMovePriority(creep)
     }
 
     const occupyingCreep = movementMap.get(packedCoordinate)
 
     if (occupyingCreep === undefined) {
-      if (nextScore > 0) {
+      if (score > 0) {
         assignCreepToCoordinate(creep, coordinate, movementMap)
       }
-      return nextScore
+      return score
     }
 
     if (visitedCreeps.has(occupyingCreep.name)) {
@@ -164,12 +168,12 @@ function depthFirstSearch(
     }
 
     if (getIntendedPackedCoordinate(occupyingCreep) === packedCoordinate) {
-      nextScore -= getMovePriority(occupyingCreep)
+      score -= getMovePriority(occupyingCreep)
     }
 
     const result = depthFirstSearch(
       occupyingCreep,
-      nextScore,
+      score,
       terrain,
       costs,
       movementCostThreshold,
