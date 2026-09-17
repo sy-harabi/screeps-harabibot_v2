@@ -46,4 +46,5 @@ function prepareTemp(): void {
 
 export function clearOperationRuntime(operationId: string): void {
   operationHeap.delete(operationId);
+  operationTemp.delete(operationId);
 }
