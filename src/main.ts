@@ -6,7 +6,7 @@ import "./visuals/roomVisual"
 import "./console/consoleApi"
 import { segmentManager } from "./persistence/segmentManager"
 import { allocateSpawns } from "./capabilities/spawning/spawnAllocator"
-import { runTraffic } from "./capabilities/movement/traffic"
+import { run as runTraffic } from "./capabilities/movement/traffic"
 import { getRoomCostMatrix } from "./world/navigation/roomCostMatrix"
 
 export function loop(): void {
