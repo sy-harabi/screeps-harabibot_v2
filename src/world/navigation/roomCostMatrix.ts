@@ -12,6 +12,10 @@ interface RoomCostMatrixCacheEntry {
   signature: RoomCostMatrixSignature;
 }
 
+const obstacleStructureTypes = new Set<StructureConstant>(
+  OBSTACLE_OBJECT_TYPES,
+);
+
 const cache = runtimeRegistry.createCache<string, RoomCostMatrixCacheEntry>(
   "roomCostMatrix",
 );
@@ -75,7 +79,7 @@ function buildRoomCostMatrix(
   }
 
   for (const site of constructionSites) {
-    if (OBSTACLE_OBJECT_TYPES.includes(site.structureType)) {
+    if (obstacleStructureTypes.has(site.structureType)) {
       matrix.set(site.pos.x, site.pos.y, 255);
     }
   }
@@ -97,7 +101,7 @@ function isBlockingStructure(structure: Structure): boolean {
     return !structure.my && !structure.isPublic;
   }
 
-  return OBSTACLE_OBJECT_TYPES.includes(structure.structureType);
+  return obstacleStructureTypes.has(structure.structureType);
 }
 
 function signaturesEqual(
@@ -118,9 +122,15 @@ function createSignature(
 ): RoomCostMatrixSignature {
   return {
     structureCount: structures.length,
-    lastStructureId: structures.at(-1)?.id,
+    lastStructureId:
+      structures.length > 0
+        ? structures[structures.length - 1].id
+        : undefined,
     constructionSiteCount: constructionSites.length,
-    lastConstructionSiteId: constructionSites.at(-1)?.id,
+    lastConstructionSiteId:
+      constructionSites.length > 0
+        ? constructionSites[constructionSites.length - 1].id
+        : undefined,
   };
 }
 
