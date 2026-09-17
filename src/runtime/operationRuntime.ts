@@ -1,6 +1,10 @@
 // operationRuntime.ts
 
-const operationHeap = new Map<string, unknown>();
+import { runtimeRegistry } from "./runtimeRegistry";
+
+const operationHeap = runtimeRegistry.createCache<string, unknown>(
+  "operationHeap",
+);
 
 let tempTick = -1;
 const operationTemp = new Map<string, unknown>();
@@ -42,5 +46,4 @@ function prepareTemp(): void {
 
 export function clearOperationRuntime(operationId: string): void {
   operationHeap.delete(operationId);
-  operationTemp.delete(operationId);
 }

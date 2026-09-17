@@ -1,5 +1,5 @@
 import { segmentManager } from "../../persistence/segmentManager";
-import { runtimeRegistry } from "../../runtime/runtimeRegisty";
+import { runtimeRegistry } from "../../runtime/runtimeRegistry";
 import { BasePlan } from "./basePlan";
 import { packBasePlan, PackedBasePlan, unpackBasePlan } from "./basePlanCodec";
 

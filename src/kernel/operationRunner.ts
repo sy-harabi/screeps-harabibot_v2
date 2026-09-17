@@ -1,7 +1,9 @@
 import { colonyOperationHandler } from "../operations/colony/colonyOperation";
 import { empireOperationHandler } from "../operations/empire/empireOperation";
-import type { OperationRecord } from "../operations/operation";
-import { getChildOperations } from "../operations/operationStore";
+import {
+  getChildOperations,
+  type OperationRecord,
+} from "../operations/operation";
 import { ownedSourceOperationHandler } from "../operations/ownedSource/ownedSourceOperation";
 import type { TickContext } from "./tickContext";
 
