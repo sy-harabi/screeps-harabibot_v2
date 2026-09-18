@@ -20,6 +20,7 @@ interface RouteEntry {
 }
 
 interface FindPathOptions {
+  useRoomRoute?: boolean
   maxRoomHops?: number
   getRoomCost?: (roomName: string) => number
   shouldExpand?: (roomName: string) => boolean
@@ -123,24 +124,32 @@ export function findPath(
   goals: MoveGoals,
   options: FindPathOptions = {},
 ): readonly RoomPosition[] | undefined {
+  const { useRoomRoute = true } = options
+
   const normalizedGoals = Array.isArray(goals) ? goals : [goals]
 
-  const destinationRoomName = normalizedGoals[0].pos.roomName
+  let route: readonly string[] | undefined
 
-  const route = findRoute(origin.roomName, destinationRoomName, options)
+  if (useRoomRoute) {
+    const destinationRoomName = normalizedGoals[0].pos.roomName
 
-  if (!route) {
-    return
+    if (normalizedGoals.every((goal) => goal.pos.roomName === destinationRoomName)) {
+      route = findRoute(origin.roomName, destinationRoomName, options)
+
+      if (route === undefined) {
+        return
+      }
+    }
   }
 
-  const allowedRooms = new Set(route)
+  const allowedRooms = route ? new Set(route) : undefined
 
   const result = PathFinder.search(origin, goals, {
-    maxRooms: allowedRooms.size,
+    maxRooms: allowedRooms?.size,
     plainCost: 2,
     swampCost: 10,
     roomCallback: (roomName: string) => {
-      if (!allowedRooms.has(roomName)) {
+      if (allowedRooms && !allowedRooms.has(roomName)) {
         return false
       }
 
