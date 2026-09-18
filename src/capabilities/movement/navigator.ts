@@ -1,6 +1,6 @@
 import { PriorityQueue } from "../../utils/priorityQueue"
 import { getAdjacentRooms, getRoomManhattanDistance } from "../../world/map/roomTopology"
-import { getRoomCostMatrix } from "../../world/navigation/roomCostMatrix"
+import { getRoomCostMatrix } from "./roomCostMatrix"
 
 export interface MoveGoal {
   pos: RoomPosition
@@ -34,11 +34,9 @@ export function findRoute(
 
   const queue = new PriorityQueue<RouteEntry>()
   const costs = new Map<string, number>()
-  const distances = new Map<string, number>()
   const previousRooms = new Map<string, string>()
 
   costs.set(originRoomName, 0)
-  distances.set(originRoomName, 0)
 
   const initialHeuristic = getRoomManhattanDistance(originRoomName, destinationRoomName)
 
@@ -56,16 +54,20 @@ export function findRoute(
 
     if (currentRoomName === destinationRoomName) {
       const reverseRoute = [destinationRoomName]
-
       let roomName = destinationRoomName
 
-      while (true) {
+      while (roomName !== originRoomName) {
         const previousRoomName = previousRooms.get(roomName)
-        if (!previousRoomName) {
-          return reverseRoute.reverse()
+
+        if (previousRoomName === undefined) {
+          return
         }
+
         reverseRoute.push(previousRoomName)
+        roomName = previousRoomName
       }
+
+      return reverseRoute.reverse()
     }
 
     const currentDistance = currentEntry.distance
@@ -86,19 +88,20 @@ export function findRoute(
 
     for (const adjacentRoomName of getAdjacentRooms(currentRoomName)) {
       const nextCost = currentCost + (getRoomCost ? getRoomCost(adjacentRoomName) : 1)
-      const bestCost = costs.get(adjacentRoomName)!
+      const bestCost = costs.get(adjacentRoomName)
 
-      if (bestCost <= nextCost) {
+      if (bestCost !== undefined && bestCost <= nextCost) {
         continue
       }
 
+      const nextDistance = currentDistance + 1
+
       costs.set(adjacentRoomName, nextCost)
-      distances.set(adjacentRoomName, currentDistance + 1)
       previousRooms.set(adjacentRoomName, currentRoomName)
 
       const heuristic = getRoomManhattanDistance(adjacentRoomName, destinationRoomName)
 
-      queue.push({ roomName: adjacentRoomName, cost: nextCost, distance: currentDistance + 1 }, nextCost + heuristic)
+      queue.push({ roomName: adjacentRoomName, cost: nextCost, distance: nextDistance }, nextCost + heuristic)
     }
   }
 

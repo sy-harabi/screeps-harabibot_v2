@@ -1,5 +1,5 @@
 import { runtimeRegistry } from "../../runtime/runtimeRegistry"
-import { getRoomStructures } from "../roomStructures"
+import { getRoomStructures } from "../../world/roomStructures"
 
 interface RoomCostMatrixSignature {
   structureCount: number

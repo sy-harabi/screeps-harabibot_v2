@@ -7,7 +7,7 @@ import "./console/consoleApi"
 import { segmentManager } from "./persistence/segmentManager"
 import { allocateSpawns } from "./capabilities/spawning/spawnAllocator"
 import { run as runTraffic } from "./capabilities/movement/traffic"
-import { getRoomCostMatrix } from "./world/navigation/roomCostMatrix"
+import { getRoomCostMatrix } from "./capabilities/movement/roomCostMatrix"
 
 export function loop(): void {
   segmentManager.pretick()
