@@ -51,7 +51,11 @@ export function moveCreep(creep: Creep, goals: MoveGoal | readonly MoveGoal[], o
   runtime.lastObservedPosition = creep.pos
 
   if (reconcileResult !== "valid") {
-    const path = findPath(creep.pos, normalizedGoals, options)
+    const blockedPos = reconcileResult === "stuck" ? getNextMovePosition(creep) : undefined
+    const path =
+      blockedPos === undefined
+        ? findPath(creep.pos, normalizedGoals, options)
+        : findPath(creep.pos, normalizedGoals, { ...options, avoidPosition: blockedPos })
 
     if (path === undefined) {
       if (reconcileResult === "stuck") {
