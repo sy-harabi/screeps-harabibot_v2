@@ -33,19 +33,13 @@ interface SearchEntry {
 }
 
 const DEFAULT_MAX_DISTANCE = 16
-const DEFAULT_MAX_VISITED_ROOMS = 100
 
 export function searchRooms(
   originRoomName: string,
   isTarget: (roomName: string) => boolean,
   options: SearchRoomsOptions = {},
 ): SearchRoomsResult {
-  const {
-    maxDistance = DEFAULT_MAX_DISTANCE,
-    maxVisitedRooms = DEFAULT_MAX_VISITED_ROOMS,
-    getRoomCost,
-    shouldExpand,
-  } = options
+  const { maxDistance = DEFAULT_MAX_DISTANCE, maxVisitedRooms, getRoomCost, shouldExpand } = options
 
   const targetRoomNames = []
   const costs = new Map<string, number>()
@@ -59,7 +53,7 @@ export function searchRooms(
 
   let visitedRoomCount = 0
 
-  while (queue.size > 0) {
+  while (queue.size > 0 && (maxVisitedRooms === undefined || visitedRoomCount < maxVisitedRooms)) {
     const currentEntry = queue.pop()!
     const currentRoomName = currentEntry.roomName
     const currentCost = currentEntry.cost
@@ -67,10 +61,6 @@ export function searchRooms(
 
     if (costs.get(currentRoomName) !== currentCost) {
       continue
-    }
-
-    if (visitedRoomCount >= maxVisitedRooms) {
-      break
     }
 
     visitedRoomCount++
