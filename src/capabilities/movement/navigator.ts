@@ -19,7 +19,13 @@ interface RouteEntry {
   distance: number
 }
 
-const DEFAULT_MAX_DISTANCE = 16
+interface FindPathOptions {
+  maxDistance?: number
+  getRoomCost?: (roomName: string) => number
+  shouldExpand?: (roomName: string) => boolean
+}
+
+const DEFAULT_MAX_ROOM_DISTANCE = 16
 
 export function findRoute(
   originRoomName: string,
@@ -30,7 +36,7 @@ export function findRoute(
     return [originRoomName]
   }
 
-  const { maxDistance = DEFAULT_MAX_DISTANCE, getRoomCost, shouldExpand } = options
+  const { maxDistance = DEFAULT_MAX_ROOM_DISTANCE, getRoomCost, shouldExpand } = options
 
   const queue = new PriorityQueue<RouteEntry>()
   const costs = new Map<string, number>()
@@ -112,12 +118,34 @@ type MoveGoals = MoveGoal | MoveGoal[]
 
 export type MoveStatus = "arrived" | "pending" | "failed"
 
-export function findPath(origin: RoomPosition, goals: MoveGoals): readonly RoomPosition[] | undefined {
+export function findPath(
+  origin: RoomPosition,
+  goals: MoveGoals,
+  options: FindPathOptions = {},
+): readonly RoomPosition[] | undefined {
+  const normalizedGoals = Array.isArray(goals) ? goals : [goals]
+
+  const destinationRoomName = normalizedGoals[0].pos.roomName
+
+  const route = findRoute(origin.roomName, destinationRoomName, options)
+
+  if (!route) {
+    return
+  }
+
+  const allowedRooms = new Set(route)
+
   const result = PathFinder.search(origin, goals, {
-    maxRooms: 1,
+    maxRooms: allowedRooms.size,
     plainCost: 2,
     swampCost: 10,
-    roomCallback: (roomName: string) => getRoomCostMatrix(roomName) || true,
+    roomCallback: (roomName: string) => {
+      if (!allowedRooms.has(roomName)) {
+        return false
+      }
+
+      return getRoomCostMatrix(roomName) ?? true
+    },
   })
 
   if (result.incomplete) {
