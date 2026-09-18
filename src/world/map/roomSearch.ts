@@ -1,57 +1,53 @@
 import { getAdjacentRooms } from "./roomTopology"
 
 interface FloodRoomsOptions {
-  maxDepth: number
-  canExpand?: (roomName: string) => boolean
+  maxDistance?: number
+  shouldExpand?: (roomName: string) => boolean
 }
 
 interface FloodRoomsResult {
-  distance: Map<string, number>
-  previous: Map<string, string>
-  rooms: string[]
+  distances: Map<string, number>
+  previousRooms: Map<string, string>
+  roomNames: string[]
 }
 
-const DEFAULT_MAX_DEPTH = 16
+const DEFAULT_MAX_DISTANCE = 16
 
-export function floodRooms(
-  origin: string,
-  options: FloodRoomsOptions = { maxDepth: DEFAULT_MAX_DEPTH },
-): FloodRoomsResult {
-  const maxDepth = options.maxDepth
+export function floodRooms(origin: string, options: FloodRoomsOptions = {}): FloodRoomsResult {
+  const maxDistance = options.maxDistance ?? DEFAULT_MAX_DISTANCE
 
-  const distance = new Map<string, number>()
-  const previous = new Map<string, string>()
-  const rooms: string[] = [origin]
+  const distances = new Map<string, number>()
+  const previousRooms = new Map<string, string>()
+  const roomNames: string[] = [origin]
 
   const queue = [origin]
-  distance.set(origin, 0)
+  distances.set(origin, 0)
 
   let head = 0
 
   while (head < queue.length) {
-    const current = queue[head]
+    const currentRoomName = queue[head]
     head++
+    const currentDistance = distances.get(currentRoomName)!
 
-    const currentDistance = distance.get(current)!
-
-    if (currentDistance >= maxDepth) {
+    if (currentDistance >= maxDistance) {
       continue
     }
 
-    for (const adjacentRoomName of getAdjacentRooms(current)) {
-      if (distance.get(adjacentRoomName) !== undefined) {
+    for (const adjacentRoomName of getAdjacentRooms(currentRoomName)) {
+      if (distances.has(adjacentRoomName)) {
         continue
       }
 
-      distance.set(adjacentRoomName, currentDistance + 1)
-      previous.set(adjacentRoomName, current)
-      rooms.push(adjacentRoomName)
+      distances.set(adjacentRoomName, currentDistance + 1)
+      previousRooms.set(adjacentRoomName, currentRoomName)
+      roomNames.push(adjacentRoomName)
 
-      if (!options.canExpand || options.canExpand(adjacentRoomName)) {
+      if (!options.shouldExpand || options.shouldExpand(adjacentRoomName)) {
         queue.push(adjacentRoomName)
       }
     }
   }
 
-  return { distance, previous, rooms }
+  return { distances, previousRooms, roomNames }
 }

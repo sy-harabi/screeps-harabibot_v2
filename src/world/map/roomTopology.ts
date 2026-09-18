@@ -4,9 +4,9 @@ const adjacentRoomCache = new Map<string, readonly string[]>()
 
 export type RoomType = "highway" | "normal" | "center" | "keeper"
 
-export function getRoomManhattanDistance(from: string, to: string): number {
-  const fromCoordinate = parseRoomName(from)
-  const toCoordinate = parseRoomName(to)
+export function getRoomManhattanDistance(fromRoomName: string, toRoomName: string): number {
+  const fromCoordinate = parseRoomName(fromRoomName)
+  const toCoordinate = parseRoomName(toRoomName)
 
   return Math.abs(fromCoordinate.x - toCoordinate.x) + Math.abs(fromCoordinate.y - toCoordinate.y)
 }
@@ -23,11 +23,11 @@ export function getAdjacentRooms(roomName: string): readonly string[] {
     return []
   }
 
-  const result: string[] = Object.values(exits)
+  const adjacentRooms = Object.values(exits)
 
-  adjacentRoomCache.set(roomName, result)
+  adjacentRoomCache.set(roomName, adjacentRooms)
 
-  return result
+  return adjacentRooms
 }
 
 export function getRoomType(roomName: string): RoomType {
