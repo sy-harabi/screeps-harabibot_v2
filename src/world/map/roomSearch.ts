@@ -96,15 +96,15 @@ export function searchRooms(
   return { targetRoomNames, costs, distances, previousRooms }
 }
 
-export function floodRooms(origin: string, options: FloodRoomsOptions = {}): FloodRoomsResult {
+export function floodRooms(originRoomName: string, options: FloodRoomsOptions = {}): FloodRoomsResult {
   const { maxDistance = DEFAULT_MAX_DISTANCE, shouldExpand } = options
 
   const distances = new Map<string, number>()
   const previousRooms = new Map<string, string>()
-  const roomNames: string[] = [origin]
+  const roomNames: string[] = [originRoomName]
 
-  const queue = [origin]
-  distances.set(origin, 0)
+  const queue = [originRoomName]
+  distances.set(originRoomName, 0)
 
   let head = 0
 
