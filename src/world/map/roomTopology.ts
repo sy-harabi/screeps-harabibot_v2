@@ -23,7 +23,7 @@ export function getAdjacentRooms(roomName: string): readonly string[] {
     return []
   }
 
-  const result: string[] = exits ? Object.values(exits) : []
+  const result: string[] = Object.values(exits)
 
   adjacentRoomCache.set(roomName, result)
 

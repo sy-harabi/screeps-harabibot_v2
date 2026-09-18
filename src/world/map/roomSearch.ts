@@ -2,7 +2,7 @@ import { getAdjacentRooms } from "./roomTopology"
 
 interface FloodRoomsOptions {
   maxDepth: number
-  canExpand?: (roomName: string, fromRoomName: string) => boolean
+  canExpand?: (roomName: string) => boolean
 }
 
 interface FloodRoomsResult {
@@ -32,7 +32,7 @@ export function floodRooms(
     const current = queue[head]
     head++
 
-    const currentDistance = distance.get(current) || 0
+    const currentDistance = distance.get(current)!
 
     if (currentDistance >= maxDepth) {
       continue
@@ -45,8 +45,11 @@ export function floodRooms(
 
       distance.set(adjacentRoomName, currentDistance + 1)
       previous.set(adjacentRoomName, current)
+      rooms.push(adjacentRoomName)
 
-      queue.push(adjacentRoomName)
+      if (!options.canExpand || options.canExpand(adjacentRoomName)) {
+        queue.push(adjacentRoomName)
+      }
     }
   }
 
