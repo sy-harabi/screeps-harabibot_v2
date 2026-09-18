@@ -15,8 +15,6 @@ interface FloodRoomsResult {
 interface SearchRoomsOptions {
   maxDistance?: number
   maxVisitedRooms?: number
-
-  isTarget: (roomName: string) => boolean
   getRoomCost?: (roomName: string) => number
   shouldExpand?: (roomName: string) => boolean
 }
@@ -37,11 +35,14 @@ interface SearchEntry {
 const DEFAULT_MAX_DISTANCE = 16
 const DEFAULT_MAX_VISITED_ROOMS = 100
 
-export function searchRooms(originRoomName: string, options: SearchRoomsOptions): SearchRoomsResult {
+export function searchRooms(
+  originRoomName: string,
+  isTarget: (roomName: string) => boolean,
+  options: SearchRoomsOptions = {},
+): SearchRoomsResult {
   const {
     maxDistance = DEFAULT_MAX_DISTANCE,
     maxVisitedRooms = DEFAULT_MAX_VISITED_ROOMS,
-    isTarget,
     getRoomCost,
     shouldExpand,
   } = options
@@ -68,15 +69,15 @@ export function searchRooms(originRoomName: string, options: SearchRoomsOptions)
       continue
     }
 
-    if (isTarget(currentRoomName)) {
-      targetRoomNames.push(currentRoomName)
-    }
-
     if (visitedRoomCount >= maxVisitedRooms) {
       break
     }
 
     visitedRoomCount++
+
+    if (isTarget(currentRoomName)) {
+      targetRoomNames.push(currentRoomName)
+    }
 
     if (currentDistance >= maxDistance) {
       continue
@@ -88,9 +89,9 @@ export function searchRooms(originRoomName: string, options: SearchRoomsOptions)
 
     for (const adjacentRoomName of getAdjacentRooms(currentRoomName)) {
       const nextCost = currentCost + (getRoomCost ? getRoomCost(adjacentRoomName) : 1)
-      const previousCost = costs.get(adjacentRoomName)
+      const bestCost = costs.get(adjacentRoomName)
 
-      if (previousCost !== undefined && previousCost <= nextCost) {
+      if (bestCost !== undefined && bestCost <= nextCost) {
         continue
       }
 
@@ -105,8 +106,8 @@ export function searchRooms(originRoomName: string, options: SearchRoomsOptions)
   return { targetRoomNames, costs, distances, previousRooms }
 }
 
-export function floodRooms(origin: string, options: FloodRoomsOptions): FloodRoomsResult {
-  const maxDistance = options?.maxDistance ?? DEFAULT_MAX_DISTANCE
+export function floodRooms(origin: string, options: FloodRoomsOptions = {}): FloodRoomsResult {
+  const { maxDistance = DEFAULT_MAX_DISTANCE, shouldExpand } = options
 
   const distances = new Map<string, number>()
   const previousRooms = new Map<string, string>()
@@ -126,6 +127,10 @@ export function floodRooms(origin: string, options: FloodRoomsOptions): FloodRoo
       continue
     }
 
+    if (shouldExpand && !shouldExpand(currentRoomName)) {
+      continue
+    }
+
     for (const adjacentRoomName of getAdjacentRooms(currentRoomName)) {
       if (distances.has(adjacentRoomName)) {
         continue
@@ -135,9 +140,7 @@ export function floodRooms(origin: string, options: FloodRoomsOptions): FloodRoo
       previousRooms.set(adjacentRoomName, currentRoomName)
       roomNames.push(adjacentRoomName)
 
-      if (!options.shouldExpand || options.shouldExpand(adjacentRoomName)) {
-        queue.push(adjacentRoomName)
-      }
+      queue.push(adjacentRoomName)
     }
   }
 
