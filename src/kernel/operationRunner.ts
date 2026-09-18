@@ -37,7 +37,7 @@ function executeOperation(operation: OperationRecord, context: TickContext): voi
 }
 
 function assertUnreachable(operation: never): never {
-  throw new Error("Unknown operation type")
+  throw new Error(`Unknown operation type: ${operation}`)
 }
 
 export function planOperationTree(operation: OperationRecord, context: TickContext): void {

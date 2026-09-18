@@ -92,11 +92,7 @@ export function getNextMovePosition(creep: Creep): RoomPosition | undefined {
   return path[nextIndex]
 }
 
-function reconcilePath(
-  creep: Creep,
-  runtime: MovementRuntime,
-  normalizedGoals: MoveGoal[],
-): PathReconcileResult {
+function reconcilePath(creep: Creep, runtime: MovementRuntime, normalizedGoals: MoveGoal[]): PathReconcileResult {
   const path = runtime.cachedPath
   const nextIndex = runtime.nextPathIndex
 
