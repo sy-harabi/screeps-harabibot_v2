@@ -21,9 +21,14 @@ interface RouteEntry {
 
 interface FindPathOptions {
   useRoomRoute?: boolean
+
+  // findRoute options
   maxRoomHops?: number
   getRoomCost?: (roomName: string) => number
   shouldExpand?: (roomName: string) => boolean
+
+  // PathFinder options
+  maxRooms?: number
 }
 
 const DEFAULT_MAX_ROOM_HOPS = 16
@@ -142,10 +147,10 @@ export function findPath(
     }
   }
 
-  const allowedRooms = route ? new Set(route) : undefined
+  const allowedRooms = route ? buildCorridor(route) : undefined
 
   const result = PathFinder.search(origin, goals, {
-    maxRooms: allowedRooms?.size,
+    maxRooms: allowedRooms?.size ?? options.maxRooms,
     plainCost: 2,
     swampCost: 10,
     roomCallback: (roomName: string) => {
@@ -162,4 +167,26 @@ export function findPath(
   }
 
   return result.path
+}
+
+function buildCorridor(route: readonly string[]): Set<string> {
+  const corriror = new Set(route)
+
+  for (let i = 1; i < route.length - 1; i++) {
+    const previousRoomName = route[i - 1]
+    const currentRoomName = route[i]
+    const nextRoomName = route[i + 1]
+
+    for (const adjacentRoomName of getAdjacentRooms(previousRoomName)) {
+      if (adjacentRoomName === currentRoomName) {
+        continue
+      }
+
+      if (getAdjacentRooms(nextRoomName).includes(adjacentRoomName)) {
+        corriror.add(adjacentRoomName)
+      }
+    }
+  }
+
+  return corriror
 }
