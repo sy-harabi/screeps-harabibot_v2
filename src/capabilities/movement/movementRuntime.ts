@@ -4,6 +4,8 @@ export interface MovementRuntime {
   cachedPath?: readonly RoomPosition[]
   nextPathIndex?: number
   lastObservedPosition?: RoomPosition
+  stuckTicks?: number
+  lastMoveTick?: number
 }
 
 interface MovementCreepRuntime {

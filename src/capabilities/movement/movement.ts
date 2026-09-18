@@ -65,6 +65,7 @@ export function moveCreep(creep: Creep, goals: MoveGoal | readonly MoveGoal[], o
   const nextPos = runtime.cachedPath[nextIndex]
 
   registerMove(creep, nextPos, options.priority)
+  runtime.lastMoveTick = Game.time
 
   return "pending"
 }
@@ -83,11 +84,18 @@ function reconcilePath(creep: Creep, runtime: MovementRuntime, normalizedGoals: 
   }
 
   if (nextIndex < path.length && creep.pos.isEqualTo(path[nextIndex])) {
+    runtime.stuckTicks = (runtime.stuckTicks ?? 0) + 1
+
+    if (runtime.stuckTicks >= 5) {
+      runtime.stuckTicks = 0
+      return false
+    }
+
     runtime.nextPathIndex = nextIndex + 1
     return true
   }
 
-  if (runtime.lastObservedPosition?.isEqualTo(creep.pos)) {
+  if (runtime.lastMoveTick === Game.time - 1 && runtime.lastObservedPosition?.isEqualTo(creep.pos)) {
     return true
   }
 
