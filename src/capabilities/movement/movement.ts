@@ -24,7 +24,7 @@ export interface MoveGoal {
   range: number
 }
 
-type PathReconcileResult = "valid" | "invalid" | "stuck" | "blocked"
+type PathReconcileResult = "valid" | "repath" | "blocked"
 
 const REPATH_STUCK_TICKS = 5
 
@@ -54,31 +54,23 @@ export function moveCreep(creep: Creep, goals: MoveGoal | readonly MoveGoal[], o
     return "blocked"
   }
 
-  if (reconcileResult !== "valid") {
-    if (reconcileResult === "invalid") {
-      runtime.repathedAfterStuck = false
-    }
-
+  if (reconcileResult === "repath") {
     const path = findPath(creep.pos, normalizedGoals, options)
 
     if (path === undefined) {
-      runtime.cachedPath = undefined
-      runtime.nextPathIndex = undefined
-      runtime.repathedAfterStuck = false
+      clearPath(runtime)
+      resetStuck(runtime)
       return "failed"
     }
 
-    runtime.cachedPath = path
-    runtime.nextPathIndex = 0
-    runtime.repathedAfterStuck = reconcileResult === "stuck"
+    setPath(runtime, path)
   }
 
   const nextPos = getNextMovePosition(creep)
 
   if (nextPos === undefined) {
-    runtime.cachedPath = undefined
-    runtime.nextPathIndex = undefined
-    runtime.repathedAfterStuck = false
+    clearPath(runtime)
+    resetStuck(runtime)
     return "failed"
   }
 
@@ -109,35 +101,37 @@ function reconcilePath(
   const nextIndex = runtime.nextPathIndex
 
   if (path === undefined || nextIndex === undefined) {
-    return "invalid"
+    resetStuck(runtime)
+    return "repath"
   }
 
-  if (!isPathValid(path, normalizedGoals)) {
-    return "invalid"
+  if (!pathMatchesGoals(path, normalizedGoals)) {
+    resetStuck(runtime)
+    return "repath"
   }
 
   if (nextIndex < path.length && creep.pos.isEqualTo(path[nextIndex])) {
     runtime.nextPathIndex = nextIndex + 1
-    runtime.stuckTicks = 0
-    runtime.repathedAfterStuck = false
+    resetStuck(runtime)
     return "valid"
   }
 
   if (runtime.lastMoveTick === Game.time - 1 && runtime.lastObservedPosition?.isEqualTo(creep.pos)) {
     runtime.stuckTicks = (runtime.stuckTicks ?? 0) + 1
 
-    if (runtime.stuckTicks >= REPATH_STUCK_TICKS) {
-      runtime.stuckTicks = 0
-
-      if (runtime.repathedAfterStuck) {
-        runtime.repathedAfterStuck = false
-        return "blocked"
-      }
-
-      return "stuck"
+    if (runtime.stuckTicks < REPATH_STUCK_TICKS) {
+      return "valid"
     }
 
-    return "valid"
+    runtime.stuckTicks = 0
+
+    if (runtime.stuckRepathAttempted) {
+      resetStuck(runtime)
+      return "blocked"
+    }
+
+    runtime.stuckRepathAttempted = true
+    return "repath"
   }
 
   const start = Math.max(0, nextIndex - 2)
@@ -146,16 +140,16 @@ function reconcilePath(
   for (let i = end; i >= start; i--) {
     if (creep.pos.isNearTo(path[i])) {
       runtime.nextPathIndex = i
-      runtime.stuckTicks = 0
-      runtime.repathedAfterStuck = false
+      resetStuck(runtime)
       return "valid"
     }
   }
 
-  return "invalid"
+  resetStuck(runtime)
+  return "repath"
 }
 
-function isPathValid(path: readonly RoomPosition[], goals: MoveGoal[]) {
+function pathMatchesGoals(path: readonly RoomPosition[], goals: readonly MoveGoal[]): boolean {
   if (path.length === 0) {
     return false
   }
@@ -169,4 +163,19 @@ function isPathValid(path: readonly RoomPosition[], goals: MoveGoal[]) {
   }
 
   return false
+}
+
+function setPath(runtime: MovementRuntime, path: readonly RoomPosition[]): void {
+  runtime.cachedPath = path
+  runtime.nextPathIndex = 0
+}
+
+function clearPath(runtime: MovementRuntime): void {
+  runtime.cachedPath = undefined
+  runtime.nextPathIndex = undefined
+}
+
+function resetStuck(runtime: MovementRuntime): void {
+  runtime.stuckTicks = 0
+  runtime.stuckRepathAttempted = false
 }
