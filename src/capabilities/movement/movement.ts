@@ -1,6 +1,6 @@
 import { getMovementRuntime, MovementRuntime } from "./movementRuntime"
 import { findPath } from "./navigator"
-import { clearMoveRequest, registerMove, run } from "./traffic"
+import { clearMoveRequest, registerMove } from "./traffic"
 
 export type MoveStatus = "arrived" | "pending" | "failed"
 
@@ -28,6 +28,10 @@ export function moveCreep(creep: Creep, goals: MoveGoal | readonly MoveGoal[], o
   clearMoveRequest(creep)
 
   const normalizedGoals: MoveGoal[] = Array.isArray(goals) ? goals : [goals]
+
+  if (normalizedGoals.length === 0) {
+    return "failed"
+  }
 
   if (normalizedGoals.some((goal) => goal.pos.getRangeTo(creep.pos) <= goal.range)) {
     return "arrived"
@@ -60,7 +64,7 @@ export function moveCreep(creep: Creep, goals: MoveGoal | readonly MoveGoal[], o
   const nextIndex = runtime.nextPathIndex!
   const nextPos = runtime.cachedPath[nextIndex]
 
-  registerMove(creep, nextPos)
+  registerMove(creep, nextPos, options.priority)
 
   return "pending"
 }
@@ -68,7 +72,7 @@ export function moveCreep(creep: Creep, goals: MoveGoal | readonly MoveGoal[], o
 function reconcilePath(creep: Creep, runtime: MovementRuntime, normalizedGoals: MoveGoal[]): boolean {
   const path = runtime.cachedPath
 
-  let nextIndex = runtime.nextPathIndex
+  const nextIndex = runtime.nextPathIndex
 
   if (path === undefined || nextIndex === undefined) {
     return false
