@@ -1,9 +1,8 @@
 import { getCreepHeap } from "../../runtime/creepRuntime"
 
-interface MovementRuntime {
+export interface MovementRuntime {
   cachedPath?: readonly RoomPosition[]
   nextPathIndex?: number
-  goalKey?: string
   lastObservedPosition?: RoomPosition
 }
 
