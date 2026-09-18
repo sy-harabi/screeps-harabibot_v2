@@ -6,6 +6,7 @@ export interface MovementRuntime {
   lastObservedPosition?: RoomPosition
   stuckTicks?: number
   lastMoveTick?: number
+  repathedAfterStuck?: boolean
 }
 
 interface MovementCreepRuntime {
