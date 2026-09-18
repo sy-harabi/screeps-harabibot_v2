@@ -22,7 +22,7 @@ interface SearchRoomsOptions {
 }
 
 interface SearchRoomsResult {
-  roomNames: string[]
+  targetRoomNames: string[]
   costs: Map<string, number>
   distances: Map<string, number>
   previousRooms: Map<string, string>
@@ -37,7 +37,7 @@ interface SearchEntry {
 const DEFAULT_MAX_DISTANCE = 16
 const DEFAULT_MAX_VISITED_ROOMS = 100
 
-export function searchRooms(origin: string, options: SearchRoomsOptions): SearchRoomsResult {
+export function searchRooms(originRoomName: string, options: SearchRoomsOptions): SearchRoomsResult {
   const {
     maxDistance = DEFAULT_MAX_DISTANCE,
     maxVisitedRooms = DEFAULT_MAX_VISITED_ROOMS,
@@ -46,59 +46,63 @@ export function searchRooms(origin: string, options: SearchRoomsOptions): Search
     shouldExpand,
   } = options
 
-  const roomNames = []
+  const targetRoomNames = []
   const costs = new Map<string, number>()
   const distances = new Map<string, number>()
   const previousRooms = new Map<string, string>()
 
   const queue = new PriorityQueue<SearchEntry>()
-  queue.push({ roomName: origin, cost: 0, distance: 0 }, 0)
-  costs.set(origin, 0)
-  distances.set(origin, 0)
+  queue.push({ roomName: originRoomName, cost: 0, distance: 0 }, 0)
+  costs.set(originRoomName, 0)
+  distances.set(originRoomName, 0)
 
-  let visited = 0
+  let visitedRoomCount = 0
 
   while (queue.size > 0) {
     const currentEntry = queue.pop()!
     const currentRoomName = currentEntry.roomName
-
-    if (isTarget(currentRoomName)) {
-      roomNames.push(currentRoomName)
-    }
-
     const currentCost = currentEntry.cost
     const currentDistance = currentEntry.distance
-    visited++
 
-    if (visited >= maxVisitedRooms) {
+    if (costs.get(currentRoomName) !== currentCost) {
+      continue
+    }
+
+    if (isTarget(currentRoomName)) {
+      targetRoomNames.push(currentRoomName)
+    }
+
+    if (visitedRoomCount >= maxVisitedRooms) {
       break
     }
 
-    if (costs.get(currentRoomName) !== currentCost || currentDistance >= maxDistance) {
+    visitedRoomCount++
+
+    if (currentDistance >= maxDistance) {
+      continue
+    }
+
+    if (shouldExpand && !shouldExpand(currentRoomName)) {
       continue
     }
 
     for (const adjacentRoomName of getAdjacentRooms(currentRoomName)) {
-      const costNew = currentCost + (getRoomCost ? getRoomCost(adjacentRoomName) : 1)
-      const costBefore = costs.get(adjacentRoomName)
+      const nextCost = currentCost + (getRoomCost ? getRoomCost(adjacentRoomName) : 1)
+      const previousCost = costs.get(adjacentRoomName)
 
-      if (costBefore !== undefined && costBefore <= costNew) {
+      if (previousCost !== undefined && previousCost <= nextCost) {
         continue
       }
 
-      costs.set(adjacentRoomName, costNew)
+      costs.set(adjacentRoomName, nextCost)
       distances.set(adjacentRoomName, currentDistance + 1)
       previousRooms.set(adjacentRoomName, currentRoomName)
 
-      if (shouldExpand && !shouldExpand(adjacentRoomName)) {
-        continue
-      }
-
-      queue.push({ roomName: adjacentRoomName, cost: costNew, distance: currentDistance + 1 }, costNew)
+      queue.push({ roomName: adjacentRoomName, cost: nextCost, distance: currentDistance + 1 }, nextCost)
     }
   }
 
-  return { roomNames, costs, distances, previousRooms }
+  return { targetRoomNames, costs, distances, previousRooms }
 }
 
 export function floodRooms(origin: string, options: FloodRoomsOptions): FloodRoomsResult {
