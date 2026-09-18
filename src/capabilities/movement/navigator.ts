@@ -25,6 +25,7 @@ interface FindPathOptions {
 
   // PathFinder options
   maxRooms?: number
+  avoidPosition?: RoomPosition
 }
 
 const DEFAULT_MAX_ROOM_HOPS = 16
@@ -118,14 +119,12 @@ export function findRoute(
 
 type MoveGoals = MoveGoal | MoveGoal[]
 
-export type MoveStatus = "arrived" | "pending" | "failed"
-
 export function findPath(
   origin: RoomPosition,
   goals: MoveGoals,
   options: FindPathOptions = {},
 ): readonly RoomPosition[] | undefined {
-  const { useRoomRoute = true } = options
+  const { useRoomRoute = true, avoidPosition } = options
 
   const normalizedGoals = Array.isArray(goals) ? goals : [goals]
 
@@ -154,7 +153,15 @@ export function findPath(
         return false
       }
 
-      return getRoomCostMatrix(roomName) ?? true
+      const baseCosts = getRoomCostMatrix(roomName)
+
+      if (avoidPosition?.roomName !== roomName) {
+        return baseCosts ?? true
+      }
+
+      const costs = baseCosts?.clone() ?? new PathFinder.CostMatrix()
+      costs.set(avoidPosition.x, avoidPosition.y, 255)
+      return costs
     },
   })
 
