@@ -1,38 +1,68 @@
 # HarabiBot Rewrite Context
 
-This project is a TypeScript rewrite of HarabiBot. The original bot at
-`C:\projects\screeps\HarabiBot_3.0` is read-only reference material, not a specification.
+HarabiBot v2 is a TypeScript redesign of HarabiBot, not a line-by-line port.
 
-The user normally writes production code. The agent acts mainly as an architecture advisor,
-reviewer, and TypeScript mentor. Inspect the relevant original implementation before proposing a
-rewrite, and do not invent Screeps strategy when the user's knowledge is required.
+The original HarabiBot is already a strong bot in economy, combat, CPU management, and automation. However, it grew over a long period and accumulated substantial code and structural debt, especially mixed responsibilities and implicit dependencies through shared state and execution order.
 
-## Direction
+The rewrite exists to preserve and build on the original bot's proven Screeps knowledge while creating a more professional, understandable, and maintainable codebase that can support an even stronger bot.
 
-- Grow a playable bot through vertical slices instead of translating utilities in isolation.
-- Prefer plain modules, explicit data flow, and small interfaces over framework machinery.
-- Operations own persistent goals and coordination.
-- Capabilities provide reusable mechanisms such as spawning, movement, and logistics.
-- World modules provide map, room, and intel information.
-- Keep persistent state separate from per-tick requests, allocations, indexes, and caches.
-- The standalone planner lab has been abandoned. Target the Screeps runtime and use
-  in-game `RoomVisual` for planner visualization. Do not add abstractions or change
-  bot interfaces solely to support a browser or offline planner lab.
+## Goals
 
-## Current operation model
+HarabiBot v2 aims to surpass the original bot in all of the following areas:
 
-- `EmpireOperation` is the root operation.
-- Each owned room has one child `ColonyOperation`.
-- Operation state is a discriminated union of plain serializable records.
-- Records are stored directly by ID in `Memory.operations`.
-- Add an outer Memory wrapper only when real persistent metadata requires one.
-- The empire currently creates colony records through the operation store.
+- economy;
+- combat;
+- CPU management;
+- automation;
+- code quality;
+- architecture.
 
-## Current priority
+Gameplay strength and efficient use of available resources are the primary outcomes. Code quality and architecture are important because they make those outcomes easier to achieve, improve, and maintain; they are not goals in isolation.
 
-Finish the base planner as the first major subsystem. This is an intentional exception to the
-usual smallest-slice preference because the planner is foundational, independently visualizable,
-important to the user, and a system the user wants to design fully before source management.
+### Economy
 
-Preserve the original bot's specialized economy roles. Do not introduce a generic bootstrap worker
-without a separate design decision.
+Given finite spawn time and CPU, maximize sustainable empire-wide income.
+
+Optimize the economy as a whole rather than optimizing isolated creeps or rooms without regard to their effect on empire-level throughput. Foundational economy systems should be designed with their expected end state and large-scale operation in mind.
+
+### CPU management
+
+Use the available CPU budget to produce as much useful game outcome as possible.
+
+Low CPU usage is not inherently better if unused CPU could support more economy, combat, analysis, or automation. Avoid waste, but optimize for total value produced under the CPU limit rather than for the smallest possible CPU number.
+
+### Combat
+
+Combat automation should operate across multiple levels of decision making:
+
+1. select an appropriate opponent;
+2. choose a strategy for that opponent, such as concentrated attacks, simultaneous multi-room pressure, remote harassment, or a combination;
+3. choose suitable tactics and force types such as quads, blobs, squads, or duos;
+4. use the results of those tactics as feedback and adapt until the campaign succeeds;
+5. carry the strategic objective through to completion.
+
+### Automation and competitive goals
+
+In MMO, the bot should be capable of operating autonomously without manual intervention: expanding, running its economy, defending itself, selecting and executing offensive campaigns, adapting to their results, and continuing to grow its territory.
+
+In Seasonal, the goal is top-tier competitive performance.
+
+### Code quality and architecture
+
+The codebase should be understandable, modifiable, and extensible enough that another developer can recognize it as well-engineered software.
+
+Responsibilities, state ownership, and data flow should be clear where practical. Complexity is acceptable when it produces meaningful gameplay or performance benefits, but performance-driven complexity should be deliberate rather than accidental.
+
+## Relationship to the original bot
+
+The original HarabiBot is a reference, not a specification.
+
+For each system, use the original implementation to understand proven Screeps strategy, practical edge cases, and optimization ideas. Preserve what remains valuable, improve what can be improved, and redesign the system when a better approach is available.
+
+The rewrite should not inherit the original bot's code structure merely because that structure already exists.
+
+## Optimization approach
+
+Obvious waste in important hot paths should be avoided from the start. Foundational or performance-critical systems may be optimized aggressively when doing so improves the bot's real capabilities.
+
+When an optimization adds substantial complexity, justify it with appropriate evidence such as theorycrafting, benchmarks, profiling, or live-game measurements. There is no fixed global rule that code simplicity must always beat performance, or vice versa; material trade-offs should be evaluated in context.
