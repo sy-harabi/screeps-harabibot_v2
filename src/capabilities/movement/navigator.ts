@@ -8,7 +8,7 @@ export interface MoveGoal {
 }
 
 interface FindRouteOptions {
-  maxDistance?: number
+  maxRoomHops?: number
   getRoomCost?: (roomName: string) => number
   shouldExpand?: (roomName: string) => boolean
 }
@@ -20,12 +20,12 @@ interface RouteEntry {
 }
 
 interface FindPathOptions {
-  maxDistance?: number
+  maxRoomHops?: number
   getRoomCost?: (roomName: string) => number
   shouldExpand?: (roomName: string) => boolean
 }
 
-const DEFAULT_MAX_ROOM_DISTANCE = 16
+const DEFAULT_MAX_ROOM_HOPS = 16
 
 export function findRoute(
   originRoomName: string,
@@ -36,7 +36,7 @@ export function findRoute(
     return [originRoomName]
   }
 
-  const { maxDistance = DEFAULT_MAX_ROOM_DISTANCE, getRoomCost, shouldExpand } = options
+  const { maxRoomHops = DEFAULT_MAX_ROOM_HOPS, getRoomCost, shouldExpand } = options
 
   const queue = new PriorityQueue<RouteEntry>()
   const costs = new Map<string, number>()
@@ -78,13 +78,13 @@ export function findRoute(
 
     const currentDistance = currentEntry.distance
 
-    if (currentDistance >= maxDistance) {
+    if (currentDistance >= maxRoomHops) {
       continue
     }
 
     const minRemainingDistance = getRoomManhattanDistance(currentRoomName, destinationRoomName)
 
-    if (currentDistance + minRemainingDistance > maxDistance) {
+    if (currentDistance + minRemainingDistance > maxRoomHops) {
       continue
     }
 
