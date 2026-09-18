@@ -24,7 +24,7 @@ export interface MoveGoal {
   range: number
 }
 
-type PathReconcileResult = "valid" | "invalid" | "stuck"
+type PathReconcileResult = "valid" | "invalid" | "stuck" | "blocked"
 
 const REPATH_STUCK_TICKS = 5
 
@@ -50,25 +50,27 @@ export function moveCreep(creep: Creep, goals: MoveGoal | readonly MoveGoal[], o
 
   runtime.lastObservedPosition = creep.pos
 
+  if (reconcileResult === "blocked") {
+    return "blocked"
+  }
+
   if (reconcileResult !== "valid") {
-    const blockedPos = reconcileResult === "stuck" ? getNextMovePosition(creep) : undefined
-    const path =
-      blockedPos === undefined
-        ? findPath(creep.pos, normalizedGoals, options)
-        : findPath(creep.pos, normalizedGoals, { ...options, avoidPosition: blockedPos })
+    if (reconcileResult === "invalid") {
+      runtime.repathedAfterStuck = false
+    }
+
+    const path = findPath(creep.pos, normalizedGoals, options)
 
     if (path === undefined) {
-      if (reconcileResult === "stuck") {
-        return "blocked"
-      }
-
       runtime.cachedPath = undefined
       runtime.nextPathIndex = undefined
+      runtime.repathedAfterStuck = false
       return "failed"
     }
 
     runtime.cachedPath = path
     runtime.nextPathIndex = 0
+    runtime.repathedAfterStuck = reconcileResult === "stuck"
   }
 
   const nextPos = getNextMovePosition(creep)
@@ -76,6 +78,7 @@ export function moveCreep(creep: Creep, goals: MoveGoal | readonly MoveGoal[], o
   if (nextPos === undefined) {
     runtime.cachedPath = undefined
     runtime.nextPathIndex = undefined
+    runtime.repathedAfterStuck = false
     return "failed"
   }
 
@@ -116,6 +119,7 @@ function reconcilePath(
   if (nextIndex < path.length && creep.pos.isEqualTo(path[nextIndex])) {
     runtime.nextPathIndex = nextIndex + 1
     runtime.stuckTicks = 0
+    runtime.repathedAfterStuck = false
     return "valid"
   }
 
@@ -124,6 +128,12 @@ function reconcilePath(
 
     if (runtime.stuckTicks >= REPATH_STUCK_TICKS) {
       runtime.stuckTicks = 0
+
+      if (runtime.repathedAfterStuck) {
+        runtime.repathedAfterStuck = false
+        return "blocked"
+      }
+
       return "stuck"
     }
 
@@ -137,6 +147,7 @@ function reconcilePath(
     if (creep.pos.isNearTo(path[i])) {
       runtime.nextPathIndex = i
       runtime.stuckTicks = 0
+      runtime.repathedAfterStuck = false
       return "valid"
     }
   }
