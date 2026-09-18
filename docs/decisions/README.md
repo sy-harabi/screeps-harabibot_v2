@@ -1,8 +1,20 @@
 # Decision Records
 
-Use this directory for decisions that materially affect architecture, ownership, interfaces, or dependencies. Use sequential filenames such as `0001-operation-centered-architecture.md`.
+This directory contains design-session notes and handoff snapshots from past theorycrafting work.
 
-Do not create a record for routine implementation details. If a decision changes later, preserve the old record and mark it superseded rather than rewriting history.
+These records capture the reasoning, assumptions, alternatives, and tentative conclusions that were useful at the time they were written. They are **not specifications** and are **not guaranteed to describe the current implementation or current design intent**.
+
+Do not treat a record as authoritative merely because its status says `accepted`. Before relying on a decision record:
+
+- inspect the current code;
+- consider the current conversation and user instructions;
+- verify that the assumptions and constraints in the record still apply.
+
+Agents should not read this directory by default. Consult a record when the current task is directly related to that design history, when the user points to it, or when previous reasoning would materially help avoid repeating the same theorycrafting work.
+
+Use this directory when a design discussion becomes long enough that preserving its reasoning will help a later session continue the work. Routine implementation details do not need a record.
+
+Prefer preserving the historical context of an existing record rather than rewriting it to match current code. If a later session materially changes the earlier conclusion, add a new record or an explicit follow-up/superseding note when that history is useful.
 
 Suggested structure:
 
