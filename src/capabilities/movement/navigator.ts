@@ -170,7 +170,7 @@ export function findPath(
 }
 
 function buildCorridor(route: readonly string[]): Set<string> {
-  const corriror = new Set(route)
+  const corridor = new Set(route)
 
   for (let i = 1; i < route.length - 1; i++) {
     const previousRoomName = route[i - 1]
@@ -183,10 +183,10 @@ function buildCorridor(route: readonly string[]): Set<string> {
       }
 
       if (getAdjacentRooms(nextRoomName).includes(adjacentRoomName)) {
-        corriror.add(adjacentRoomName)
+        corridor.add(adjacentRoomName)
       }
     }
   }
 
-  return corriror
+  return corridor
 }
