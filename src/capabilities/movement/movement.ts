@@ -2,7 +2,7 @@ import { getMovementRuntime, MovementRuntime } from "./movementRuntime"
 import { findPath } from "./navigator"
 import { clearMoveRequest, registerMove } from "./traffic"
 
-export type MoveStatus = "arrived" | "pending" | "failed"
+export type MoveStatus = "arrived" | "pending" | "blocked" | "failed"
 
 interface MoveOptions {
   useRoomRoute?: boolean
@@ -24,6 +24,10 @@ export interface MoveGoal {
   range: number
 }
 
+type PathReconcileResult = "valid" | "invalid" | "stuck"
+
+const REPATH_STUCK_TICKS = 5
+
 export function moveCreep(creep: Creep, goals: MoveGoal | readonly MoveGoal[], options: MoveOptions = {}): MoveStatus {
   clearMoveRequest(creep)
 
@@ -42,18 +46,20 @@ export function moveCreep(creep: Creep, goals: MoveGoal | readonly MoveGoal[], o
   }
 
   const runtime = getMovementRuntime(creep.name)
-
-  if (!reconcilePath(creep, runtime, normalizedGoals)) {
-    runtime.cachedPath = undefined
-    runtime.nextPathIndex = undefined
-  }
+  const reconcileResult = reconcilePath(creep, runtime, normalizedGoals)
 
   runtime.lastObservedPosition = creep.pos
 
-  if (runtime.cachedPath === undefined) {
+  if (reconcileResult !== "valid") {
     const path = findPath(creep.pos, normalizedGoals, options)
 
     if (path === undefined) {
+      if (reconcileResult === "stuck") {
+        return "blocked"
+      }
+
+      runtime.cachedPath = undefined
+      runtime.nextPathIndex = undefined
       return "failed"
     }
 
@@ -61,8 +67,13 @@ export function moveCreep(creep: Creep, goals: MoveGoal | readonly MoveGoal[], o
     runtime.nextPathIndex = 0
   }
 
-  const nextIndex = runtime.nextPathIndex!
-  const nextPos = runtime.cachedPath[nextIndex]
+  const nextPos = getNextMovePosition(creep)
+
+  if (nextPos === undefined) {
+    runtime.cachedPath = undefined
+    runtime.nextPathIndex = undefined
+    return "failed"
+  }
 
   registerMove(creep, nextPos, options.priority)
   runtime.lastMoveTick = Game.time
@@ -70,33 +81,49 @@ export function moveCreep(creep: Creep, goals: MoveGoal | readonly MoveGoal[], o
   return "pending"
 }
 
-function reconcilePath(creep: Creep, runtime: MovementRuntime, normalizedGoals: MoveGoal[]): boolean {
+export function getNextMovePosition(creep: Creep): RoomPosition | undefined {
+  const runtime = getMovementRuntime(creep.name)
   const path = runtime.cachedPath
-
   const nextIndex = runtime.nextPathIndex
 
   if (path === undefined || nextIndex === undefined) {
-    return false
+    return
+  }
+
+  return path[nextIndex]
+}
+
+function reconcilePath(
+  creep: Creep,
+  runtime: MovementRuntime,
+  normalizedGoals: MoveGoal[],
+): PathReconcileResult {
+  const path = runtime.cachedPath
+  const nextIndex = runtime.nextPathIndex
+
+  if (path === undefined || nextIndex === undefined) {
+    return "invalid"
   }
 
   if (!isPathValid(path, normalizedGoals)) {
-    return false
+    return "invalid"
   }
 
   if (nextIndex < path.length && creep.pos.isEqualTo(path[nextIndex])) {
-    runtime.stuckTicks = (runtime.stuckTicks ?? 0) + 1
-
-    if (runtime.stuckTicks >= 5) {
-      runtime.stuckTicks = 0
-      return false
-    }
-
     runtime.nextPathIndex = nextIndex + 1
-    return true
+    runtime.stuckTicks = 0
+    return "valid"
   }
 
   if (runtime.lastMoveTick === Game.time - 1 && runtime.lastObservedPosition?.isEqualTo(creep.pos)) {
-    return true
+    runtime.stuckTicks = (runtime.stuckTicks ?? 0) + 1
+
+    if (runtime.stuckTicks >= REPATH_STUCK_TICKS) {
+      runtime.stuckTicks = 0
+      return "stuck"
+    }
+
+    return "valid"
   }
 
   const start = Math.max(0, nextIndex - 2)
@@ -105,12 +132,12 @@ function reconcilePath(creep: Creep, runtime: MovementRuntime, normalizedGoals: 
   for (let i = end; i >= start; i--) {
     if (creep.pos.isNearTo(path[i])) {
       runtime.nextPathIndex = i
-      return true
+      runtime.stuckTicks = 0
+      return "valid"
     }
   }
 
-  // Too far off the path.
-  return false
+  return "invalid"
 }
 
 function isPathValid(path: readonly RoomPosition[], goals: MoveGoal[]) {
