@@ -1,6 +1,7 @@
 import { BasePlan } from "../../capabilities/basePlanning/basePlan"
 import { basePlanStore } from "../../capabilities/basePlanning/basePlanStore"
 import type { TickContext } from "../../kernel/tickContext"
+import { getOperationHeap } from "../../runtime/operationRuntime"
 import { RoomCoordinate } from "../../world/map/roomCoordinate"
 import type { ColonyOperationRecord } from "../colony/colonyOperation"
 import type { OperationBase } from "../operation"
@@ -13,6 +14,10 @@ export interface HarvestOperationRecord extends OperationBase {
   readonly type: "harvest"
   readonly parentId: ColonyOperationRecord["id"]
   readonly roomName: string
+}
+
+interface HarvestOperationHeap {
+  sourceOrder?: Id<Source>[]
 }
 
 export function getHarvestOperationId(roomName: string): string {
@@ -48,6 +53,8 @@ export const harvestOperationHandler: OperationHandler<HarvestOperationRecord> =
 
     const basePlan = basePlanResult.value
 
+    const sourceDataById = new Map<Id<Source>, SourceData>()
+
     let sourceReady = true
 
     for (const source of room.find(FIND_SOURCES)) {
@@ -55,15 +62,40 @@ export const harvestOperationHandler: OperationHandler<HarvestOperationRecord> =
 
       if (sourceData === undefined) {
         sourceReady = false
+        continue
       }
+
+      sourceDataById.set(source.id, sourceData)
     }
 
     if (!sourceReady) {
       return
     }
+
+    const sourceOrder = getSourceOrder(operation, sourceDataById)
+
+    for (const sourceId of sourceOrder) {
+      const sourceData = sourceDataById.get(sourceId)
+    }
   },
 
   execute(operation: HarvestOperationRecord, context: TickContext): void {},
+}
+
+function getSourceOrder(operation: HarvestOperationRecord, sourceDataById: Map<Id<Source>, SourceData>): Id<Source>[] {
+  const heap = getOperationHeap<HarvestOperationHeap>(operation.id)
+
+  if (heap.sourceOrder !== undefined) {
+    return heap.sourceOrder
+  }
+
+  const sourceOrder = [...sourceDataById.values()]
+    .sort((left, right) => left.path.length - right.path.length)
+    .map((sourceData) => sourceData.sourceId)
+
+  heap.sourceOrder = sourceOrder
+
+  return sourceOrder
 }
 
 function ensureOwnedSourceData(source: Source, basePlan: BasePlan): SourceData | undefined {
