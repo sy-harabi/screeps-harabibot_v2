@@ -41,6 +41,14 @@ export const colonyOperationHandler: OperationHandler<ColonyOperationRecord> = {
 
     const sources = room.find(FIND_SOURCES)
 
+    // Remove the previous per-source operation records before the operation tree
+    // descends into this colony. Existing miners are migrated by HarvestOperation.
+    for (const source of sources) {
+      removeOperation(`ownedSource:${source.id}`)
+    }
+
+    ensureOperation(createHarvestOperation(operation.id, roomName))
+
     const minerals = room.find(FIND_MINERALS)
 
     const existingSpawn = room.find(FIND_MY_SPAWNS)[0]
@@ -76,14 +84,6 @@ export const colonyOperationHandler: OperationHandler<ColonyOperationRecord> = {
     if (Memory.options?.visuals?.basePlan) {
       visualizeFinalPlan(basePlan, new RoomVisual(roomName))
     }
-
-    // Remove the previous per-source operation records before the operation tree
-    // descends into this colony. Existing miners are migrated by HarvestOperation.
-    for (const source of sources) {
-      removeOperation(`ownedSource:${source.id}`)
-    }
-
-    ensureOperation(createHarvestOperation(operation.id, roomName))
   },
 
   execute(): void {},
