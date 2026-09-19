@@ -31,7 +31,7 @@ export function compressPath(path: RoomPosition[]) {
   return result
 }
 
-export function unpackPath(packedPath: string[]): RoomPosition[] {
+export function decompressPath(packedPath: string[]): RoomPosition[] {
   const result: RoomPosition[] = []
   if (packedPath.length === 0) {
     return result
