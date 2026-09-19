@@ -2,10 +2,9 @@ import { BasePlan } from "../../capabilities/basePlanning/basePlan"
 import { basePlanStore } from "../../capabilities/basePlanning/basePlanStore"
 import { planBase } from "../../capabilities/basePlanning/planBase"
 import type { EmpireOperationRecord } from "../empire/empireOperation"
-import { ensureOperation, OperationBase } from "../operation"
+import { createHarvestOperation } from "../harvest/harvestOperation"
+import { ensureOperation, OperationBase, removeOperation } from "../operation"
 import type { OperationHandler } from "../operationHandler"
-
-import { createOwnedSourceOperation } from "../ownedSource/ownedSourceOperation"
 
 export interface ColonyOperationRecord extends OperationBase {
   readonly id: string
@@ -78,9 +77,13 @@ export const colonyOperationHandler: OperationHandler<ColonyOperationRecord> = {
       visualizeFinalPlan(basePlan, new RoomVisual(roomName))
     }
 
+    // Remove the previous per-source operation records before the operation tree
+    // descends into this colony. Existing miners are migrated by HarvestOperation.
     for (const source of sources) {
-      ensureOperation(createOwnedSourceOperation(operation.id, roomName, source.id))
+      removeOperation(`ownedSource:${source.id}`)
     }
+
+    ensureOperation(createHarvestOperation(operation.id, roomName))
   },
 
   execute(): void {},
