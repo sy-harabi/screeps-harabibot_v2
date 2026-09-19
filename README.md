@@ -4,14 +4,14 @@ HarabiBot v2 is an in-progress TypeScript rewrite of HarabiBot for [Screeps](htt
 
 The rewrite is not a line-by-line port. It is being rebuilt around explicit data flow, hierarchical operations, reusable capabilities, and a clearer separation between persistent state and per-tick runtime state. The design direction and collaboration rules are documented in [docs/rewrite-context.md](./docs/rewrite-context.md).
 
-> **Status:** active development. The current vertical slice reaches owned-source miner spawning and harvesting, but this is not yet a complete autonomous bot.
+> **Status:** active development. The current vertical slice reaches colony-level harvesting with owned-source miner spawning and execution, but this is not yet a complete autonomous bot.
 
 ## Current implementation
 
 Implemented so far:
 
 - Tick orchestration with a `plan -> allocate -> execute` flow.
-- Hierarchical operations: `EmpireOperation -> ColonyOperation -> OwnedSourceOperation`.
+- Hierarchical operations: `EmpireOperation -> ColonyOperation -> HarvestOperation`.
 - Persistent operation records in `Memory.operations` with typed handlers.
 - Per-tick `TickContext` indexes for owned rooms and operation creeps.
 - Spawn requests, priority ordering, queueing, and global spawn allocation.
@@ -23,7 +23,7 @@ Implemented so far:
 
 The base planner currently covers the core layout, controller/upgrader area, resource endpoints and road tree, labs, structure slots, towers, outer ramparts, rampart access roads, and repair roads. Existing manually placed spawns are respected by the planner.
 
-Still under construction are the dedicated movement capability, haulers, upgrader/scout roles, construction execution, the rest of the economy, remotes, combat, market/logistics, and other late-game systems. The miner currently uses Screeps `moveTo()` as a temporary movement implementation.
+Still under construction are haulers, upgrader/scout roles, construction execution, the rest of the economy, remotes, combat, market/logistics, and other late-game systems. The miner currently uses Screeps `moveTo()` as a temporary movement implementation before being wired into the dedicated movement capability.
 
 ## Runtime flow
 
@@ -50,9 +50,11 @@ The current operation tree is intentionally small:
 ```text
 EmpireOperation
 └─ ColonyOperation:<roomName>
-   └─ OwnedSourceOperation:<sourceId>
-      └─ miner role
+   └─ HarvestOperation:<roomName>
+      └─ miner roles assigned to sources by sourceId
 ```
+
+Sources are harvesting entities/state rather than operations. `HarvestOperation` is the colony-level boundary for source ordering, miner assignments, and the shared hauler pool that will be added next.
 
 ## Project layout
 
@@ -62,7 +64,7 @@ src/kernel/                         Tick context and operation runner
 src/operations/                     Persistent hierarchical goals
   empire/
   colony/
-  ownedSource/
+  harvest/
 src/capabilities/basePlanning/      Runtime base planner
 src/capabilities/spawning/          Spawn requests, queue, priority, allocator
 src/world/map/                      Map algorithms and room-grid utilities
