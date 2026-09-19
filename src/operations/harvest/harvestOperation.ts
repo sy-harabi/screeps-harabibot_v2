@@ -7,6 +7,7 @@ import { RoomCoordinate } from "../../world/map/roomCoordinate"
 import type { ColonyOperationRecord } from "../colony/colonyOperation"
 import type { OperationBase } from "../operation"
 import type { OperationHandler } from "../operationHandler"
+import { createMinerBody, MINER_ROLE, runMiners } from "./miner"
 import { SourceData } from "./sourceData"
 import { sourceDataStore } from "./sourceDataStore"
 
@@ -28,7 +29,6 @@ interface SourceState {
   numMiners: number
 }
 
-export const MINER_ROLE = "miner"
 
 export function getHarvestOperationId(roomName: string): string {
   return `harvest:${roomName}`
@@ -87,7 +87,7 @@ export const harvestOperationHandler: OperationHandler<HarvestOperationRecord> =
       })
     }
 
-    for (const miner of getOperationCreeps(context, operation.id, "miner")) {
+    for (const miner of getOperationCreeps(context, operation.id, MINER_ROLE)) {
       const sourceId = miner.memory.sourceId
 
       if (!sourceId) {
@@ -121,32 +121,16 @@ export const harvestOperationHandler: OperationHandler<HarvestOperationRecord> =
             rolesByPriority: [MINER_ROLE],
           },
           () => createMinerBody(operation.roomName),
-          "miner",
+          MINER_ROLE,
           { memory: { sourceId } },
         )
       }
     }
   },
 
-  execute(operation: HarvestOperationRecord, context: TickContext): void {},
-}
-
-function createMinerBody(roomName: string): readonly BodyPartConstant[] | undefined {
-  const room = Game.rooms[roomName]
-
-  if (!room) {
-    return undefined
-  }
-
-  const budget = room.energyAvailable
-
-  if (budget < 200) {
-    return undefined
-  }
-
-  const workCount = Math.min(5, Math.floor((budget - 100) / BODYPART_COST[WORK]))
-
-  return [...Array<BodyPartConstant>(workCount).fill(WORK), CARRY, MOVE]
+  execute(operation: HarvestOperationRecord, context: TickContext): void {
+    runMiners(operation, context)
+  },
 }
 
 function ensureSourceDataById(
