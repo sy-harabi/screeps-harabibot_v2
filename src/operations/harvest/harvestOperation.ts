@@ -101,9 +101,9 @@ export const harvestOperationHandler: OperationHandler<HarvestOperationRecord> =
         sourceStateById.set(sourceId, sourceState)
       }
 
-      const replacementLeadTime = miner.body.length * CREEP_SPAWN_TIME + sourceState.data.path.length
+      const replacementLeadTime = miner.body.length * CREEP_SPAWN_TIME + sourceState.data.path.length + 10
 
-      if (miner.ticksToLive ?? CREEP_LIFE_TIME > replacementLeadTime) {
+      if ((miner.ticksToLive ?? CREEP_LIFE_TIME) > replacementLeadTime) {
         sourceState.harvestPower += miner.getActiveBodyparts(WORK) * HARVEST_POWER
         sourceState.numMiners++
       }
