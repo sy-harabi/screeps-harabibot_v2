@@ -1,18 +1,25 @@
 import { segmentManager } from "../../persistence/segmentManager"
 import { RoomCoordinate } from "../../world/map/roomCoordinate"
 
-interface SourceData {
-  sourceId: Id<Source>
-  roomName: string
-  coordinate: RoomCoordinate
-  colonyRoomName: string
-  path: PackedPath
+export interface SourceData {
+  readonly sourceId: Id<Source>
+  readonly roomName: string
+  readonly coordinate: RoomCoordinate
+  readonly colonyRoomName: string
+  readonly path: PackedPath
+}
+
+interface SourceDataSegment {
+  version: 1
+  sources: Record<string, SourceData>
 }
 
 export type SourceDataDeleteResult = "loading" | "deleted"
 
 export type SourceDataReadResult =
   { status: "loading" } | { status: "missing" } | { status: "ready"; value: SourceData }
+
+const SOURCE_DATA_SEGMENT_IDS = [8, 9, 10, 11, 12, 13, 14, 15] as const
 
 export const sourceDataStore = {
   get,
@@ -84,4 +91,12 @@ function deleteData(sourceId: string): SourceDataDeleteResult {
   return "deleted"
 }
 
-function getSourceDataSegmentId(sourceId: string): number {}
+function getSourceDataSegmentId(sourceId: string): number {
+  let hash = 0
+
+  for (let i = 0; i < sourceId.length; i++) {
+    hash = (hash * 31 + sourceId.charCodeAt(i)) >>> 0
+  }
+
+  return SOURCE_DATA_SEGMENT_IDS[hash % SOURCE_DATA_SEGMENT_IDS.length]
+}
