@@ -1,3 +1,4 @@
+import { SOURCE_DATA_SEGMENT_IDS } from "../../persistence/segmentIds"
 import { segmentManager } from "../../persistence/segmentManager"
 import { RoomCoordinate } from "../../world/map/roomCoordinate"
 
@@ -17,26 +18,26 @@ interface SourceDataSegment {
 export type SourceDataDeleteResult = "loading" | "deleted"
 
 export type SourceDataReadResult =
-  { status: "loading" } | { status: "missing" } | { status: "ready"; value: SourceData }
-
-const SOURCE_DATA_SEGMENT_IDS = [8, 9, 10, 11, 12, 13, 14, 15] as const
+  | { status: "loading" }
+  | { status: "missing" }
+  | { status: "ready"; value: SourceData }
 
 export const sourceDataStore = {
   get,
   set,
-  deleteData,
+  delete: deleteSourceData,
 }
 
-function get(sourceId: string): SourceDataReadResult {
+function get(sourceId: Id<Source>): SourceDataReadResult {
   const segmentId = getSourceDataSegmentId(sourceId)
 
-  const segmentResult = segmentManager.getSegment<Record<string, SourceData>>(segmentId)
+  const segmentResult = segmentManager.getSegment<SourceDataSegment>(segmentId)
 
   if (segmentResult.status === "loading") {
     return { status: "loading" }
   }
 
-  const sourceData = segmentResult.value[sourceId]
+  const sourceData = getSources(segmentResult.value)[sourceId]
 
   if (sourceData === undefined) {
     return { status: "missing" }
@@ -45,53 +46,56 @@ function get(sourceId: string): SourceDataReadResult {
   return { status: "ready", value: sourceData }
 }
 
-function set(sourceData: SourceData) {
-  const sourceId = sourceData.sourceId
-
+function set(sourceData: SourceData): void {
   const segmentId = getSourceDataSegmentId(sourceData.sourceId)
 
-  const result = segmentManager.getSegment<Record<string, SourceData>>(segmentId)
+  const result = segmentManager.getSegment<SourceDataSegment>(segmentId)
 
   if (result.status === "loading") {
     throw new Error(`Cannot save source data before segment ${segmentId} is loaded`)
   }
 
-  const segment = (result.value ??= {})
+  const segment =
+    result.value.version === 1 && result.value.sources
+      ? result.value
+      : {
+          version: 1 as const,
+          sources: {},
+        }
 
-  segment[sourceId] = sourceData
-
+  segment.sources[sourceData.sourceId] = sourceData
   segmentManager.setSegment(segmentId, segment)
 }
 
-function deleteData(sourceId: string): SourceDataDeleteResult {
+function deleteSourceData(sourceId: Id<Source>): SourceDataDeleteResult {
   const segmentId = getSourceDataSegmentId(sourceId)
 
-  const segmentResult = segmentManager.getSegment<Record<string, SourceData>>(segmentId)
+  const segmentResult = segmentManager.getSegment<SourceDataSegment>(segmentId)
 
   if (segmentResult.status === "loading") {
     return "loading"
   }
 
-  const sourceData = segmentResult.value[sourceId]
+  const sources = getSources(segmentResult.value)
 
-  if (sourceData === undefined) {
+  if (sources[sourceId] === undefined) {
     return "deleted"
   }
 
-  const segment = segmentResult.value
-
-  if (segment === undefined) {
-    return "deleted"
-  }
-
-  delete segment[sourceId]
-
-  segmentManager.setSegment(segmentId, segment)
+  delete sources[sourceId]
+  segmentManager.setSegment(segmentId, {
+    version: 1,
+    sources,
+  })
 
   return "deleted"
 }
 
-function getSourceDataSegmentId(sourceId: string): number {
+function getSources(segment: Partial<SourceDataSegment>): Record<string, SourceData> {
+  return segment.version === 1 && segment.sources ? segment.sources : {}
+}
+
+function getSourceDataSegmentId(sourceId: Id<Source>): number {
   let hash = 0
 
   for (let i = 0; i < sourceId.length; i++) {

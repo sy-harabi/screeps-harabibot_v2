@@ -82,8 +82,10 @@ function requestSegment(id: number): void {
     return
   }
 
+  // Missing segments beyond the engine activation limit remain loading.
+  // Once earlier requests are cached on the next tick, later accesses can use the freed slots.
   if (requestedSegments.size >= MAX_ACTIVE_SEGMENTS) {
-    throw new Error("Too many segment activation requests")
+    return
   }
 
   requestedSegments.add(id)
