@@ -8,7 +8,7 @@ export interface SpawnRequestContext {
   readonly requesterId: string
   readonly roomName: string
   readonly priorityType: SpawnPriorityType
-  readonly operationOrder: number
+  readonly order: number
   readonly rolesByPriority: readonly string[]
 }
 
@@ -55,7 +55,7 @@ export function requestSpawn(
     body: resolvedBody,
     priority: {
       type: context.priorityType,
-      operationOrder: context.operationOrder,
+      order: context.order,
       roleOrder,
     },
     memory: { ...options.memory, operationId: context.requesterId, role },
@@ -76,7 +76,7 @@ export function requestRenew(context: SpawnRequestContext, creepName: string, ro
     roomName: context.roomName,
     priority: {
       type: context.priorityType,
-      operationOrder: context.operationOrder,
+      order: context.order,
       roleOrder,
     },
   })

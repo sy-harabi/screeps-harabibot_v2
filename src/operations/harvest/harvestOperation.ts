@@ -1,6 +1,7 @@
 import { BasePlan } from "../../capabilities/basePlanning/basePlan"
 import { basePlanStore } from "../../capabilities/basePlanning/basePlanStore"
-import type { TickContext } from "../../kernel/tickContext"
+import { requestSpawn } from "../../capabilities/spawning/spawnQueue"
+import { getOperationCreeps, type TickContext } from "../../kernel/tickContext"
 import { getOperationHeap } from "../../runtime/operationRuntime"
 import { RoomCoordinate } from "../../world/map/roomCoordinate"
 import type { ColonyOperationRecord } from "../colony/colonyOperation"
@@ -20,6 +21,14 @@ interface HarvestOperationHeap {
   sourceDataById?: Map<Id<Source>, SourceData>
   sourceOrder?: Id<Source>[]
 }
+
+interface SourceState {
+  readonly data: SourceData
+  harvestPower: number
+  numMiners: number
+}
+
+export const MINER_ROLE = "miner"
 
 export function getHarvestOperationId(roomName: string): string {
   return `harvest:${roomName}`
@@ -62,12 +71,84 @@ export const harvestOperationHandler: OperationHandler<HarvestOperationRecord> =
 
     const sourceOrder = getSourceOrder(operation, sourceDataById)
 
+    const sourceStateById = new Map<Id<Source>, SourceState>()
+
     for (const sourceId of sourceOrder) {
       const sourceData = sourceDataById.get(sourceId)
+
+      if (!sourceData) {
+        continue
+      }
+
+      sourceStateById.set(sourceId, {
+        data: sourceData,
+        harvestPower: 0,
+        numMiners: 0,
+      })
+    }
+
+    for (const miner of getOperationCreeps(context, operation.id, "miner")) {
+      const sourceId = miner.memory.sourceId
+
+      if (!sourceId) {
+        continue
+      }
+
+      const sourceState = sourceStateById.get(sourceId)
+
+      if (!sourceState) {
+        continue
+      }
+
+      sourceState.harvestPower += miner.getActiveBodyparts(WORK)
+      sourceState.numMiners++
+    }
+
+    for (const sourceId of sourceOrder) {
+      const sourceState = sourceStateById.get(sourceId)
+
+      const sourceData = sourceDataById.get(sourceId)
+
+      if (sourceState === undefined || sourceData === undefined) {
+        continue
+      }
+
+      if (sourceState.harvestPower < 10) {
+        requestSpawn(
+          {
+            requesterId: operation.id,
+            roomName: operation.roomName,
+            priorityType: "ownedSource",
+            order: sourceData.path.length,
+            rolesByPriority: [MINER_ROLE],
+          },
+          () => createMinerBody(operation.roomName),
+          "miner",
+          { memory: { sourceId } },
+        )
+      }
     }
   },
 
   execute(operation: HarvestOperationRecord, context: TickContext): void {},
+}
+
+function createMinerBody(roomName: string): readonly BodyPartConstant[] | undefined {
+  const room = Game.rooms[roomName]
+
+  if (!room) {
+    return undefined
+  }
+
+  const budget = room.energyAvailable
+
+  if (budget < 200) {
+    return undefined
+  }
+
+  const workCount = Math.min(5, Math.floor((budget - 100) / BODYPART_COST[WORK]))
+
+  return [...Array<BodyPartConstant>(workCount).fill(WORK), CARRY, MOVE]
 }
 
 function ensureSourceDataById(
@@ -82,6 +163,7 @@ function ensureSourceDataById(
   }
 
   const sourceDataById = new Map<Id<Source>, SourceData>()
+
   let sourceReady = true
 
   for (const source of room.find(FIND_SOURCES)) {
