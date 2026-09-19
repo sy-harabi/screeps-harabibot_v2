@@ -100,16 +100,14 @@ export const harvestOperationHandler: OperationHandler<HarvestOperationRecord> =
         continue
       }
 
-      sourceState.harvestPower += miner.getActiveBodyparts(WORK)
+      sourceState.harvestPower += miner.getActiveBodyparts(WORK) * HARVEST_POWER
       sourceState.numMiners++
     }
 
     for (const sourceId of sourceOrder) {
       const sourceState = sourceStateById.get(sourceId)
 
-      const sourceData = sourceDataById.get(sourceId)
-
-      if (sourceState === undefined || sourceData === undefined) {
+      if (sourceState === undefined) {
         continue
       }
 
@@ -119,7 +117,7 @@ export const harvestOperationHandler: OperationHandler<HarvestOperationRecord> =
             requesterId: operation.id,
             roomName: operation.roomName,
             priorityType: "ownedSource",
-            order: sourceData.path.length,
+            order: sourceState.data.path.length,
             rolesByPriority: [MINER_ROLE],
           },
           () => createMinerBody(operation.roomName),
