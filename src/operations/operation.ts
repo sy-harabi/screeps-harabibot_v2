@@ -1,7 +1,7 @@
 import { clearOperationRuntime } from "../runtime/operationRuntime"
 import type { ColonyOperationRecord } from "./colony/colonyOperation"
 import type { EmpireOperationRecord } from "./empire/empireOperation"
-import { OwnedSourceOperationRecord } from "./ownedSource/ownedSourceOperation"
+import type { HarvestOperationRecord } from "./harvest/harvestOperation"
 
 export type OperationStatus = "active" | "completed"
 
@@ -14,7 +14,7 @@ export interface OperationBase {
   result?: unknown
 }
 
-export type OperationRecord = EmpireOperationRecord | ColonyOperationRecord | OwnedSourceOperationRecord
+export type OperationRecord = EmpireOperationRecord | ColonyOperationRecord | HarvestOperationRecord
 
 export type OperationsMemory = Record<string, OperationRecord>
 
