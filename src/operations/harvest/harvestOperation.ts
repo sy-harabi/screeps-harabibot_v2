@@ -2,7 +2,7 @@ import { BasePlan } from "../../capabilities/basePlanning/basePlan"
 import { basePlanStore } from "../../capabilities/basePlanning/basePlanStore"
 import { requestSpawn } from "../../capabilities/spawning/spawnQueue"
 import { getOperationCreeps, type TickContext } from "../../kernel/tickContext"
-import { getOperationHeap } from "../../runtime/operationRuntime"
+import { getOperationHeap, getOperationTemp } from "../../runtime/operationRuntime"
 import { RoomCoordinate } from "../../world/map/roomCoordinate"
 import type { ColonyOperationRecord } from "../colony/colonyOperation"
 import type { OperationBase } from "../operation"
@@ -27,6 +27,10 @@ interface SourceState {
   readonly data: SourceData
   harvestPower: number
   numMiners: number
+}
+
+interface HarvestOperationTemp {
+  sourceStateById?: Map<Id<Source>, SourceState>
 }
 
 export function getHarvestOperationId(roomName: string): string {
@@ -72,20 +76,6 @@ export const harvestOperationHandler: OperationHandler<HarvestOperationRecord> =
 
     const sourceStateById = new Map<Id<Source>, SourceState>()
 
-    for (const sourceId of sourceOrder) {
-      const sourceData = sourceDataById.get(sourceId)
-
-      if (!sourceData) {
-        continue
-      }
-
-      sourceStateById.set(sourceId, {
-        data: sourceData,
-        harvestPower: 0,
-        numMiners: 0,
-      })
-    }
-
     for (const miner of getOperationCreeps(context, operation.id, MINER_ROLE)) {
       const sourceId = miner.memory.sourceId
 
@@ -93,25 +83,45 @@ export const harvestOperationHandler: OperationHandler<HarvestOperationRecord> =
         continue
       }
 
-      const sourceState = sourceStateById.get(sourceId)
+      const sourceData = sourceDataById.get(sourceId)
 
-      if (!sourceState) {
+      if (!sourceData) {
         continue
       }
 
-      const replacementLeadTime = miner.body.length * CREEP_SPAWN_TIME + sourceState.data.path.length
+      let sourceState = sourceStateById.get(sourceId)
 
-      if (miner.ticksToLive ?? CREEP_LIFE_TIME > replacementLeadTime) {
-        sourceState.harvestPower += miner.getActiveBodyparts(WORK) * HARVEST_POWER
-        sourceState.numMiners++
+      if (sourceState === undefined) {
+        sourceState = {
+          data: sourceData,
+          harvestPower: 0,
+          numMiners: 0,
+        }
+
+        sourceStateById.set(sourceId, sourceState)
       }
+
+      sourceState.harvestPower += miner.getActiveBodyparts(WORK) * HARVEST_POWER
+      sourceState.numMiners++
     }
 
     for (const sourceId of sourceOrder) {
-      const sourceState = sourceStateById.get(sourceId)
+      let sourceState = sourceStateById.get(sourceId)
 
       if (sourceState === undefined) {
-        continue
+        const sourceData = sourceDataById.get(sourceId)
+
+        if (sourceData === undefined) {
+          continue
+        }
+
+        sourceState = {
+          data: sourceData,
+          harvestPower: 0,
+          numMiners: 0,
+        }
+
+        sourceStateById.set(sourceId, sourceState)
       }
 
       if (sourceState.harvestPower < 10) {
@@ -129,6 +139,8 @@ export const harvestOperationHandler: OperationHandler<HarvestOperationRecord> =
         )
       }
     }
+
+    getOperationTemp<HarvestOperationTemp>(operation.id).sourceStateById = sourceStateById
   },
 
   execute(operation: HarvestOperationRecord, context: TickContext): void {
