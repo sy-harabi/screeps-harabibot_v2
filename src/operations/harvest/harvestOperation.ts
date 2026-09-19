@@ -29,7 +29,6 @@ interface SourceState {
   numMiners: number
 }
 
-
 export function getHarvestOperationId(roomName: string): string {
   return `harvest:${roomName}`
 }
