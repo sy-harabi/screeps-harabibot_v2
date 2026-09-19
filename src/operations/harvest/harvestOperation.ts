@@ -93,6 +93,21 @@ function ensureOwnedSourceData(source: Source, basePlan: BasePlan): SourceData |
   if (!path) {
     return
   }
+
+  const sourceData: SourceData = {
+    sourceId: source.id,
+    roomName: source.room.name,
+    coordinate: {
+      x: source.pos.x,
+      y: source.pos.y,
+    },
+    colonyRoomName: basePlan.roomName,
+    path,
+  }
+
+  sourceDataStore.set(sourceData)
+
+  return sourceData
 }
 
 function findSourcePath(basePlan: BasePlan, target: RoomCoordinate): RoomPosition[] | undefined {
