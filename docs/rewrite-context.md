@@ -60,6 +60,8 @@ The codebase should be understandable, modifiable, and extensible enough that an
 
 Responsibilities, state ownership, and data flow should be clear where practical. Complexity is acceptable when it produces meaningful gameplay or performance benefits, but performance-driven complexity should be deliberate rather than accidental.
 
+System boundaries should follow gameplay responsibilities, shared constraints, and meaningful lifecycles rather than mechanically mirroring individual Screeps objects.
+
 ## Relationship to the original bot
 
 The original HarabiBot is a reference, not a specification.
