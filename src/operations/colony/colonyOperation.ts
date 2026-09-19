@@ -31,45 +31,15 @@ export const colonyOperationHandler: OperationHandler<ColonyOperationRecord> = {
   plan(operation): void {
     const { roomName } = operation
 
-    const terrain = Game.map.getRoomTerrain(roomName)
-
     const room = Game.rooms[roomName]
 
-    if (!room || !room.controller || !room.controller.my) {
+    if (!room?.controller?.my) {
       return
     }
 
-    const sources = room.find(FIND_SOURCES)
+    const basePlan = ensureBasePlan(room)
 
-    const minerals = room.find(FIND_MINERALS)
-
-    const existingSpawn = room.find(FIND_MY_SPAWNS)[0]
-
-    const basePlanResult = basePlanStore.get(roomName)
-
-    let basePlan: BasePlan | undefined
-
-    if (basePlanResult.status === "loading") {
-      return
-    }
-
-    if (basePlanResult.status === "ready") {
-      basePlan = basePlanResult.value
-    } else if (basePlanResult.status === "missing") {
-      const plan = planBase(roomName, terrain, room.controller, sources, minerals, {
-        existingSpawn: existingSpawn?.pos,
-      })
-
-      if (plan === undefined) {
-        return
-      }
-
-      basePlanStore.set(roomName, plan)
-
-      basePlan = plan
-    }
-
-    if (!basePlan) {
+    if (basePlan === undefined) {
       return
     }
 
@@ -81,6 +51,38 @@ export const colonyOperationHandler: OperationHandler<ColonyOperationRecord> = {
   },
 
   execute(): void {},
+}
+
+function ensureBasePlan(room: Room) {
+  const basePlanResult = basePlanStore.get(room.name)
+
+  if (basePlanResult.status === "ready") {
+    return basePlanResult.value
+  }
+
+  if (basePlanResult.status === "loading") {
+    return
+  }
+
+  const sources = room.find(FIND_SOURCES)
+
+  const terrain = Game.map.getRoomTerrain(room.name)
+
+  const minerals = room.find(FIND_MINERALS)
+
+  const existingSpawn = room.find(FIND_MY_SPAWNS)[0]
+
+  const plan = planBase(room.name, terrain, room.controller!, sources, minerals, {
+    existingSpawn: existingSpawn?.pos,
+  })
+
+  if (plan === undefined) {
+    return
+  }
+
+  basePlanStore.set(room.name, plan)
+
+  return plan
 }
 
 function visualizeFinalPlan(basePlan: BasePlan, visual: RoomVisual): void {

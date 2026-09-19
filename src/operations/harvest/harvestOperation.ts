@@ -1,3 +1,4 @@
+import { basePlanStore } from "../../capabilities/basePlanning/basePlanStore"
 import type { TickContext } from "../../kernel/tickContext"
 import type { ColonyOperationRecord } from "../colony/colonyOperation"
 import type { OperationBase } from "../operation"
@@ -28,7 +29,25 @@ export function createHarvestOperation(
 }
 
 export const harvestOperationHandler: OperationHandler<HarvestOperationRecord> = {
-  plan(operation: HarvestOperationRecord, context: TickContext): void {},
+  plan(operation: HarvestOperationRecord, context: TickContext): void {
+    const room = context.ownedRooms.get(operation.roomName)
+
+    if (!room) {
+      return
+    }
+
+    const basePlanResult = basePlanStore.get(operation.roomName)
+
+    if (basePlanResult.status !== "ready") {
+      return
+    }
+
+    const basePlan = basePlanResult.value
+    
+    for (const source of room.find(FIND_SOURCES)) {
+      const sourceData =
+    }
+  },
 
   execute(operation: HarvestOperationRecord, context: TickContext): void {},
 }
