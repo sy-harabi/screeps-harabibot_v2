@@ -46,3 +46,4 @@ Date: YYYY-MM-DD
 - [0007: Runtime cache ownership and registry](0007-runtime-cache-ownership-and-registry.md)
 - [0008: Movement navigation and traffic](0008-movement-navigation-and-traffic.md)
 - [0009: Early-empire economy control and spawn-driven remote frontier](0009-early-empire-economy-control.md)
+- [0010: Harvest operation boundary](0010-harvest-operation-boundary.md)
