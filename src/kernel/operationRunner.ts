@@ -1,8 +1,8 @@
 import { colonyOperationHandler } from "../operations/colony/colonyOperation"
 import { empireOperationHandler } from "../operations/empire/empireOperation"
 import { harvestOperationHandler } from "../operations/harvest/harvestOperation"
-import { getChildOperations, type OperationRecord } from "../operations/operation"
-import type { TickContext } from "./tickContext"
+import type { OperationRecord } from "../operations/operation"
+import { getChildOperations, type TickContext } from "./tickContext"
 
 function planOperation(operation: OperationRecord, context: TickContext): void {
   switch (operation.type) {
@@ -47,7 +47,7 @@ export function planOperationTree(operation: OperationRecord, context: TickConte
 
   planOperation(operation, context)
 
-  for (const child of getChildOperations(operation.id)) {
+  for (const child of getChildOperations(context, operation.id)) {
     planOperationTree(child, context)
   }
 }
@@ -59,7 +59,7 @@ export function executeOperationTree(operation: OperationRecord, context: TickCo
 
   executeOperation(operation, context)
 
-  for (const child of getChildOperations(operation.id)) {
+  for (const child of getChildOperations(context, operation.id)) {
     executeOperationTree(child, context)
   }
 }
