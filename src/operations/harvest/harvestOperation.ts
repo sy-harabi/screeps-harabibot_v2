@@ -17,6 +17,7 @@ export interface HarvestOperationRecord extends OperationBase {
 }
 
 interface HarvestOperationHeap {
+  sourceDataById?: Map<Id<Source>, SourceData>
   sourceOrder?: Id<Source>[]
 }
 
@@ -53,22 +54,9 @@ export const harvestOperationHandler: OperationHandler<HarvestOperationRecord> =
 
     const basePlan = basePlanResult.value
 
-    const sourceDataById = new Map<Id<Source>, SourceData>()
+    const sourceDataById = ensureSourceDataById(operation, room, basePlan)
 
-    let sourceReady = true
-
-    for (const source of room.find(FIND_SOURCES)) {
-      const sourceData = ensureOwnedSourceData(source, basePlan)
-
-      if (sourceData === undefined) {
-        sourceReady = false
-        continue
-      }
-
-      sourceDataById.set(source.id, sourceData)
-    }
-
-    if (!sourceReady) {
+    if (sourceDataById === undefined) {
       return
     }
 
@@ -80,6 +68,39 @@ export const harvestOperationHandler: OperationHandler<HarvestOperationRecord> =
   },
 
   execute(operation: HarvestOperationRecord, context: TickContext): void {},
+}
+
+function ensureSourceDataById(
+  operation: HarvestOperationRecord,
+  room: Room,
+  basePlan: BasePlan,
+): Map<Id<Source>, SourceData> | undefined {
+  const heap = getOperationHeap<HarvestOperationHeap>(operation.id)
+
+  if (heap.sourceDataById !== undefined) {
+    return heap.sourceDataById
+  }
+
+  const sourceDataById = new Map<Id<Source>, SourceData>()
+  let sourceReady = true
+
+  for (const source of room.find(FIND_SOURCES)) {
+    const sourceData = ensureOwnedSourceData(source, basePlan)
+
+    if (sourceData === undefined) {
+      sourceReady = false
+      continue
+    }
+
+    sourceDataById.set(source.id, sourceData)
+  }
+
+  if (!sourceReady) {
+    return
+  }
+
+  heap.sourceDataById = sourceDataById
+  return sourceDataById
 }
 
 function getSourceOrder(operation: HarvestOperationRecord, sourceDataById: Map<Id<Source>, SourceData>): Id<Source>[] {
