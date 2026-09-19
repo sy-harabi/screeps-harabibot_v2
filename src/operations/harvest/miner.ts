@@ -4,8 +4,6 @@ import type { HarvestOperationRecord } from "./harvestOperation"
 
 export const MINER_ROLE = "miner"
 
-const LEGACY_OWNED_SOURCE_PREFIX = "ownedSource:"
-
 export function planMiners(operation: HarvestOperationRecord, context: TickContext): void {
   const room = context.ownedRooms.get(operation.roomName)
 
@@ -14,8 +12,6 @@ export function planMiners(operation: HarvestOperationRecord, context: TickConte
   }
 
   const sources = room.find(FIND_SOURCES)
-
-  migrateLegacyMiners(operation, sources)
 
   const miners = getHarvestMiners(operation, context)
 
@@ -81,25 +77,6 @@ function getHarvestMiners(operation: HarvestOperationRecord, context: TickContex
   }
 
   return result
-}
-
-function migrateLegacyMiners(operation: HarvestOperationRecord, sources: readonly Source[]): void {
-  const sourceIds = new Set(sources.map((source) => source.id))
-
-  for (const creep of Object.values(Game.creeps)) {
-    if (creep.memory.role !== MINER_ROLE || !creep.memory.operationId.startsWith(LEGACY_OWNED_SOURCE_PREFIX)) {
-      continue
-    }
-
-    const sourceId = creep.memory.operationId.slice(LEGACY_OWNED_SOURCE_PREFIX.length) as Id<Source>
-
-    if (!sourceIds.has(sourceId)) {
-      continue
-    }
-
-    creep.memory.operationId = operation.id
-    creep.memory.sourceId = sourceId
-  }
 }
 
 function createMinerBody(roomName: string): readonly BodyPartConstant[] | undefined {
