@@ -36,7 +36,7 @@ function get(sourceId: Id<Source>): SourceDataReadResult {
     return { status: "loading" }
   }
 
-  const packed = getSources(segmentResult.value)[sourceId]
+  const packed = getPackedSourceDataMap(segmentResult.value)[sourceId]
 
   if (packed === undefined) {
     return { status: "missing" }
@@ -68,6 +68,7 @@ function set(sourceData: SourceData): void {
 
   segment.sources[sourceData.sourceId] = packSourceData(sourceData)
   segmentManager.setSegment(segmentId, segment)
+  sourceDataCache.set(sourceData.sourceId, sourceData)
 }
 
 function deleteSourceData(sourceId: Id<Source>): SourceDataDeleteResult {
@@ -79,14 +80,14 @@ function deleteSourceData(sourceId: Id<Source>): SourceDataDeleteResult {
     return "loading"
   }
 
-  const sources = getSources(segmentResult.value)
+  const sources = getPackedSourceDataMap(segmentResult.value)
+  sourceDataCache.delete(sourceId)
 
   if (sources[sourceId] === undefined) {
     return "deleted"
   }
 
   delete sources[sourceId]
-  sourceDataCache.delete(sourceId)
 
   segmentManager.setSegment(segmentId, {
     version: 1,
@@ -96,7 +97,7 @@ function deleteSourceData(sourceId: Id<Source>): SourceDataDeleteResult {
   return "deleted"
 }
 
-function getSources(segment: Partial<SourceDataSegment>): Record<string, PackedSourceData> {
+function getPackedSourceDataMap(segment: Partial<SourceDataSegment>): Record<string, PackedSourceData> {
   return segment.version === 1 && segment.sources ? segment.sources : {}
 }
 

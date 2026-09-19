@@ -2,7 +2,7 @@ import { Codec } from "../../vendor/utf15"
 
 const pathCodec = new Codec({ depth: 6, array: true })
 
-export type PackedPath = string[]
+export type PackedPath = readonly string[]
 
 export function packPath(path: readonly RoomPosition[]): PackedPath {
   if (path.length === 0) {
