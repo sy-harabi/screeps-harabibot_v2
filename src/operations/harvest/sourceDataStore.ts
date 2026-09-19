@@ -1,25 +1,19 @@
-import { PackedPath } from "../../capabilities/movement/packedPath"
 import { SOURCE_DATA_SEGMENT_IDS } from "../../persistence/segmentIds"
 import { segmentManager } from "../../persistence/segmentManager"
-import { RoomCoordinate } from "../../world/map/roomCoordinate"
-
-export interface SourceData {
-  readonly sourceId: Id<Source>
-  readonly roomName: string
-  readonly coordinate: RoomCoordinate
-  readonly colonyRoomName: string
-  readonly path: PackedPath
-}
+import { runtimeRegistry } from "../../runtime/runtimeRegistry"
+import { PackedSourceData, packSourceData, SourceData, unpackSourceData } from "./sourceData"
 
 interface SourceDataSegment {
   version: 1
-  sources: Record<string, SourceData>
+  sources: Record<string, PackedSourceData>
 }
 
 export type SourceDataDeleteResult = "loading" | "deleted"
 
 export type SourceDataReadResult =
   { status: "loading" } | { status: "missing" } | { status: "ready"; value: SourceData }
+
+const sourceDataCache = runtimeRegistry.createCache<Id<Source>, SourceData>("sourceData")
 
 export const sourceDataStore = {
   get,
@@ -28,6 +22,12 @@ export const sourceDataStore = {
 }
 
 function get(sourceId: Id<Source>): SourceDataReadResult {
+  const cached = sourceDataCache.get(sourceId)
+
+  if (cached !== undefined) {
+    return { status: "ready", value: cached }
+  }
+
   const segmentId = getSourceDataSegmentId(sourceId)
 
   const segmentResult = segmentManager.getSegment<SourceDataSegment>(segmentId)
@@ -36,11 +36,15 @@ function get(sourceId: Id<Source>): SourceDataReadResult {
     return { status: "loading" }
   }
 
-  const sourceData = getSources(segmentResult.value)[sourceId]
+  const packed = getSources(segmentResult.value)[sourceId]
 
-  if (sourceData === undefined) {
+  if (packed === undefined) {
     return { status: "missing" }
   }
+
+  const sourceData = unpackSourceData(packed)
+
+  sourceDataCache.set(sourceId, sourceData)
 
   return { status: "ready", value: sourceData }
 }
@@ -62,7 +66,7 @@ function set(sourceData: SourceData): void {
           sources: {},
         }
 
-  segment.sources[sourceData.sourceId] = sourceData
+  segment.sources[sourceData.sourceId] = packSourceData(sourceData)
   segmentManager.setSegment(segmentId, segment)
 }
 
@@ -82,6 +86,8 @@ function deleteSourceData(sourceId: Id<Source>): SourceDataDeleteResult {
   }
 
   delete sources[sourceId]
+  sourceDataCache.delete(sourceId)
+
   segmentManager.setSegment(segmentId, {
     version: 1,
     sources,
@@ -90,7 +96,7 @@ function deleteSourceData(sourceId: Id<Source>): SourceDataDeleteResult {
   return "deleted"
 }
 
-function getSources(segment: Partial<SourceDataSegment>): Record<string, SourceData> {
+function getSources(segment: Partial<SourceDataSegment>): Record<string, PackedSourceData> {
   return segment.version === 1 && segment.sources ? segment.sources : {}
 }
 
