@@ -2,57 +2,46 @@ import { Codec } from "../../vendor/utf15"
 
 const pathCodec = new Codec({ depth: 6, array: true })
 
-export function compressPath(path: RoomPosition[]) {
+export type PackedPath = string[]
+
+export function packPath(path: readonly RoomPosition[]): PackedPath {
   if (path.length === 0) {
-    return [[]]
+    return []
   }
 
+  const result: string[] = []
+
   let currentRoomName = path[0].roomName
-
-  const result = [currentRoomName]
-
-  let currentArray: number[] = []
+  let coordinates: number[] = []
 
   for (const pos of path) {
     if (pos.roomName !== currentRoomName) {
-      result.push(pathCodec.encode(currentArray))
-
+      result.push(currentRoomName, pathCodec.encode(coordinates))
       currentRoomName = pos.roomName
-      result.push(currentRoomName)
-
-      currentArray = []
+      coordinates = []
     }
 
-    currentArray.push(pos.x, pos.y)
+    coordinates.push(pos.x, pos.y)
   }
 
-  result.push(pathCodec.encode(currentArray))
+  result.push(currentRoomName, pathCodec.encode(coordinates))
 
   return result
 }
 
-export function decompressPath(packedPath: string[]): RoomPosition[] {
+export function unpackPath(packedPath: PackedPath): RoomPosition[] {
   const result: RoomPosition[] = []
-  if (packedPath.length === 0) {
-    return result
-  }
 
-  let currentRoomName = packedPath[0]
+  for (let i = 0; i < packedPath.length; i += 2) {
+    const roomName = packedPath[i]
+    const coordinates = pathCodec.decode(packedPath[i + 1])
 
-  for (let i = 1; i < packedPath.length; i++) {
-    if (i % 2 === 0) {
-      currentRoomName = packedPath[i]
-    } else {
-      const coords = pathCodec.decode(packedPath[i])
+    if (!Array.isArray(coordinates)) {
+      throw new Error("Invalid packed path")
+    }
 
-      if (Array.isArray(coords)) {
-        for (let i = 0; i < coords.length; i += 2) {
-          const x = coords[i]
-          const y = coords[i + 1]
-          const pos = new RoomPosition(x, y, currentRoomName)
-          result.push(pos)
-        }
-      }
+    for (let j = 0; j < coordinates.length; j += 2) {
+      result.push(new RoomPosition(coordinates[j], coordinates[j + 1], roomName))
     }
   }
 

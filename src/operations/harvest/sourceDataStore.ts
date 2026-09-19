@@ -1,3 +1,4 @@
+import { PackedPath } from "../../capabilities/movement/packedPath"
 import { SOURCE_DATA_SEGMENT_IDS } from "../../persistence/segmentIds"
 import { segmentManager } from "../../persistence/segmentManager"
 import { RoomCoordinate } from "../../world/map/roomCoordinate"
