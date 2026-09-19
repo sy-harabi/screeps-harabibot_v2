@@ -21,11 +21,16 @@ Gameplay strength and efficient use of available resources are the primary outco
 
 ### Economy
 
-During early empire development, where GCL progression is the primary strategic objective, maximize sustainable empire-wide controller progress (`upgrade/tick`) under finite spawn time and CPU.
+Build a strong general-purpose economic foundation that can support both progression and later strategic spending such as warfare.
 
-Income is a means to that objective rather than the objective by itself. Optimize the economy as a whole rather than optimizing isolated creeps or rooms without regard to their effect on empire-level controller progress.
+The binding resource changes as the empire grows:
 
-This objective is lifecycle-specific. As the empire matures, energy and spawn capacity must also be allocated to warfare, defense, strategic reserves, expansion, and other valuable outcomes. Foundational economy systems should therefore support later changes in strategic objective without requiring the early-economy control model to become a universal whole-game utility function.
+1. while CPU has comfortable headroom, spawn time is the main scarce resource; use the available spawn time to maximize sustainable income and the controller progress (`upgrade/tick`) that economy can support;
+2. once CPU becomes a meaningful constraint, use the available CPU budget to maximize sustainable income while preserving the strategic capabilities the empire needs.
+
+Income is not the final objective by itself. In the early empire, much of it should be converted into GCL and RCL progress. Later, the same economic foundation must be able to redirect resources toward war, defense, expansion, reserves, power processing, and other strategic goals.
+
+Optimize the economy as a whole rather than optimizing isolated creeps, rooms, or individual resource flows without regard to empire-level spawn time, CPU, and strategic output.
 
 ### CPU management
 
