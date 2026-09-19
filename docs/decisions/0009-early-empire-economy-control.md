@@ -23,6 +23,8 @@ Many consumers do not actually need a generic level. Emergency logic wants reser
 
 The original bot also explicitly selects a remote portfolio from net income and spawn usage, then tries to maintain the selected sources. An alternative discussed during the rewrite is to let spawn contention determine the effective remote frontier: high-value work is requested first, while increasingly marginal remote work simply fails to receive replacement spawn time.
 
+Harvesting is also coupled across sources. Local and remote sources compete for the same spawn time, while haulers form a shared colony pool. A source's hauling fulfillment therefore depends on how much shared hauling capacity has already been allocated to higher-priority sources. Spawn planning must treat the harvesting economy as one ordered system rather than as independent source-local decisions.
+
 Remote infrastructure complicates this. If workforce pressure repeatedly causes remotes to open and close, rebuilding roads, containers, and reservation state can erase much of the theoretical gain. Infrastructure therefore needs a slower lifecycle than workforce assignment.
 
 ## Decision
@@ -100,20 +102,41 @@ This applies to economic admission only. Independent upper-level constraints may
 
 A remote does not need to flip between explicit economic ON/OFF states merely because its workforce is temporarily underfilled.
 
-### 5. Preserve ordered source progression and balance mining against hauling
+### 5. Evaluate harvesting as one ordered shared-capacity system
 
-Within the economically available source set:
+Local and remote sources that share a colony's spawn time and hauler pool must be evaluated together.
 
-1. process sources in economic priority order; distance is the initial simple ordering;
-2. spawn a miner for a newly reached source immediately;
-3. compare mining and hauling fulfillment and reinforce the more limiting side;
-4. prefer mining when the two are tied.
+The harvesting planner should:
 
-Haulers remain a colony-level shared pool. Their capacity is accounted against sources in priority order rather than permanently assigning one hauler population to each source.
+1. build one economically ordered source set; distance is the initial simple ordering;
+2. calculate current mining capability for each source;
+3. allocate the colony's shared hauling capacity across that ordered set;
+4. derive mining and hauling fulfillment for every source from the same snapshot;
+5. request the next useful miner, hauler, reserver, or other harvesting worker from that state.
 
-This preserves the simple, low-CPU behavior proven in the original bot while allowing later source ordering to become more sophisticated if measurements justify it.
+For a newly reached source, request a miner immediately. Afterwards, compare mining and hauling fulfillment and reinforce the more limiting side. Prefer mining when the two are tied.
 
-### 6. Treat reservation as a throughput unlock, not just another role in a fixed list
+Haulers remain a colony-level shared pool. Their capacity is not permanently owned by the source whose deficit originally caused a hauler to spawn.
+
+The ordered source snapshot must be independent of operation traversal order. No source may gain economic priority merely because its `plan()` or `execute()` happened to run first.
+
+### 6. Keep economic policy out of SpawnAllocator
+
+SpawnAllocator should arbitrate already-ranked generic requests.
+
+It may compare generic priority fields lexicographically, but it should not understand:
+
+- source distance;
+- mining or hauling ratios;
+- reservation mechanics;
+- source productivity;
+- remote economic policy.
+
+The harvesting system decides what work is useful and assigns the corresponding request priority. SpawnAllocator only resolves contention between requests.
+
+This preserves operation traversal independence: requests may be produced in any planning order and still receive the same final spawn ordering.
+
+### 7. Treat reservation as a throughput unlock, not just another role in a fixed list
 
 For a normal unreserved remote, full reservation changes source production from the unreserved baseline to the reserved throughput.
 
@@ -128,11 +151,11 @@ For a newly developing normal remote:
 
 The 0.5 threshold has physical meaning: half of the fully reserved 10 energy/tick throughput corresponds to the unreserved 5 energy/tick source production. Before that point, reservation cannot be fully exploited by transport.
 
-Reservation is a remote-room resource rather than a source-local resource, so one reserver may unlock multiple sources in the same remote. The final implementation should therefore evaluate reservation at the remote level even though source workforce progression supplies the trigger.
+Reservation is a remote-room resource rather than a source-local resource, so one reserver may unlock multiple sources in the same remote. The harvesting system should evaluate that shared state when deciding whether reservation is useful.
 
 Replacement timing for an established reservation should account for travel and remaining reservation time. Exact lead-time and tie-breaking rules are left to implementation.
 
-### 7. Decouple infrastructure lifetime from workforce fluctuation
+### 8. Decouple infrastructure lifetime from workforce fluctuation
 
 Remote workforce may fluctuate with spawn pressure. Established infrastructure should not follow the same fast frontier.
 
@@ -181,6 +204,10 @@ If upgrader, economy, construction, and other roles submit ordered useful work, 
 
 Marginal remote workforce can disappear first when spawn pressure rises and return when pressure falls. This keeps the control surface small and makes the actual spawn bottleneck visible instead of predicting it indirectly.
 
+### Shared hauling couples source decisions
+
+A source's hauling fulfillment cannot be computed correctly in isolation when all sources share the same hauler pool. The same ordered snapshot should drive both spawn demand and runtime hauling decisions rather than relying on operation traversal order.
+
 ### Infrastructure has switching costs
 
 Roads, containers, construction labor, and reservation state are investments. Frequent economic ON/OFF transitions can produce rebuilding and maintenance costs that a steady-state income calculation misses.
@@ -195,6 +222,9 @@ Reservation is not merely another creep count. It changes source throughput. Del
 
 - Economy code should prefer explicit energy and ratio fields over generic level thresholds.
 - Existing v1 `energyLevel` and `empireEnergyLevel` thresholds are reference material, not APIs to reproduce.
+- Harvesting needs a shared ordered state calculation across local and remote sources.
+- Spawn and hauling behavior must not depend on operation traversal order.
+- SpawnAllocator remains generic and consumes ranked requests rather than computing economic priorities.
 - Source workforce and remote infrastructure should have separate state and timescales.
 - Remote economic participation can be partial; a remote may remain admitted while its marginal workforce is temporarily underfilled.
 - CPU and strategic remote gating remain separate from economic spawn contention.
@@ -206,6 +236,14 @@ Reservation is not merely another creep count. It changes source throughput. Del
 ### Keep the original energy-level abstraction
 
 Rejected for v2 as the core economic state. It is compact but combines reserve ratio and absolute surplus in one artificial scale, which makes policy harder to interpret and encourages unrelated systems to depend on the same thresholds.
+
+### Let independent source operations consume shared hauling capacity in traversal order
+
+Rejected. Traversal order is an implementation detail and does not represent economic priority. Shared hauling allocation must be computed from an explicit ordered source set.
+
+### Put source economics inside SpawnAllocator
+
+Rejected. The allocator should remain reusable arbitration infrastructure. Source distance, hauling fulfillment, reservation, and productivity belong to the harvesting policy that creates ranked requests.
 
 ### Explicitly optimize the number of active remotes
 
