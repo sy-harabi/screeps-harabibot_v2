@@ -18,9 +18,7 @@ interface SourceDataSegment {
 export type SourceDataDeleteResult = "loading" | "deleted"
 
 export type SourceDataReadResult =
-  | { status: "loading" }
-  | { status: "missing" }
-  | { status: "ready"; value: SourceData }
+  { status: "loading" } | { status: "missing" } | { status: "ready"; value: SourceData }
 
 export const sourceDataStore = {
   get,
