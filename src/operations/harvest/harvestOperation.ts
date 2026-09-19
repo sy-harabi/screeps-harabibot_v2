@@ -1,6 +1,7 @@
 import { BasePlan } from "../../capabilities/basePlanning/basePlan"
 import { basePlanStore } from "../../capabilities/basePlanning/basePlanStore"
 import type { TickContext } from "../../kernel/tickContext"
+import { RoomCoordinate } from "../../world/map/roomCoordinate"
 import type { ColonyOperationRecord } from "../colony/colonyOperation"
 import type { OperationBase } from "../operation"
 import type { OperationHandler } from "../operationHandler"
@@ -47,12 +48,18 @@ export const harvestOperationHandler: OperationHandler<HarvestOperationRecord> =
 
     const basePlan = basePlanResult.value
 
+    let sourceReady = true
+
     for (const source of room.find(FIND_SOURCES)) {
       const sourceData = ensureOwnedSourceData(source, basePlan)
 
       if (sourceData === undefined) {
-        return
+        sourceReady = false
       }
+    }
+
+    if (!sourceReady) {
+      return
     }
   },
 
@@ -86,4 +93,38 @@ function ensureOwnedSourceData(source: Source, basePlan: BasePlan): SourceData |
   if (!path) {
     return
   }
+}
+
+function findSourcePath(basePlan: BasePlan, target: RoomCoordinate): RoomPosition[] | undefined {
+  const result = PathFinder.search(
+    new RoomPosition(basePlan.anchor.x, basePlan.anchor.y, basePlan.roomName),
+    {
+      pos: new RoomPosition(target.x, target.y, basePlan.roomName),
+      range: 0,
+    },
+    {
+      plainCost: 255,
+      swampCost: 255,
+      maxRooms: 1,
+      roomCallback: () => {
+        const costs = new PathFinder.CostMatrix()
+
+        for (const structure of basePlan.structures) {
+          if (structure.structureType === STRUCTURE_ROAD) {
+            costs.set(structure.coordinate.x, structure.coordinate.y, 1)
+          }
+        }
+
+        costs.set(target.x, target.y, 1)
+
+        return costs
+      },
+    },
+  )
+
+  if (result.incomplete) {
+    return
+  }
+
+  return result.path
 }
