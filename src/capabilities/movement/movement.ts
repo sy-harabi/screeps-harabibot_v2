@@ -127,9 +127,53 @@ export function moveCreepByPath(
   return "pending"
 }
 
-function rejoinKnownPath(creep: Creep, path: readonly RoomPosition[], options: MoveByPathOptions = {}) {
+function rejoinKnownPath(
+  creep: Creep,
+  path: readonly RoomPosition[],
+  options: MoveByPathOptions = {},
+): MoveStatus {
   const goals = path.map((pos) => ({ pos, range: 0 }))
-  return moveCreep(creep, goals, { useRoomRoute: false, priority: options.priority })
+  const result = moveCreep(creep, goals, { useRoomRoute: false, priority: options.priority })
+
+  if (result !== "arrived") {
+    return result
+  }
+
+  const runtime = getMovementRuntime(creep.name)
+  const direction: 1 | -1 = options.reverse ? -1 : 1
+  let currentIndex: number | undefined
+
+  if (direction > 0) {
+    for (let i = path.length - 1; i >= 0; i--) {
+      if (creep.pos.isEqualTo(path[i])) {
+        currentIndex = i
+        break
+      }
+    }
+  } else {
+    for (let i = 0; i < path.length; i++) {
+      if (creep.pos.isEqualTo(path[i])) {
+        currentIndex = i
+        break
+      }
+    }
+  }
+
+  if (currentIndex === undefined) {
+    return "failed"
+  }
+
+  const nextIndex = currentIndex + direction
+
+  if (nextIndex < 0 || nextIndex >= path.length) {
+    runtime.knownPathIndex = undefined
+    return "arrived"
+  }
+
+  runtime.knownPathIndex = nextIndex
+  registerMove(creep, path[nextIndex], options.priority)
+
+  return "pending"
 }
 
 function initializeKnownPathIndex(creep: Creep, path: readonly RoomPosition[], direction: 1 | -1): number | undefined {
