@@ -32,11 +32,11 @@ export function createMinerBody(roomName: string): readonly BodyPartConstant[] |
 
   const budget = Math.max(room.energyAvailable, SPAWN_ENERGY_CAPACITY)
 
-  if (budget < 300) {
+  if (budget < 250) {
     return undefined
   }
 
-  const workCount = Math.min(5, Math.floor((budget - 100) / BODYPART_COST[WORK]))
+  const workCount = Math.min(5, Math.floor((budget - BODYPART_COST[MOVE]) / BODYPART_COST[WORK]))
 
-  return [...Array<BodyPartConstant>(workCount).fill(WORK), CARRY, MOVE]
+  return [...Array<BodyPartConstant>(workCount).fill(WORK), MOVE]
 }

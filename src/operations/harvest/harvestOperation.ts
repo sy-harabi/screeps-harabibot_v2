@@ -27,8 +27,9 @@ interface HarvestOperationHeap {
 interface SourceState {
   readonly data: SourceData
 
-  requiredHarvestPower: number
   harvestPower: number
+  harvestingPower: number
+  requiredHarvestPower: number
 
   numMiners: number
 
@@ -83,7 +84,7 @@ export const harvestOperationHandler: OperationHandler<HarvestOperationRecord> =
 
     const sourceOrder = getSourceOrder(operation, sourceDataById)
 
-    const sourceStateById = new Map<Id<Source>, SourceState>()
+    const sourceStateById = ensureSourceStateById(operation)
 
     for (const miner of getOperationCreeps(context, operation.id, MINER_ROLE)) {
       const sourceId = miner.memory.sourceId
@@ -160,13 +161,21 @@ export const harvestOperationHandler: OperationHandler<HarvestOperationRecord> =
         )
       }
     }
-
-    getOperationTemp<HarvestOperationTemp>(operation.id).sourceStateById = sourceStateById
   },
 
   execute(operation: HarvestOperationRecord, context: TickContext): void {
     runMiners(operation, context)
   },
+}
+
+function ensureSourceStateById(operation: HarvestOperationRecord): Map<Id<Source>, SourceState> {
+  const sourceStateById = getOperationTemp<HarvestOperationTemp>(operation.id).sourceStateById
+
+  if (sourceStateById === undefined) {
+    return (getOperationTemp<HarvestOperationTemp>(operation.id).sourceStateById = new Map<Id<Source>, SourceState>())
+  }
+
+  return sourceStateById
 }
 
 function ensureSourceState(
@@ -187,7 +196,9 @@ function ensureSourceState(
   if (sourceState === undefined) {
     sourceState = {
       data: sourceData,
+
       harvestPower: 0,
+      harvestingPower: 0,
       requiredHarvestPower: requiredHarvestPower,
       numMiners: 0,
 
