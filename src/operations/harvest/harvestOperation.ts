@@ -24,11 +24,6 @@ interface HarvestOperationHeap {
   sourceOrder?: Id<Source>[]
 }
 
-export interface HarvestTickState {
-  readonly sourceOrder: readonly Id<Source>[]
-  readonly sourceStateById: Map<Id<Source>, SourceState>
-}
-
 export interface HarvestOperationTemp {
   sourceOrder: readonly Id<Source>[]
   sourceStateById: Map<Id<Source>, SourceState>
@@ -91,7 +86,11 @@ export const harvestOperationHandler: OperationHandler<HarvestOperationRecord> =
 
     const sourceOrder = getSourceOrder(operation, sourceDataById)
 
-    const temp = ensureHarvestTemp(operation, sourceOrder)
+    const temp = getOperationTemp<HarvestOperationTemp>(operation.id)
+    temp.sourceOrder = sourceOrder
+    temp.sourceStateById = new Map()
+
+    const sourceStateById = temp.sourceStateById
 
     for (const miner of getOperationCreeps(context, operation.id, MINER_ROLE)) {
       const sourceId = miner.memory.sourceId
@@ -100,7 +99,7 @@ export const harvestOperationHandler: OperationHandler<HarvestOperationRecord> =
         continue
       }
 
-      const sourceState = ensureSourceState(sourceDataById, temp.sourceStateById, sourceId)
+      const sourceState = ensureSourceState(sourceDataById, sourceStateById, sourceId)
 
       if (sourceState === undefined) {
         continue
@@ -127,7 +126,7 @@ export const harvestOperationHandler: OperationHandler<HarvestOperationRecord> =
     let carryCapacityLeft = totalCarryCapacity
 
     for (const sourceId of sourceOrder) {
-      const sourceState = ensureSourceState(sourceDataById, temp.sourceStateById, sourceId)
+      const sourceState = ensureSourceState(sourceDataById, sourceStateById, sourceId)
 
       if (sourceState === undefined) {
         continue
@@ -174,28 +173,12 @@ export const harvestOperationHandler: OperationHandler<HarvestOperationRecord> =
     const { sourceOrder, sourceStateById } = getOperationTemp<HarvestOperationTemp>(operation.id)
 
     if (sourceOrder === undefined || sourceStateById === undefined) {
+      console.log(`[HarvestOperation] Missing temp state: ${operation.id}`)
       return
     }
 
     runMiners(operation, context, sourceStateById)
   },
-}
-
-function ensureHarvestTemp(
-  operation: HarvestOperationRecord,
-  sourceOrder: readonly Id<Source>[],
-): HarvestOperationTemp {
-  const temp = getOperationTemp<HarvestOperationTemp>(operation.id)
-
-  if (!temp.sourceOrder) {
-    temp.sourceOrder = sourceOrder
-  }
-
-  if (!temp.sourceStateById) {
-    temp.sourceStateById = new Map()
-  }
-
-  return temp as HarvestOperationTemp
 }
 
 function ensureSourceState(
