@@ -92,6 +92,8 @@ export const harvestOperationHandler: OperationHandler<HarvestOperationRecord> =
 
     const sourceStateById = temp.sourceStateById
 
+    let hasHarvestIncome = false
+
     for (const miner of getOperationCreeps(context, operation.id, MINER_ROLE)) {
       const sourceId = miner.memory.sourceId
 
@@ -107,8 +109,14 @@ export const harvestOperationHandler: OperationHandler<HarvestOperationRecord> =
 
       const replacementLeadTime = miner.body.length * CREEP_SPAWN_TIME + sourceState.data.path.length + 10
 
+      const harvestPower = miner.getActiveBodyparts(WORK) * HARVEST_POWER
+
+      if (harvestPower > 0) {
+        hasHarvestIncome = true
+      }
+
       if ((miner.ticksToLive ?? CREEP_LIFE_TIME) > replacementLeadTime) {
-        sourceState.harvestPower += miner.getActiveBodyparts(WORK) * HARVEST_POWER
+        sourceState.harvestPower += harvestPower
         sourceState.numMiners++
       }
     }
@@ -153,7 +161,7 @@ export const harvestOperationHandler: OperationHandler<HarvestOperationRecord> =
             order: sourceState.data.path.length,
             rolesByPriority: ROLES_BY_PRIORITY,
           },
-          () => createMinerBody(operation.roomName),
+          () => createMinerBody(operation.roomName, hasHarvestIncome),
           MINER_ROLE,
           { memory: { sourceId } },
         )

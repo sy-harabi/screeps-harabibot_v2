@@ -105,14 +105,16 @@ function findFallbackMiningPosition(miner: Creep, sourceState: SourceState): Roo
   return
 }
 
-export function createMinerBody(roomName: string): readonly BodyPartConstant[] | undefined {
+export function createMinerBody(roomName: string, useEnergyCapacity: boolean): readonly BodyPartConstant[] | undefined {
   const room = Game.rooms[roomName]
 
   if (!room) {
     return undefined
   }
 
-  const budget = Math.max(room.energyAvailable, SPAWN_ENERGY_CAPACITY)
+  const budget = useEnergyCapacity
+    ? room.energyCapacityAvailable
+    : Math.max(room.energyAvailable, SPAWN_ENERGY_CAPACITY)
 
   if (budget < 250) {
     return undefined
