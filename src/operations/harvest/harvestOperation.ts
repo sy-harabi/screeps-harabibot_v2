@@ -24,7 +24,7 @@ interface HarvestOperationHeap {
   sourceOrder?: Id<Source>[]
 }
 
-interface SourceState {
+export interface SourceState {
   readonly data: SourceData
 
   harvestPower: number
@@ -164,7 +164,9 @@ export const harvestOperationHandler: OperationHandler<HarvestOperationRecord> =
   },
 
   execute(operation: HarvestOperationRecord, context: TickContext): void {
-    runMiners(operation, context)
+    const sourceStateById = ensureSourceStateById(operation)
+
+    runMiners(operation, context, sourceStateById)
   },
 }
 

@@ -1,9 +1,16 @@
+import { moveCreep } from "../../capabilities/movement/movement"
 import { getOperationCreeps, type TickContext } from "../../kernel/tickContext"
-import type { HarvestOperationRecord } from "./harvestOperation"
+import type { HarvestOperationRecord, SourceState } from "./harvestOperation"
 
 export const MINER_ROLE = "miner"
 
-export function runMiners(operation: HarvestOperationRecord, context: TickContext): void {
+type RunMinerResult = "harvesting" | "moving"
+
+export function runMiners(
+  operation: HarvestOperationRecord,
+  context: TickContext,
+  sourceStateById: Map<Id<Source>, SourceState>,
+): void {
   for (const miner of getOperationCreeps(context, operation.id, MINER_ROLE)) {
     const sourceId = miner.memory.sourceId
 
@@ -11,16 +18,35 @@ export function runMiners(operation: HarvestOperationRecord, context: TickContex
       continue
     }
 
-    const source = Game.getObjectById(sourceId)
+    const sourceState = sourceStateById.get(sourceId)
 
-    if (!source) {
+    if (sourceState === undefined) {
       continue
     }
 
-    if (miner.harvest(source) === ERR_NOT_IN_RANGE) {
-      miner.moveTo(source)
+    if (runMiner(miner, sourceState) === "harvesting") {
+      sourceState.harvestingPower += miner.getActiveBodyparts(WORK) * HARVEST_POWER
     }
   }
+}
+
+function runMiner(miner: Creep, sourceState: SourceState): RunMinerResult {
+  const source = Game.getObjectById(sourceState.data.sourceId)
+
+  if (!source) {
+    const lastPos = sourceState.data.path[sourceState.data.path.length - 1]
+    moveCreep(miner, { pos: lastPos, range: 0 })
+    return "moving"
+  }
+
+  const result = miner.harvest(source)
+
+  if (result === OK) {
+    return "harvesting"
+  }
+
+  moveCreep(miner, { pos: source.pos, range: 1 })
+  return "moving"
 }
 
 export function createMinerBody(roomName: string): readonly BodyPartConstant[] | undefined {
