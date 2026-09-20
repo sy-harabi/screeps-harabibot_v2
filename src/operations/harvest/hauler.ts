@@ -34,29 +34,31 @@ export function runHaulers(
       assignHauler(hauler, sourceOrder, sourceStateById)
     }
 
-    if (hauler.memory.delivering) {
-      runDeliver(hauler)
-      return
-    }
-
-    const sourceId = hauler.memory.sourceId
-
-    if (!sourceId) {
-      return
-    }
-
-    const sourceState = sourceStateById.get(sourceId)
-
-    if (!sourceState) {
-      delete hauler.memory.sourceId
-      return
-    }
-
-    runFetch(hauler, sourceState)
+    runHauler(hauler, sourceStateById)
   }
 }
 
-function runHauler(hauler: Creep, sourceStateById: Map<Id<Source>, SourceState>): void {}
+function runHauler(hauler: Creep, sourceStateById: Map<Id<Source>, SourceState>): void {
+  if (hauler.memory.delivering) {
+    runDeliver(hauler)
+    return
+  }
+
+  const sourceId = hauler.memory.sourceId
+
+  if (!sourceId) {
+    return
+  }
+
+  const sourceState = sourceStateById.get(sourceId)
+
+  if (!sourceState) {
+    delete hauler.memory.sourceId
+    return
+  }
+
+  runFetch(hauler, sourceState)
+}
 
 function preparePendingEnergy(sourceOrder: readonly Id<Source>[], sourceStateById: Map<Id<Source>, SourceState>): void {
   for (const sourceId of sourceOrder) {
