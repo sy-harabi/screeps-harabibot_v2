@@ -1,4 +1,123 @@
+import { getOperationCreeps, TickContext } from "../../kernel/tickContext"
+import { HarvestOperationRecord, SourceState } from "./harvestOperation"
+
 export const HAULER_ROLE = "hauler"
+
+export function runHaulers(
+  operation: HarvestOperationRecord,
+  context: TickContext,
+  sourceOrder: readonly Id<Source>[],
+  sourceStateById: Map<Id<Source>, SourceState>,
+): void {
+  const haulers = getOperationCreeps(context, operation.id, HAULER_ROLE)
+
+  preparePendingEnergy(sourceOrder, sourceStateById)
+
+  for (const hauler of haulers) {
+    const sourceId = hauler.memory.sourceId
+
+    if (!sourceId) {
+      continue
+    }
+
+    const sourceState = sourceStateById.get(sourceId)
+
+    if (!sourceState) {
+      continue
+    }
+
+    sourceState.pendingEnergy -= hauler.store.getFreeCapacity(RESOURCE_ENERGY)
+  }
+
+  // idle hauler 배정
+  for (const hauler of haulers) {
+    if (hauler.memory.sourceId) {
+      continue
+    }
+
+    assignHauler(hauler, sourceOrder, sourceStateById)
+  }
+}
+
+function preparePendingEnergy(sourceOrder: readonly Id<Source>[], sourceStateById: Map<Id<Source>, SourceState>): void {
+  for (const sourceId of sourceOrder) {
+    const sourceState = sourceStateById.get(sourceId)
+
+    if (!sourceState) {
+      continue
+    }
+
+    const source = Game.getObjectById(sourceId)
+
+    if (!source) {
+      sourceState.pendingEnergy = 0
+      continue
+    }
+
+    sourceState.pendingEnergy = getAvailableEnergy(source) + getExpectedEnergyDelta(source, sourceState)
+  }
+}
+
+function assignHauler(
+  hauler: Creep,
+  sourceOrder: readonly Id<Source>[],
+  sourceStateById: Map<Id<Source>, SourceState>,
+): boolean {
+  const capacity = hauler.store.getFreeCapacity(RESOURCE_ENERGY)
+
+  for (const sourceId of sourceOrder) {
+    const sourceState = sourceStateById.get(sourceId)
+
+    if (!sourceState) {
+      continue
+    }
+
+    if (sourceState.pendingEnergy < capacity) {
+      continue
+    }
+
+    const travelTicks = sourceState.data.path.length
+
+    if (hauler.ticksToLive !== undefined && hauler.ticksToLive <= travelTicks * 2 + 20) {
+      continue
+    }
+
+    hauler.memory.sourceId = sourceId
+    sourceState.pendingEnergy -= capacity
+
+    return true
+  }
+
+  return false
+}
+
+function getExpectedEnergyDelta(source: Source, sourceState: SourceState): number {
+  const travleTicks = sourceState.data.path.length
+  const regeneration = source.ticksToRegeneration ?? ENERGY_REGEN_TIME
+
+  if (travleTicks < regeneration) {
+    return Math.min(source.energy, sourceState.harvestingPower * travleTicks)
+  }
+
+  return (
+    Math.min(source.energy, sourceState.harvestingPower * regeneration) +
+    sourceState.harvestingPower * (travleTicks - regeneration)
+  )
+}
+
+function getAvailableEnergy(source: Source): number {
+  let energy = 0
+
+  for (const resource of source.pos.findInRange(FIND_DROPPED_RESOURCES, 1)) {
+    if (resource.resourceType === RESOURCE_ENERGY) {
+      energy += resource.amount
+    }
+  }
+
+  // endpoint에 container가 있으면 store energy도 더함
+
+  return energy
+}
 
 export function createHaulerBody(roomName: string): readonly BodyPartConstant[] | undefined {
   const room = Game.rooms[roomName]

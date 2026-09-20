@@ -7,7 +7,7 @@ import { RoomCoordinate } from "../../world/map/roomCoordinate"
 import type { ColonyOperationRecord } from "../colony/colonyOperation"
 import type { OperationBase } from "../operation"
 import type { OperationHandler } from "../operationHandler"
-import { createHaulerBody, HAULER_ROLE } from "./hauler"
+import { createHaulerBody, HAULER_ROLE, runHaulers } from "./hauler"
 import { createMinerBody, MINER_ROLE, runMiners } from "./miner"
 import { SourceData } from "./sourceData"
 import { sourceDataStore } from "./sourceDataStore"
@@ -88,7 +88,7 @@ export const harvestOperationHandler: OperationHandler<HarvestOperationRecord> =
 
     const temp = getOperationTemp<HarvestOperationTemp>(operation.id)
     temp.sourceOrder = sourceOrder
-    temp.sourceStateById = new Map()
+    temp.sourceStateById = new Map<Id<Source>, SourceState>()
 
     const sourceStateById = temp.sourceStateById
 
@@ -178,6 +178,7 @@ export const harvestOperationHandler: OperationHandler<HarvestOperationRecord> =
     }
 
     runMiners(operation, context, sourceStateById)
+    runHaulers(operation, context, sourceOrder, sourceStateById)
   },
 }
 
