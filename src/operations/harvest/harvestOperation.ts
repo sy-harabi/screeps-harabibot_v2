@@ -157,7 +157,6 @@ export const harvestOperationHandler: OperationHandler<HarvestOperationRecord> =
           },
           () => createHaulerBody(operation.roomName),
           HAULER_ROLE,
-          { memory: { sourceId } },
         )
       }
     }
