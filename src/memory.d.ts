@@ -11,5 +11,6 @@ declare global {
     operationId: string
     role: string
     sourceId?: Id<Source>
+    delivering?: boolean
   }
 }

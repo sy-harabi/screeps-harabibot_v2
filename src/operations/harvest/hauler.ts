@@ -1,5 +1,5 @@
 import { getOperationCreeps, TickContext } from "../../kernel/tickContext"
-import { HarvestOperationRecord, SourceState } from "./harvestOperation"
+import type { HarvestOperationRecord, SourceState } from "./harvestOperation"
 
 export const HAULER_ROLE = "hauler"
 
@@ -14,11 +14,11 @@ export function runHaulers(
   preparePendingEnergy(sourceOrder, sourceStateById)
 
   for (const hauler of haulers) {
-    const sourceId = hauler.memory.sourceId
-
-    if (!sourceId) {
+    if (!hauler.memory.sourceId || hauler.memory.delivering) {
       continue
     }
+
+    const sourceId = hauler.memory.sourceId
 
     const sourceState = sourceStateById.get(sourceId)
 
@@ -29,15 +29,34 @@ export function runHaulers(
     sourceState.pendingEnergy -= hauler.store.getFreeCapacity(RESOURCE_ENERGY)
   }
 
-  // idle hauler 배정
   for (const hauler of haulers) {
-    if (hauler.memory.sourceId) {
-      continue
+    if (!hauler.memory.sourceId && !hauler.memory.delivering) {
+      assignHauler(hauler, sourceOrder, sourceStateById)
     }
 
-    assignHauler(hauler, sourceOrder, sourceStateById)
+    if (hauler.memory.delivering) {
+      runDeliver(hauler)
+      return
+    }
+
+    const sourceId = hauler.memory.sourceId
+
+    if (!sourceId) {
+      return
+    }
+
+    const sourceState = sourceStateById.get(sourceId)
+
+    if (!sourceState) {
+      delete hauler.memory.sourceId
+      return
+    }
+
+    runFetch(hauler, sourceState)
   }
 }
+
+function runHauler(hauler: Creep, sourceStateById: Map<Id<Source>, SourceState>): void {}
 
 function preparePendingEnergy(sourceOrder: readonly Id<Source>[], sourceStateById: Map<Id<Source>, SourceState>): void {
   for (const sourceId of sourceOrder) {
@@ -63,7 +82,7 @@ function assignHauler(
   sourceOrder: readonly Id<Source>[],
   sourceStateById: Map<Id<Source>, SourceState>,
 ): boolean {
-  const capacity = hauler.store.getFreeCapacity(RESOURCE_ENERGY)
+  const capacity = hauler.store.getCapacity(RESOURCE_ENERGY)
 
   for (const sourceId of sourceOrder) {
     const sourceState = sourceStateById.get(sourceId)
@@ -92,16 +111,16 @@ function assignHauler(
 }
 
 function getExpectedEnergyDelta(source: Source, sourceState: SourceState): number {
-  const travleTicks = sourceState.data.path.length
+  const travelTicks = sourceState.data.path.length
   const regeneration = source.ticksToRegeneration ?? ENERGY_REGEN_TIME
 
-  if (travleTicks < regeneration) {
-    return Math.min(source.energy, sourceState.harvestingPower * travleTicks)
+  if (travelTicks < regeneration) {
+    return Math.min(source.energy, sourceState.harvestingPower * travelTicks)
   }
 
   return (
     Math.min(source.energy, sourceState.harvestingPower * regeneration) +
-    sourceState.harvestingPower * (travleTicks - regeneration)
+    sourceState.harvestingPower * (travelTicks - regeneration)
   )
 }
 

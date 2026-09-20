@@ -33,16 +33,17 @@ export function runMiners(
 function runMiner(miner: Creep, sourceState: SourceState): RunMinerResult {
   const source = Game.getObjectById(sourceState.data.sourceId)
 
+  const miningPos = sourceState.data.path[sourceState.data.path.length - 1]
+
   if (!source) {
-    const lastPos = sourceState.data.path[sourceState.data.path.length - 1]
-    moveCreep(miner, { pos: lastPos, range: 0 })
+    moveCreep(miner, { pos: miningPos, range: 0 })
     return "moving"
   }
 
   const result = miner.harvest(source)
 
   if (result === ERR_NOT_IN_RANGE) {
-    moveCreep(miner, { pos: source.pos, range: 1 })
+    moveCreep(miner, { pos: miningPos, range: 0 })
     return "moving"
   }
 
