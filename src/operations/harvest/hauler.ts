@@ -1,3 +1,4 @@
+import { moveCreep } from "../../capabilities/movement/movement"
 import { getOperationCreeps, TickContext } from "../../kernel/tickContext"
 import type { HarvestOperationRecord, SourceState } from "./harvestOperation"
 
@@ -58,6 +59,113 @@ function runHauler(hauler: Creep, sourceStateById: Map<Id<Source>, SourceState>)
   }
 
   runFetch(hauler, sourceState)
+}
+
+function runFetch(hauler: Creep, sourceState: SourceState): void {
+  const source = Game.getObjectById(sourceState.data.sourceId)
+  const sourcePos = sourceState.data.path[sourceState.data.path.length - 1]
+
+  if (!source) {
+    moveCreep(hauler, { pos: sourcePos, range: 1 })
+    return
+  }
+
+  const droppedEnergy = getDroppedEnergy(source)
+
+  const freeCapacity = hauler.store.getFreeCapacity(RESOURCE_ENERGY)
+
+  if (freeCapacity === 0) {
+    startDelivering(hauler, sourceState)
+    return
+  }
+
+  if (droppedEnergy) {
+    if (!hauler.pos.isNearTo(droppedEnergy)) {
+      moveCreep(hauler, {
+        pos: droppedEnergy.pos,
+        range: 1,
+      })
+      return
+    }
+
+    if (hauler.pickup(droppedEnergy) === OK) {
+      if (droppedEnergy.amount >= freeCapacity || source.energy === 0) {
+        startDelivering(hauler, sourceState)
+      }
+    }
+
+    return
+  }
+
+  const container = getSourceContainer(sourceState)
+
+  if (container) {
+    if (!hauler.pos.isNearTo(container)) {
+      moveCreep(hauler, {
+        pos: container.pos,
+        range: 1,
+      })
+      return
+    }
+
+    const amount = container.store.getUsedCapacity(RESOURCE_ENERGY)
+
+    if (amount >= freeCapacity || (amount > 0 && source.energy === 0)) {
+      if (hauler.withdraw(container, RESOURCE_ENERGY) === OK) {
+        startDelivering(hauler, sourceState)
+      }
+
+      return
+    }
+  }
+
+  // The source is still producing. Wait near the pickup position.
+  if (!hauler.pos.inRangeTo(sourcePos, 1)) {
+    moveCreep(hauler, { pos: sourcePos, range: 1 })
+  }
+}
+
+function startDelivering(hauler: Creep, sourceState: SourceState): void {
+  hauler.memory.delivering = true
+
+  const returnPos = sourceState.data.path[0]
+
+  if (!returnPos) {
+    return
+  }
+
+  moveCreep(hauler, {
+    pos: returnPos,
+    range: 0,
+  })
+}
+
+function getSourceContainer(sourceState: SourceState): StructureContainer | undefined {
+  const pos = sourceState.data.path[sourceState.data.path.length - 1]
+
+  if (!pos || !Game.rooms[pos.roomName]) {
+    return
+  }
+
+  return pos
+    .lookFor(LOOK_STRUCTURES)
+    .find((structure): structure is StructureContainer => structure.structureType === STRUCTURE_CONTAINER)
+}
+
+function getDroppedEnergy(source: Source): Resource<ResourceConstant> | undefined {
+  let result: Resource<ResourceConstant> | undefined
+
+  for (const resource of source.pos.findInRange(FIND_DROPPED_RESOURCES, 1)) {
+    if (resource.resourceType !== RESOURCE_ENERGY) {
+      continue
+    }
+
+    if (!result || resource.amount > result.amount) {
+      result = resource
+    }
+  }
+
+  return result
 }
 
 function preparePendingEnergy(sourceOrder: readonly Id<Source>[], sourceStateById: Map<Id<Source>, SourceState>): void {
