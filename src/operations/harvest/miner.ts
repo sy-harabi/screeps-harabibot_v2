@@ -1,6 +1,12 @@
 import { moveCreep } from "../../capabilities/movement/movement"
 import { getOperationCreeps, type TickContext } from "../../kernel/tickContext"
 import type { HarvestOperationRecord, SourceState } from "./harvestOperation"
+import { getCreepHeap } from "../../runtime/creepRuntime"
+
+interface MinerRuntime {
+  miningPosition?: RoomPosition
+  mining?: boolean
+}
 
 export const MINER_ROLE = "miner"
 
@@ -31,23 +37,103 @@ export function runMiners(
 }
 
 function runMiner(miner: Creep, sourceState: SourceState): RunMinerResult {
-  const source = Game.getObjectById(sourceState.data.sourceId)
+  let miningPos = getMiningPosition(miner, sourceState)
 
-  const miningPos = sourceState.data.path[sourceState.data.path.length - 1]
+  if (!miningPos) {
+    miner.say("he")
+    return "moving"
+  }
+
+  const source = Game.getObjectById(sourceState.data.sourceId)
 
   if (!source) {
     moveCreep(miner, { pos: miningPos, range: 0 })
     return "moving"
   }
 
-  const result = miner.harvest(source)
+  const runtime = getCreepHeap<MinerRuntime>(miner.name)
 
-  if (result === ERR_NOT_IN_RANGE) {
-    moveCreep(miner, { pos: miningPos, range: 0 })
-    return "moving"
+  if (miner.pos.isEqualTo(miningPos)) {
+    runtime.mining = true
+    miner.harvest(source)
+    return "harvesting"
   }
 
-  return "harvesting"
+  if (runtime.mining) {
+    miningPos = getMiningPosition(miner, sourceState, false)
+
+    if (miningPos === undefined) {
+      return "moving"
+    }
+  }
+
+  moveCreep(miner, { pos: miningPos, range: 0 })
+
+  return "moving"
+}
+
+function getMiningPosition(miner: Creep, sourceState: SourceState, useCache: boolean = true): RoomPosition | undefined {
+  const runtime = getCreepHeap<MinerRuntime>(miner.name)
+
+  if (useCache && runtime.miningPosition) {
+    return runtime.miningPosition
+  }
+
+  const primaryPos = sourceState.data.miningPositions[0]
+
+  if (!miner.pos.isNearTo(primaryPos)) {
+    return primaryPos
+  }
+
+  const occupant = primaryPos.lookFor(LOOK_CREEPS).find((creep) => creep.name !== miner.name)
+
+  if (!occupant) {
+    return primaryPos
+  }
+
+  const myWork = miner.getActiveBodyparts(WORK)
+
+  if (occupant.my && occupant.memory.role === MINER_ROLE && occupant.getActiveBodyparts(WORK) < myWork) {
+    // I am stronger. Let traffic push the weaker miner away.
+    return primaryPos
+  }
+
+  const fallback = findFallbackMiningPosition(miner, sourceState)
+
+  if (fallback) {
+    runtime.miningPosition = fallback
+  }
+
+  return fallback
+}
+
+function findFallbackMiningPosition(miner: Creep, sourceState: SourceState): RoomPosition | undefined {
+  const myWork = miner.getActiveBodyparts(WORK)
+
+  for (let i = 1; i < sourceState.data.miningPositions.length; i++) {
+    const pos = sourceState.data.miningPositions[i]
+
+    if (
+      pos.lookFor(LOOK_CREEPS).some((occupant) => {
+        if (
+          occupant.name !== miner.name &&
+          occupant.my &&
+          occupant.memory.role === MINER_ROLE &&
+          occupant.getActiveBodyparts(WORK) >= myWork
+        ) {
+          return true
+        }
+
+        return false
+      })
+    ) {
+      continue
+    }
+
+    return pos
+  }
+
+  return
 }
 
 export function createMinerBody(roomName: string): readonly BodyPartConstant[] | undefined {

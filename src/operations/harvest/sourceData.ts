@@ -1,6 +1,6 @@
-import { PackedPath, packPath, unpackPath } from "../../capabilities/movement/packedPath"
+import { PackedPath, packPath } from "../../capabilities/movement/packedPath"
 import { RoomCoordinate } from "../../world/map/roomCoordinate"
-import { forEachCoordinateAtRange, fromRoomIndex, toRoomIndex } from "../../world/map/roomGrid"
+import { forEachCoordinateAtRange, toRoomIndex } from "../../world/map/roomGrid"
 
 export interface SourceData {
   readonly sourceId: Id<Source>
@@ -27,16 +27,6 @@ export function packSourceData(sourceData: SourceData): PackedSourceData {
     sourceData.colonyRoomName,
     packPath(sourceData.path),
   ]
-}
-
-export function unpackSourceData(packed: PackedSourceData): SourceData {
-  return createSourceData(
-    packed[0],
-    packed[1],
-    fromRoomIndex(packed[2]),
-    packed[3],
-    unpackPath(packed[4]),
-  )
 }
 
 export function createSourceData(

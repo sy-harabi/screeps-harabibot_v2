@@ -1,7 +1,9 @@
+import { unpackPath } from "../../capabilities/movement/packedPath"
 import { SOURCE_DATA_SEGMENT_IDS } from "../../persistence/segmentIds"
 import { segmentManager } from "../../persistence/segmentManager"
 import { runtimeRegistry } from "../../runtime/runtimeRegistry"
-import { PackedSourceData, packSourceData, SourceData, unpackSourceData } from "./sourceData"
+import { fromRoomIndex } from "../../world/map/roomGrid"
+import { createSourceData, PackedSourceData, packSourceData, SourceData } from "./sourceData"
 
 interface SourceDataSegment {
   version: 1
@@ -42,7 +44,7 @@ function get(sourceId: Id<Source>): SourceDataReadResult {
     return { status: "missing" }
   }
 
-  const sourceData = unpackSourceData(packed)
+  const sourceData = createSourceData(packed[0], packed[1], fromRoomIndex(packed[2]), packed[3], unpackPath(packed[4]))
 
   sourceDataCache.set(sourceId, sourceData)
 
