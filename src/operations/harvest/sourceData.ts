@@ -30,36 +30,13 @@ export function packSourceData(sourceData: SourceData): PackedSourceData {
 }
 
 export function unpackSourceData(packed: PackedSourceData): SourceData {
-  const roomName = packed[1]
-  const coordinate = fromRoomIndex(packed[2])
-  const path = unpackPath(packed[4])
-  const containerPos = path[path.length - 1]
-
-  const sourcePosition = new RoomPosition(coordinate.x, coordinate.y, roomName)
-  const miningPositions = [containerPos]
-
-  const terrain = Game.map.getRoomTerrain(roomName)
-
-  forEachCoordinateAtRange(sourcePosition, 1, (x, y) => {
-    if (containerPos.x === x && containerPos.y === y) {
-      return
-    }
-
-    if (terrain.get(x, y) === TERRAIN_MASK_WALL) {
-      return
-    }
-
-    miningPositions.push(new RoomPosition(x, y, roomName))
-  })
-
-  return {
-    sourceId: packed[0],
-    roomName,
-    coordinate,
-    colonyRoomName: packed[3],
-    path,
-    miningPositions,
-  }
+  return createSourceData(
+    packed[0],
+    packed[1],
+    fromRoomIndex(packed[2]),
+    packed[3],
+    unpackPath(packed[4]),
+  )
 }
 
 export function createSourceData(
@@ -77,4 +54,28 @@ export function createSourceData(
     path,
     miningPositions: getMiningPositions(roomName, coordinate, path),
   }
+}
+
+function getMiningPositions(
+  roomName: string,
+  coordinate: RoomCoordinate,
+  path: readonly RoomPosition[],
+): RoomPosition[] {
+  const containerPos = path[path.length - 1]
+  const miningPositions = [containerPos]
+  const terrain = Game.map.getRoomTerrain(roomName)
+
+  forEachCoordinateAtRange(coordinate, 1, (x, y) => {
+    if (containerPos.x === x && containerPos.y === y) {
+      return
+    }
+
+    if (terrain.get(x, y) === TERRAIN_MASK_WALL) {
+      return
+    }
+
+    miningPositions.push(new RoomPosition(x, y, roomName))
+  })
+
+  return miningPositions
 }

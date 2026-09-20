@@ -9,7 +9,7 @@ import type { OperationBase } from "../operation"
 import type { OperationHandler } from "../operationHandler"
 import { createHaulerBody, HAULER_ROLE, runHaulers } from "./hauler"
 import { createMinerBody, MINER_ROLE, runMiners } from "./miner"
-import { SourceData } from "./sourceData"
+import { createSourceData, type SourceData } from "./sourceData"
 import { sourceDataStore } from "./sourceDataStore"
 
 export interface HarvestOperationRecord extends OperationBase {
@@ -295,16 +295,16 @@ function ensureOwnedSourceData(source: Source, basePlan: BasePlan): SourceData |
     return
   }
 
-  const sourceData: SourceData = {
-    sourceId: source.id,
-    roomName: source.room.name,
-    coordinate: {
+  const sourceData = createSourceData(
+    source.id,
+    source.room.name,
+    {
       x: source.pos.x,
       y: source.pos.y,
     },
-    colonyRoomName: basePlan.roomName,
+    basePlan.roomName,
     path,
-  }
+  )
 
   sourceDataStore.set(sourceData)
 
