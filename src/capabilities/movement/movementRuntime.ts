@@ -7,6 +7,8 @@ export interface MovementRuntime {
   stuckTicks?: number
   lastMoveTick?: number
   stuckRepathAttempted?: boolean
+
+  knownPathIndex?: number
 }
 
 interface MovementCreepRuntime {

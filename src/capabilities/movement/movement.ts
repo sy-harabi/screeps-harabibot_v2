@@ -19,6 +19,11 @@ interface MoveOptions {
   priority?: number
 }
 
+interface MoveByPathOptions {
+  reverse?: boolean
+  priority?: number
+}
+
 export interface MoveGoal {
   pos: RoomPosition
   range: number
@@ -78,6 +83,106 @@ export function moveCreep(creep: Creep, goals: MoveGoal | readonly MoveGoal[], o
   runtime.lastMoveTick = Game.time
 
   return "pending"
+}
+
+export function moveCreepByPath(
+  creep: Creep,
+  path: readonly RoomPosition[],
+  options: MoveByPathOptions = {},
+): MoveStatus {
+  clearMoveRequest(creep)
+
+  if (path.length === 0) {
+    return "failed"
+  }
+
+  if (creep.fatigue > 0) {
+    return "pending"
+  }
+
+  const runtime = getMovementRuntime(creep.name)
+  const direction: 1 | -1 = options.reverse ? -1 : 1
+
+  let nextIndex = runtime.knownPathIndex
+
+  if (nextIndex === undefined) {
+    nextIndex = initializeKnownPathIndex(creep, path, direction)
+  } else {
+    nextIndex = reconcileKnownPathIndex(creep, path, nextIndex, direction)
+  }
+
+  if (nextIndex === undefined) {
+    return rejoinKnownPath(creep, path, options)
+  }
+
+  if (nextIndex < 0 || nextIndex >= path.length) {
+    runtime.knownPathIndex = undefined
+    return "arrived"
+  }
+
+  runtime.knownPathIndex = nextIndex
+
+  registerMove(creep, path[nextIndex], options.priority)
+
+  return "pending"
+}
+
+function rejoinKnownPath(creep: Creep, path: readonly RoomPosition[], options: MoveByPathOptions = {}) {
+  const goals = path.map((pos) => ({ pos, range: 0 }))
+  return moveCreep(creep, goals, { useRoomRoute: false, priority: options.priority })
+}
+
+function initializeKnownPathIndex(creep: Creep, path: readonly RoomPosition[], direction: 1 | -1): number | undefined {
+  if (direction > 0) {
+    const end = Math.min(path.length - 1, 2)
+    for (let i = end; i >= 0; i--) {
+      if (creep.pos.isNearTo(path[i])) {
+        return i
+      }
+    }
+
+    return
+  } else {
+    const start = Math.max(0, path.length - 3)
+
+    for (let i = start; i <= path.length - 1; i++) {
+      if (creep.pos.isNearTo(path[i])) {
+        return i
+      }
+    }
+
+    return
+  }
+}
+
+function reconcileKnownPathIndex(
+  creep: Creep,
+  path: readonly RoomPosition[],
+  nextIndex: number,
+  direction: 1 | -1,
+): number | undefined {
+  if (nextIndex !== undefined && path[nextIndex] && creep.pos.isEqualTo(path[nextIndex])) {
+    return nextIndex + direction
+  }
+
+  const start = Math.max(0, nextIndex - 2)
+  const end = Math.min(path.length - 1, nextIndex + 2)
+
+  if (direction === 1) {
+    for (let i = end; i >= start; i--) {
+      if (creep.pos.isNearTo(path[i])) {
+        return i
+      }
+    }
+  } else {
+    for (let i = start; i <= end; i++) {
+      if (creep.pos.isNearTo(path[i])) {
+        return i
+      }
+    }
+  }
+
+  return
 }
 
 export function getNextMovePosition(creep: Creep): RoomPosition | undefined {
