@@ -24,6 +24,16 @@ interface HarvestOperationHeap {
   sourceOrder?: Id<Source>[]
 }
 
+export interface HarvestTickState {
+  readonly sourceOrder: readonly Id<Source>[]
+  readonly sourceStateById: Map<Id<Source>, SourceState>
+}
+
+export interface HarvestOperationTemp {
+  sourceOrder?: readonly Id<Source>[]
+  sourceStateById?: Map<Id<Source>, SourceState>
+}
+
 export interface SourceState {
   readonly data: SourceData
 
@@ -35,10 +45,7 @@ export interface SourceState {
 
   requiredCarryCapacity: number
   carryCapacity: number
-}
-
-interface HarvestOperationTemp {
-  sourceStateById?: Map<Id<Source>, SourceState>
+  pendingEnergy: number
 }
 
 const ROLES_BY_PRIORITY = [MINER_ROLE, HAULER_ROLE]
@@ -85,6 +92,11 @@ export const harvestOperationHandler: OperationHandler<HarvestOperationRecord> =
     const sourceOrder = getSourceOrder(operation, sourceDataById)
 
     const sourceStateById = ensureSourceStateById(operation)
+
+    const temp = getOperationTemp<HarvestOperationTemp>(operation.id)
+
+    temp.sourceOrder = sourceOrder
+    temp.sourceStateById = sourceStateById
 
     for (const miner of getOperationCreeps(context, operation.id, MINER_ROLE)) {
       const sourceId = miner.memory.sourceId
@@ -164,7 +176,11 @@ export const harvestOperationHandler: OperationHandler<HarvestOperationRecord> =
   },
 
   execute(operation: HarvestOperationRecord, context: TickContext): void {
-    const sourceStateById = ensureSourceStateById(operation)
+    const { sourceOrder, sourceStateById } = getOperationTemp<HarvestOperationTemp>(operation.id)
+
+    if (sourceOrder === undefined || sourceStateById === undefined) {
+      return
+    }
 
     runMiners(operation, context, sourceStateById)
   },
@@ -206,6 +222,7 @@ function ensureSourceState(
 
       requiredCarryCapacity: sourceData.path.length * 2 * requiredHarvestPower,
       carryCapacity: 0,
+      pendingEnergy: 0,
     }
 
     sourceStateById.set(sourceId, sourceState)
