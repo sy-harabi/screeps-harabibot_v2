@@ -140,7 +140,11 @@ export const harvestOperationHandler: OperationHandler<HarvestOperationRecord> =
 
       const haulerRatio = sourceState.carryCapacity / sourceState.requiredCarryCapacity
 
-      if (minerRatio < 1 && minerRatio <= haulerRatio) {
+      if (
+        minerRatio < 1 &&
+        minerRatio <= haulerRatio &&
+        sourceState.numMiners < sourceState.data.miningPositions.length
+      ) {
         requestSpawn(
           {
             requesterId: operation.id,
