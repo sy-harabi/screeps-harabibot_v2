@@ -4,6 +4,8 @@ import type { HarvestOperationRecord, SourceState } from "./harvestOperation"
 
 export const HAULER_ROLE = "hauler"
 
+type DeliveryTarget = StructureSpawn | StructureExtension | StructureStorage
+
 export function runHaulers(
   operation: HarvestOperationRecord,
   context: TickContext,
@@ -35,13 +37,117 @@ export function runHaulers(
       assignHauler(hauler, sourceOrder, sourceStateById)
     }
 
-    runHauler(hauler, sourceStateById)
+    runHauler(hauler, sourceOrder, sourceStateById)
   }
 }
 
-function runHauler(hauler: Creep, sourceStateById: Map<Id<Source>, SourceState>): void {
+function runHauler(
+  hauler: Creep,
+  sourceOrder: readonly Id<Source>[],
+  sourceStateById: Map<Id<Source>, SourceState>,
+): void {
+  const sourceId = hauler.memory.sourceId
+
+  if (!sourceId) {
+    return
+  }
+
+  const sourceState = sourceStateById.get(sourceId)
+
+  if (!sourceState) {
+    delete hauler.memory.sourceId
+    delete hauler.memory.delivering
+    return
+  }
+
   if (hauler.memory.delivering) {
-    runDeliver(hauler)
+    runDeliver(hauler, sourceState, sourceOrder, sourceStateById)
+    return
+  }
+
+  runFetch(hauler, sourceState)
+}
+
+function runDeliver(
+  hauler: Creep,
+  sourceState: SourceState,
+  sourceOrder: readonly Id<Source>[],
+  sourceStateById: Map<Id<Source>, SourceState>,
+): void {
+  const energy = hauler.store.getUsedCapacity(RESOURCE_ENERGY)
+
+  if (energy === 0) {
+    finishDelivery(hauler, sourceOrder, sourceStateById)
+    return
+  }
+
+  const room = Game.rooms[sourceState.data.colonyRoomName]
+
+  if (!room) {
+    moveToColony(hauler, sourceState)
+    return
+  }
+
+  const target = findDeliveryTarget(hauler, room)
+
+  if (!target) {
+    return
+  }
+
+  if (!hauler.pos.isNearTo(target)) {
+    moveCreep(hauler, {
+      pos: target.pos,
+      range: 1,
+    })
+    return
+  }
+
+  const freeCapacity = target.store.getFreeCapacity(RESOURCE_ENERGY)
+
+  if (hauler.transfer(target, RESOURCE_ENERGY) !== OK) {
+    return
+  }
+
+  if (freeCapacity >= energy) {
+    finishDelivery(hauler, sourceOrder, sourceStateById)
+  }
+}
+
+function moveToColony(hauler: Creep, sourceState: SourceState): void {
+  const returnPos = sourceState.data.path[0]
+
+  if (!returnPos) {
+    return
+  }
+
+  moveCreep(hauler, {
+    pos: returnPos,
+    range: 0,
+  })
+}
+
+function moveToSource(hauler: Creep, sourceState: SourceState): void {
+  const sourcePos = sourceState.data.path[sourceState.data.path.length - 1]
+
+  if (!sourcePos) {
+    return
+  }
+
+  moveCreep(hauler, {
+    pos: sourcePos,
+    range: 1,
+  })
+}
+
+function finishDelivery(
+  hauler: Creep,
+  sourceOrder: readonly Id<Source>[],
+  sourceStateById: Map<Id<Source>, SourceState>,
+): void {
+  delete hauler.memory.sourceId
+  delete hauler.memory.delivering
+
+  if (!assignHauler(hauler, sourceOrder, sourceStateById)) {
     return
   }
 
@@ -58,7 +164,27 @@ function runHauler(hauler: Creep, sourceStateById: Map<Id<Source>, SourceState>)
     return
   }
 
-  runFetch(hauler, sourceState)
+  moveToSource(hauler, sourceState)
+}
+
+function findDeliveryTarget(hauler: Creep, room: Room): DeliveryTarget | undefined {
+  const energyStructures = room.find(FIND_MY_STRUCTURES, {
+    filter: (structure): structure is StructureSpawn | StructureExtension =>
+      (structure.structureType === STRUCTURE_SPAWN || structure.structureType === STRUCTURE_EXTENSION) &&
+      structure.store.getFreeCapacity(RESOURCE_ENERGY) > 0,
+  })
+
+  const target = hauler.pos.findClosestByRange(energyStructures)
+
+  if (target) {
+    return target
+  }
+
+  if (room.storage && room.storage.store.getFreeCapacity(RESOURCE_ENERGY) > 0) {
+    return room.storage
+  }
+
+  return
 }
 
 function runFetch(hauler: Creep, sourceState: SourceState): void {
@@ -183,7 +309,7 @@ function preparePendingEnergy(sourceOrder: readonly Id<Source>[], sourceStateByI
       continue
     }
 
-    sourceState.pendingEnergy = getAvailableEnergy(source) + getExpectedEnergyDelta(source, sourceState)
+    sourceState.pendingEnergy = getAvailableEnergy(source, sourceState) + getExpectedEnergyDelta(source, sourceState)
   }
 }
 
@@ -234,7 +360,7 @@ function getExpectedEnergyDelta(source: Source, sourceState: SourceState): numbe
   )
 }
 
-function getAvailableEnergy(source: Source): number {
+function getAvailableEnergy(source: Source, sourceState: SourceState): number {
   let energy = 0
 
   for (const resource of source.pos.findInRange(FIND_DROPPED_RESOURCES, 1)) {
@@ -243,8 +369,11 @@ function getAvailableEnergy(source: Source): number {
     }
   }
 
-  // endpoint에 container가 있으면 store energy도 더함
+  const container = getSourceContainer(sourceState)
 
+  if (container) {
+    energy += container.store.getUsedCapacity(RESOURCE_ENERGY)
+  }
   return energy
 }
 
@@ -255,7 +384,7 @@ export function createHaulerBody(roomName: string): readonly BodyPartConstant[] 
     return undefined
   }
 
-  const budget = Math.max(room.energyAvailable, SPAWN_ENERGY_CAPACITY)
+  const budget = room.energyAvailable
 
   if (budget < 100) {
     return undefined
