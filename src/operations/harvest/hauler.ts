@@ -9,7 +9,7 @@ export function createHaulerBody(roomName: string): readonly BodyPartConstant[] 
 
   const budget = Math.max(room.energyAvailable, SPAWN_ENERGY_CAPACITY)
 
-  if (budget < 300) {
+  if (budget < 100) {
     return undefined
   }
 

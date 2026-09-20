@@ -41,12 +41,12 @@ function runMiner(miner: Creep, sourceState: SourceState): RunMinerResult {
 
   const result = miner.harvest(source)
 
-  if (result === OK) {
-    return "harvesting"
+  if (result === ERR_NOT_IN_RANGE) {
+    moveCreep(miner, { pos: source.pos, range: 1 })
+    return "moving"
   }
 
-  moveCreep(miner, { pos: source.pos, range: 1 })
-  return "moving"
+  return "harvesting"
 }
 
 export function createMinerBody(roomName: string): readonly BodyPartConstant[] | undefined {
