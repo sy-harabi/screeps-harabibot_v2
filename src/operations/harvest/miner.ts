@@ -1,11 +1,10 @@
 import { moveCreep } from "../../capabilities/movement/movement"
 import { getOperationCreeps, type TickContext } from "../../kernel/tickContext"
-import type { HarvestOperationRecord, SourceState } from "./harvestOperation"
 import { getCreepHeap } from "../../runtime/creepRuntime"
+import type { HarvestOperationRecord, SourceState } from "./harvestOperation"
 
 interface MinerRuntime {
   miningPosition?: RoomPosition
-  mining?: boolean
 }
 
 export const MINER_ROLE = "miner"
@@ -37,10 +36,9 @@ export function runMiners(
 }
 
 function runMiner(miner: Creep, sourceState: SourceState): RunMinerResult {
-  let miningPos = getMiningPosition(miner, sourceState)
+  const miningPos = getMiningPosition(miner, sourceState)
 
-  if (!miningPos) {
-    miner.say("he")
+  if (miningPos === undefined) {
     return "moving"
   }
 
@@ -51,56 +49,43 @@ function runMiner(miner: Creep, sourceState: SourceState): RunMinerResult {
     return "moving"
   }
 
-  const runtime = getCreepHeap<MinerRuntime>(miner.name)
+  const result = miner.harvest(source)
 
-  if (miner.pos.isEqualTo(miningPos)) {
-    runtime.mining = true
-    miner.harvest(source)
-    return "harvesting"
+  if (!miner.pos.isEqualTo(miningPos)) {
+    moveCreep(miner, { pos: miningPos, range: 0 })
   }
 
-  if (runtime.mining) {
-    miningPos = getMiningPosition(miner, sourceState, false)
-
-    if (miningPos === undefined) {
-      return "moving"
-    }
-  }
-
-  moveCreep(miner, { pos: miningPos, range: 0 })
-
-  return "moving"
+  return result === ERR_NOT_IN_RANGE ? "moving" : "harvesting"
 }
 
-function getMiningPosition(miner: Creep, sourceState: SourceState, useCache: boolean = true): RoomPosition | undefined {
+function getMiningPosition(miner: Creep, sourceState: SourceState): RoomPosition | undefined {
   const runtime = getCreepHeap<MinerRuntime>(miner.name)
-
-  if (useCache && runtime.miningPosition) {
-    return runtime.miningPosition
-  }
-
   const primaryPos = sourceState.data.miningPositions[0]
 
-  if (!miner.pos.isNearTo(primaryPos)) {
+  if (runtime.miningPosition !== undefined) {
+    const primaryOccupied = primaryPos.lookFor(LOOK_CREEPS).some((creep) => creep.name !== miner.name)
+
+    if (primaryOccupied) {
+      return runtime.miningPosition
+    }
+
+    delete runtime.miningPosition
     return primaryPos
   }
 
-  const occupant = primaryPos.lookFor(LOOK_CREEPS).find((creep) => creep.name !== miner.name)
-
-  if (!occupant) {
+  if (miner.pos.isEqualTo(primaryPos) || !miner.pos.isNearTo(primaryPos)) {
     return primaryPos
   }
 
-  const myWork = miner.getActiveBodyparts(WORK)
+  const primaryOccupied = primaryPos.lookFor(LOOK_CREEPS).some((creep) => creep.name !== miner.name)
 
-  if (occupant.my && occupant.memory.role === MINER_ROLE && occupant.getActiveBodyparts(WORK) < myWork) {
-    // I am stronger. Let traffic push the weaker miner away.
+  if (!primaryOccupied) {
     return primaryPos
   }
 
   const fallback = findFallbackMiningPosition(miner, sourceState)
 
-  if (fallback) {
+  if (fallback !== undefined) {
     runtime.miningPosition = fallback
   }
 
@@ -108,29 +93,13 @@ function getMiningPosition(miner: Creep, sourceState: SourceState, useCache: boo
 }
 
 function findFallbackMiningPosition(miner: Creep, sourceState: SourceState): RoomPosition | undefined {
-  const myWork = miner.getActiveBodyparts(WORK)
-
   for (let i = 1; i < sourceState.data.miningPositions.length; i++) {
     const pos = sourceState.data.miningPositions[i]
+    const occupied = pos.lookFor(LOOK_CREEPS).some((creep) => creep.name !== miner.name)
 
-    if (
-      pos.lookFor(LOOK_CREEPS).some((occupant) => {
-        if (
-          occupant.name !== miner.name &&
-          occupant.my &&
-          occupant.memory.role === MINER_ROLE &&
-          occupant.getActiveBodyparts(WORK) >= myWork
-        ) {
-          return true
-        }
-
-        return false
-      })
-    ) {
-      continue
+    if (!occupied) {
+      return pos
     }
-
-    return pos
   }
 
   return
