@@ -1,6 +1,6 @@
 import { PackedPath, packPath, unpackPath } from "../../capabilities/movement/packedPath"
 import { RoomCoordinate } from "../../world/map/roomCoordinate"
-import { fromRoomIndex, toRoomIndex } from "../../world/map/roomGrid"
+import { forEachCoordinateAtRange, fromRoomIndex, toRoomIndex } from "../../world/map/roomGrid"
 
 export interface SourceData {
   readonly sourceId: Id<Source>
@@ -8,6 +8,7 @@ export interface SourceData {
   readonly coordinate: RoomCoordinate
   readonly colonyRoomName: string
   readonly path: readonly RoomPosition[]
+  readonly miningPositions: readonly RoomPosition[]
 }
 
 export type PackedSourceData = readonly [
@@ -29,11 +30,51 @@ export function packSourceData(sourceData: SourceData): PackedSourceData {
 }
 
 export function unpackSourceData(packed: PackedSourceData): SourceData {
+  const roomName = packed[1]
+  const coordinate = fromRoomIndex(packed[2])
+  const path = unpackPath(packed[4])
+  const containerPos = path[path.length - 1]
+
+  const sourcePosition = new RoomPosition(coordinate.x, coordinate.y, roomName)
+  const miningPositions = [containerPos]
+
+  const terrain = Game.map.getRoomTerrain(roomName)
+
+  forEachCoordinateAtRange(sourcePosition, 1, (x, y) => {
+    if (containerPos.x === x && containerPos.y === y) {
+      return
+    }
+
+    if (terrain.get(x, y) === TERRAIN_MASK_WALL) {
+      return
+    }
+
+    miningPositions.push(new RoomPosition(x, y, roomName))
+  })
+
   return {
     sourceId: packed[0],
-    roomName: packed[1],
-    coordinate: fromRoomIndex(packed[2]),
+    roomName,
+    coordinate,
     colonyRoomName: packed[3],
-    path: unpackPath(packed[4]),
+    path,
+    miningPositions,
+  }
+}
+
+export function createSourceData(
+  sourceId: Id<Source>,
+  roomName: string,
+  coordinate: RoomCoordinate,
+  colonyRoomName: string,
+  path: readonly RoomPosition[],
+): SourceData {
+  return {
+    sourceId,
+    roomName,
+    coordinate,
+    colonyRoomName,
+    path,
+    miningPositions: getMiningPositions(roomName, coordinate, path),
   }
 }
