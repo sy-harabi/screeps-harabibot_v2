@@ -7,6 +7,7 @@ import { RoomCoordinate } from "../../world/map/roomCoordinate"
 import type { ColonyOperationRecord } from "../colony/colonyOperation"
 import type { OperationBase } from "../operation"
 import type { OperationHandler } from "../operationHandler"
+import { createHaulerBody, HAULER_ROLE } from "./hauler"
 import { createMinerBody, MINER_ROLE, runMiners } from "./miner"
 import { SourceData } from "./sourceData"
 import { sourceDataStore } from "./sourceDataStore"
@@ -25,13 +26,21 @@ interface HarvestOperationHeap {
 
 interface SourceState {
   readonly data: SourceData
+
+  requiredHarvestPower: number
   harvestPower: number
+
   numMiners: number
+
+  requiredCarryCapacity: number
+  carryCapacity: number
 }
 
 interface HarvestOperationTemp {
   sourceStateById?: Map<Id<Source>, SourceState>
 }
+
+const ROLES_BY_PRIORITY = [MINER_ROLE, HAULER_ROLE]
 
 export function getHarvestOperationId(roomName: string): string {
   return `harvest:${roomName}`
@@ -83,22 +92,10 @@ export const harvestOperationHandler: OperationHandler<HarvestOperationRecord> =
         continue
       }
 
-      const sourceData = sourceDataById.get(sourceId)
-
-      if (!sourceData) {
-        continue
-      }
-
-      let sourceState = sourceStateById.get(sourceId)
+      const sourceState = ensureSourceState(sourceDataById, sourceStateById, sourceId)
 
       if (sourceState === undefined) {
-        sourceState = {
-          data: sourceData,
-          harvestPower: 0,
-          numMiners: 0,
-        }
-
-        sourceStateById.set(sourceId, sourceState)
+        continue
       }
 
       const replacementLeadTime = miner.body.length * CREEP_SPAWN_TIME + sourceState.data.path.length + 10
@@ -109,36 +106,57 @@ export const harvestOperationHandler: OperationHandler<HarvestOperationRecord> =
       }
     }
 
+    let totalCarryCapacity = 0
+
+    for (const hauler of getOperationCreeps(context, operation.id, HAULER_ROLE)) {
+      const replacementLeadTime = hauler.body.length * CREEP_SPAWN_TIME + 10
+
+      if ((hauler.ticksToLive ?? CREEP_LIFE_TIME) > replacementLeadTime) {
+        totalCarryCapacity += hauler.getActiveBodyparts(CARRY) * CARRY_CAPACITY
+      }
+    }
+
+    let carryCapacityLeft = totalCarryCapacity
+
     for (const sourceId of sourceOrder) {
-      let sourceState = sourceStateById.get(sourceId)
+      const sourceState = ensureSourceState(sourceDataById, sourceStateById, sourceId)
 
       if (sourceState === undefined) {
-        const sourceData = sourceDataById.get(sourceId)
-
-        if (sourceData === undefined) {
-          continue
-        }
-
-        sourceState = {
-          data: sourceData,
-          harvestPower: 0,
-          numMiners: 0,
-        }
-
-        sourceStateById.set(sourceId, sourceState)
+        continue
       }
 
-      if (sourceState.harvestPower < 10) {
+      sourceState.carryCapacity = Math.min(sourceState.requiredCarryCapacity, carryCapacityLeft)
+
+      carryCapacityLeft -= sourceState.carryCapacity
+
+      const minerRatio = sourceState.harvestPower / sourceState.requiredHarvestPower
+
+      const haulerRatio = sourceState.carryCapacity / sourceState.requiredCarryCapacity
+
+      if (minerRatio < 1 && minerRatio <= haulerRatio) {
         requestSpawn(
           {
             requesterId: operation.id,
             roomName: operation.roomName,
             priorityType: "ownedSource",
             order: sourceState.data.path.length,
-            rolesByPriority: [MINER_ROLE],
+            rolesByPriority: ROLES_BY_PRIORITY,
           },
           () => createMinerBody(operation.roomName),
           MINER_ROLE,
+          { memory: { sourceId } },
+        )
+      } else if (haulerRatio < 1) {
+        requestSpawn(
+          {
+            requesterId: operation.id,
+            roomName: operation.roomName,
+            priorityType: "ownedSource",
+            order: sourceState.data.path.length,
+            rolesByPriority: ROLES_BY_PRIORITY,
+          },
+          () => createHaulerBody(operation.roomName),
+          HAULER_ROLE,
           { memory: { sourceId } },
         )
       }
@@ -150,6 +168,38 @@ export const harvestOperationHandler: OperationHandler<HarvestOperationRecord> =
   execute(operation: HarvestOperationRecord, context: TickContext): void {
     runMiners(operation, context)
   },
+}
+
+function ensureSourceState(
+  sourceDataById: Map<Id<Source>, SourceData>,
+  sourceStateById: Map<Id<Source>, SourceState>,
+  sourceId: Id<Source>,
+): SourceState | undefined {
+  const sourceData = sourceDataById.get(sourceId)
+
+  if (!sourceData) {
+    return
+  }
+
+  let sourceState = sourceStateById.get(sourceId)
+
+  const requiredHarvestPower = SOURCE_ENERGY_CAPACITY / ENERGY_REGEN_TIME
+
+  if (sourceState === undefined) {
+    sourceState = {
+      data: sourceData,
+      harvestPower: 0,
+      requiredHarvestPower: requiredHarvestPower,
+      numMiners: 0,
+
+      requiredCarryCapacity: sourceData.path.length * 2 * requiredHarvestPower,
+      carryCapacity: 0,
+    }
+
+    sourceStateById.set(sourceId, sourceState)
+  }
+
+  return sourceState
 }
 
 function ensureSourceDataById(

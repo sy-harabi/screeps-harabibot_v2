@@ -30,9 +30,9 @@ export function createMinerBody(roomName: string): readonly BodyPartConstant[] |
     return undefined
   }
 
-  const budget = room.energyAvailable
+  const budget = Math.max(room.energyAvailable, SPAWN_ENERGY_CAPACITY)
 
-  if (budget < 200) {
+  if (budget < 300) {
     return undefined
   }
 
