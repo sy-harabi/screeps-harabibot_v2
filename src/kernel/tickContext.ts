@@ -1,8 +1,6 @@
 export interface TickContext {
   readonly tick: number
-
   readonly ownedRooms: ReadonlyMap<string, Room>
-
   readonly creepsByColony: ReadonlyMap<string, CreepsByRole>
   readonly creepsByMission: ReadonlyMap<string, CreepsByRole>
 }
@@ -11,6 +9,14 @@ type CreepsByRole = ReadonlyMap<string, readonly Creep[]>
 type MutableCreepsByRole = Map<string, Creep[]>
 
 let currentContext: TickContext | undefined
+
+export function getColonyCreeps(context: TickContext, colonyName: string, role: string): readonly Creep[] {
+  return context.creepsByColony.get(colonyName)?.get(role) ?? []
+}
+
+export function getMissionCreeps(context: TickContext, missionId: string, role: string): readonly Creep[] {
+  return context.creepsByMission.get(missionId)?.get(role) ?? []
+}
 
 export function createTickContext(): TickContext {
   const ownedRooms = new Map<string, Room>()
@@ -25,19 +31,15 @@ export function createTickContext(): TickContext {
   const creepsByMission = new Map<string, MutableCreepsByRole>()
 
   for (const creep of Object.values(Game.creeps)) {
-    const assignment = creep.memory.assignment
-
-    if (!assignment) {
-      continue
-    }
+    const { assignment, role } = creep.memory
 
     switch (assignment.type) {
       case "colony":
-        addCreep(creepsByColony, assignment.colonyName, creep.memory.role, creep)
+        addCreep(creepsByColony, assignment.colonyName, role, creep)
         break
 
       case "mission":
-        addCreep(creepsByMission, assignment.missionId, creep.memory.role, creep)
+        addCreep(creepsByMission, assignment.missionId, role, creep)
         break
     }
   }
