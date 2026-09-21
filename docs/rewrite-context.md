@@ -62,6 +62,44 @@ Responsibilities, state ownership, and data flow should be clear where practical
 
 System boundaries should follow gameplay responsibilities, shared constraints, and meaningful lifecycles rather than mechanically mirroring individual Screeps objects.
 
+## Current architecture direction
+
+Use different orchestration styles for systems with different lifecycles rather than forcing the whole bot through one universal abstraction.
+
+### Colonies
+
+A colony is the operating unit centered on one owned room. Routine colony responsibilities such as harvesting, upgrading, building, defense, and logistics are tightly coupled within a tick and may depend on explicit execution order.
+
+Represent that order directly in the colony runner. Do not hide meaningful gameplay dependencies behind a generic operation tree, phase interface, or scheduler merely for architectural uniformity.
+
+Colony subsystems may use focused modules and domain-owned runtime state, but they do not need independent persistent lifecycle records just because they are substantial pieces of code.
+
+### Missions
+
+Reserve missions for goals with genuinely independent persistent lifecycles, especially work that spans rooms or exists outside routine colony operation, such as assault, claim, power-bank, or remote-defense objectives.
+
+Introduce the mission framework only when a concrete mission needs it. Do not prebuild a generic mission hierarchy before its requirements are known.
+
+### Creep ownership
+
+Every creep belongs to exactly one colony or one mission. Ownership and role are separate concepts.
+
+Creep memory is the canonical ownership source. `TickContext` scans `Game.creeps` once per tick and derives runtime rosters by colony and mission. Owners should not keep a second persistent creep-name roster merely to duplicate membership state.
+
+Specific worker assignments such as a source ID, formation slot, or other reservation may still belong to the relevant subsystem when they represent gameplay state rather than ownership.
+
+### Shared resources
+
+Use explicit request/allocation stages when consumers compete for a genuinely scarce shared resource. Spawn time is the first example; boosts, terminal capacity, or other resources may adopt their own allocators when needed.
+
+Do not infer from this that all gameplay systems require global `plan/allocate/execute` phases.
+
+### Runtime state
+
+One-tick indexes and derived state belong to `TickContext` or the owning subsystem call.
+
+Disposable cross-tick caches remain domain-owned. Register material long-lived runtime caches through the runtime registry for visibility, but do not recreate a generic shared heap object.
+
 ## Relationship to the original bot
 
 The original HarabiBot is a reference, not a specification.
