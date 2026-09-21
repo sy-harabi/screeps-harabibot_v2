@@ -24,6 +24,22 @@ export function matchEnergySuppliers(requests: ReadonlyMap<string, EnergyRequest
     return
   }
 
+  const requestCount = collectActiveRequests(requests)
+
+  if (requestCount === 0) {
+    return
+  }
+
+  const supplierCount = suppliers.length
+  const heapStride = ensureScratch(requestCount, supplierCount)
+
+  prepareSupplierAmounts(suppliers, supplierCount)
+  buildSupplierHeaps(suppliers, requestCount, supplierCount, heapStride)
+  runProposalMatching(requestCount, supplierCount, heapStride)
+  writeAssignments(suppliers, supplierCount)
+}
+
+function collectActiveRequests(requests: ReadonlyMap<string, EnergyRequest>): number {
   requestScratch.length = 0
 
   for (const request of requests.values()) {
@@ -32,19 +48,21 @@ export function matchEnergySuppliers(requests: ReadonlyMap<string, EnergyRequest
     }
   }
 
-  const requestCount = requestScratch.length
-  const supplierCount = suppliers.length
+  return requestScratch.length
+}
 
-  if (requestCount === 0) {
-    return
-  }
-
-  const heapStride = ensureScratch(requestCount, supplierCount)
-
+function prepareSupplierAmounts(suppliers: readonly Creep[], supplierCount: number): void {
   for (let supplierIndex = 0; supplierIndex < supplierCount; supplierIndex++) {
     supplierAmountScratch[supplierIndex] = suppliers[supplierIndex].store.getUsedCapacity(RESOURCE_ENERGY)
   }
+}
 
+function buildSupplierHeaps(
+  suppliers: readonly Creep[],
+  requestCount: number,
+  supplierCount: number,
+  heapStride: number,
+): void {
   for (let requestIndex = 0; requestIndex < requestCount; requestIndex++) {
     const request = requestScratch[requestIndex]
     const distanceBase = requestIndex * supplierCount
@@ -78,7 +96,9 @@ export function matchEnergySuppliers(requests: ReadonlyMap<string, EnergyRequest
 
     heapSizeScratch[requestIndex] = heapSize
   }
+}
 
+function runProposalMatching(requestCount: number, supplierCount: number, heapStride: number): void {
   while (true) {
     let activeRequestCount = 0
 
@@ -91,7 +111,7 @@ export function matchEnergySuppliers(requests: ReadonlyMap<string, EnergyRequest
     }
 
     if (activeRequestCount === 0) {
-      break
+      return
     }
 
     for (let activeIndex = 0; activeIndex < activeRequestCount; activeIndex++) {
@@ -121,7 +141,9 @@ export function matchEnergySuppliers(requests: ReadonlyMap<string, EnergyRequest
       assignedRequestScratch[supplierIndex] = requestIndex
     }
   }
+}
 
+function writeAssignments(suppliers: readonly Creep[], supplierCount: number): void {
   for (let supplierIndex = 0; supplierIndex < supplierCount; supplierIndex++) {
     const requestIndex = assignedRequestScratch[supplierIndex]
 
