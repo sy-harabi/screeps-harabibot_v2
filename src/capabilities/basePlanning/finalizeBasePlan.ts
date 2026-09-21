@@ -203,8 +203,15 @@ function addFixedStructures(
     }),
   )
 
-  const labs = [...labPlan.inputLabs, ...labPlan.outputLabs]
-  labs.forEach((coordinate, index) => addStructure(STRUCTURE_LAB, coordinate, getStructureRcl(STRUCTURE_LAB, index)))
+  labPlan.inputLabs.forEach((coordinate, index) =>
+    addStructure(STRUCTURE_LAB, coordinate, getStructureRcl(STRUCTURE_LAB, index), { kind: "labInput" }),
+  )
+
+  labPlan.outputLabs.forEach((coordinate, index) =>
+    addStructure(STRUCTURE_LAB, coordinate, getStructureRcl(STRUCTURE_LAB, index + labPlan.inputLabs.length), {
+      kind: "labOutput",
+    }),
+  )
 }
 
 function assignStructureSlots(

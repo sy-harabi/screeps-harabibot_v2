@@ -301,10 +301,6 @@ function tryPlanBaseWithRegions(
     controller: {
       upgradeChains: bestControllerArea.upgradeChains,
     },
-    labs: {
-      inputs: labPlan.inputLabs,
-      outputs: labPlan.outputLabs,
-    },
   }
 }
 

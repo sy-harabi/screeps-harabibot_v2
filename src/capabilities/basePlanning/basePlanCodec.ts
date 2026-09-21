@@ -5,9 +5,14 @@ import type { BasePlan, PlannedStructure, PlannedStructureTag } from "./basePlan
 type PackedPlannedStructure = [StructureConstant, number, number, PackedStructureTag?]
 type PackedCore = [manager: number, parking: number[]]
 type PackedUpgradeChains = [left: number[], middle: number[], right: number[]]
-type PackedLabs = [inputs: [number, number], outputs: number[]]
 
-type PackedStructureTag = ["storage"] | ["controller"] | ["source", Id<Source>] | ["mineral", Id<Mineral>]
+type PackedStructureTag =
+  | ["storage"]
+  | ["controller"]
+  | ["labInput"]
+  | ["labOutput"]
+  | ["source", Id<Source>]
+  | ["mineral", Id<Mineral>]
 
 export interface PackedBasePlan {
   formatVersion: 1
@@ -16,7 +21,6 @@ export interface PackedBasePlan {
   structures: PackedPlannedStructure[]
   core: PackedCore
   upgradeChains: PackedUpgradeChains
-  labs: PackedLabs
 }
 
 export function unpackBasePlan(packed: PackedBasePlan): BasePlan {
@@ -40,10 +44,6 @@ export function unpackBasePlan(packed: PackedBasePlan): BasePlan {
         right: packed.upgradeChains[2].map(fromRoomIndex),
       },
     },
-    labs: {
-      inputs: [fromRoomIndex(packed.labs[0][0]), fromRoomIndex(packed.labs[0][1])],
-      outputs: packed.labs[1].map(fromRoomIndex),
-    },
   }
 }
 
@@ -58,10 +58,6 @@ export function packBasePlan(plan: BasePlan): PackedBasePlan {
       plan.controller.upgradeChains.left.map(packCoordinate),
       plan.controller.upgradeChains.middle.map(packCoordinate),
       plan.controller.upgradeChains.right.map(packCoordinate),
-    ],
-    labs: [
-      [packCoordinate(plan.labs.inputs[0]), packCoordinate(plan.labs.inputs[1])],
-      plan.labs.outputs.map(packCoordinate),
     ],
   }
 }
@@ -101,6 +97,12 @@ function unpackTag(tag: PackedStructureTag | undefined): PlannedStructureTag | u
     case "controller":
       return { kind: "controller" }
 
+    case "labInput":
+      return { kind: "labInput" }
+
+    case "labOutput":
+      return { kind: "labOutput" }
+
     case "source":
       return {
         kind: "source",
@@ -126,6 +128,12 @@ function packTag(tag: PlannedStructureTag | undefined): PackedStructureTag | und
 
     case "controller":
       return ["controller"]
+
+    case "labInput":
+      return ["labInput"]
+
+    case "labOutput":
+      return ["labOutput"]
 
     case "source":
       return ["source", tag.id]

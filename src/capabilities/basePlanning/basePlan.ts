@@ -1,7 +1,7 @@
 import { RoomCoordinate } from "../../world/map/roomCoordinate"
 
 export type PlannedStructureTag =
-  | { readonly kind: "storage" | "controller" }
+  | { readonly kind: "storage" | "controller" | "labInput" | "labOutput" }
   | { readonly kind: "source"; readonly id: Id<Source> }
   | { readonly kind: "mineral"; readonly id: Id<Mineral> }
 
@@ -27,11 +27,6 @@ export interface BasePlanController {
   readonly upgradeChains: BasePlanUpgradeChains
 }
 
-export interface BasePlanLabs {
-  readonly inputs: readonly [RoomCoordinate, RoomCoordinate]
-  readonly outputs: readonly RoomCoordinate[]
-}
-
 export interface BasePlan {
   readonly version: 1
   readonly roomName: string
@@ -40,5 +35,4 @@ export interface BasePlan {
 
   readonly core: BasePlanCore
   readonly controller: BasePlanController
-  readonly labs: BasePlanLabs
 }
