@@ -19,10 +19,7 @@ let supplierAmountScratch = new Uint32Array(0)
 
 const requestScratch: EnergyRequest[] = []
 
-export function matchEnergySuppliers(
-  requests: ReadonlyMap<string, EnergyRequest>,
-  suppliers: readonly Creep[],
-): void {
+export function matchEnergySuppliers(requests: ReadonlyMap<string, EnergyRequest>, suppliers: readonly Creep[]): void {
   if (suppliers.length === 0) {
     return
   }
@@ -169,11 +166,7 @@ function shouldSwitchRequest(
   return nextDistance < previousDistance
 }
 
-function popClosestSupplier(
-  requestIndex: number,
-  supplierCount: number,
-  heapStride: number,
-): number | undefined {
+function popClosestSupplier(requestIndex: number, supplierCount: number, heapStride: number): number | undefined {
   const heapBase = requestIndex * heapStride
   const distanceBase = requestIndex * supplierCount
   let heapSize = heapSizeScratch[requestIndex]
@@ -245,19 +238,19 @@ function ensureScratch(requestCount: number, supplierCount: number): number {
   return heapStride
 }
 
-function growUint8(array: Uint8Array, minimumLength: number): Uint8Array {
+function growUint8(array: Uint8Array<ArrayBuffer>, minimumLength: number): Uint8Array<ArrayBuffer> {
   return array.length >= minimumLength ? array : new Uint8Array(getGrownLength(array.length, minimumLength))
 }
 
-function growUint16(array: Uint16Array, minimumLength: number): Uint16Array {
+function growUint16(array: Uint16Array<ArrayBuffer>, minimumLength: number): Uint16Array<ArrayBuffer> {
   return array.length >= minimumLength ? array : new Uint16Array(getGrownLength(array.length, minimumLength))
 }
 
-function growUint32(array: Uint32Array, minimumLength: number): Uint32Array {
+function growUint32(array: Uint32Array<ArrayBuffer>, minimumLength: number): Uint32Array<ArrayBuffer> {
   return array.length >= minimumLength ? array : new Uint32Array(getGrownLength(array.length, minimumLength))
 }
 
-function growInt32(array: Int32Array, minimumLength: number): Int32Array {
+function growInt32(array: Int32Array<ArrayBuffer>, minimumLength: number): Int32Array<ArrayBuffer> {
   return array.length >= minimumLength ? array : new Int32Array(getGrownLength(array.length, minimumLength))
 }
 
