@@ -372,7 +372,7 @@ function renderSide() {
   document.getElementById("plannerInfo").textContent = !currentResult
     ? "not run"
     : currentResult.ok
-      ? `SUCCESS\nregion attempts: ${(d.attempt ?? 0) + 1}\nselected regions: ${(d.selectedRegions || []).join(", ")}\nouter ramparts (planning): ${d.outerRamparts ?? "—"}\ncontroller candidates: ${d.controllerCandidates ?? "—"}\nanchor/storage: ${currentResult.plan.anchor.x},${currentResult.plan.anchor.y}`
+      ? `SUCCESS\nregion attempts: ${(d.attempt ?? 0) + 1}\nselected regions: ${(d.selectedRegions || []).join(", ")}\nouter ramparts (planning): ${d.outerRamparts ?? "—"}\ncontroller candidates: ${d.controllerCandidates ?? "—"}\nstorage: ${currentResult.plan.storage.x},${currentResult.plan.storage.y}`
       : `FAIL: ${currentResult.failureStage || "unknown"}\nregion attempts: ${(d.attempt ?? 0) + 1}\nselected regions: ${(d.selectedRegions || []).join(", ") || "—"}\n${currentResult.message || ""}`
   document.getElementById("counts").textContent = currentResult?.ok
     ? Object.entries(cnt)
