@@ -288,7 +288,7 @@ function ensureOwnedSourceData(source: Source, basePlan: BasePlan): SourceData |
 
 function findSourcePath(basePlan: BasePlan, target: RoomCoordinate): RoomPosition[] | undefined {
   const result = PathFinder.search(
-    new RoomPosition(basePlan.anchor.x, basePlan.anchor.y, basePlan.roomName),
+    new RoomPosition(basePlan.storage.x, basePlan.storage.y, basePlan.roomName),
     {
       pos: new RoomPosition(target.x, target.y, basePlan.roomName),
       range: 0,
