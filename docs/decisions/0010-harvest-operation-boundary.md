@@ -1,6 +1,6 @@
 # Harvest operation boundary
 
-Status: accepted
+Status: superseded by 0011
 Date: 2026-09-19
 
 ## Context
