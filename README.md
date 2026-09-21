@@ -15,6 +15,7 @@ Implemented so far:
 - Exclusive creep ownership through `colony | mission` assignment, with role stored separately.
 - Spawn requests, priority ordering, queueing, and global spawn allocation.
 - Colony harvesting with owned-source miners, a shared hauler pool, source ordering, and replacement-aware spawn demand.
+- One-tick colony logistics state that matches loaded suppliers to spawn/extension requests with storage fallback.
 - Dedicated movement and traffic capabilities.
 - A runtime base planner with in-game `RoomVisual` output.
 - Base-plan persistence through `RawMemory` segments.
@@ -23,7 +24,7 @@ Implemented so far:
 
 The base planner currently covers the core layout, controller/upgrader area, resource endpoints and road tree, labs, structure slots, towers, outer ramparts, rampart access roads, and repair roads. Existing manually placed spawns are respected by the planner.
 
-Still under construction are upgrading, scouting, construction execution, remotes, combat, market/logistics, and other late-game systems. A persistent mission framework is intentionally deferred until the first real cross-room mission requires it.
+Still under construction are upgrading, scouting, construction execution, remotes, combat, empire resource coordination/market logic, and other late-game systems. A persistent mission framework is intentionally deferred until the first real cross-room mission requires it.
 
 ## Runtime flow
 
@@ -49,9 +50,12 @@ Harvesting is currently the first colony subsystem:
 
 ```text
 Colony:<roomName>
-└─ harvest
-   ├─ miners
-   └─ shared hauler pool
+├─ harvest
+│  ├─ miners
+│  └─ shared hauler pool
+└─ logistics
+   ├─ loaded suppliers
+   └─ energy requests
 ```
 
 Creeps belong to exactly one colony or mission. `TickContext` derives per-tick rosters from creep memory instead of storing persistent creep-name rosters on owners.
@@ -68,6 +72,7 @@ src/kernel/                         Tick context and low-level tick coordination
 src/colony/                         Ordered colony execution
   colonyManager.ts
   harvest/
+  logistics/
 src/creeps/                         Creep ownership types
 src/capabilities/basePlanning/      Runtime base planner
 src/capabilities/spawning/          Spawn requests, queue, priority, allocator
