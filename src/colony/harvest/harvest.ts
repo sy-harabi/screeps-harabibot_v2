@@ -8,6 +8,7 @@ import { createMinerBody, MINER_ROLE, runMiners } from "./miner"
 import { createSourceData, type SourceData } from "./sourceData"
 import { sourceDataStore } from "./sourceDataStore"
 import { estimatePathTravelTicks } from "../../capabilities/movement/travelTime"
+import { LogisticsState } from "../logistics/logistics"
 
 export interface SourceState {
   readonly data: SourceData
@@ -25,7 +26,13 @@ export interface SourceState {
 
 const ROLES_BY_PRIORITY = [MINER_ROLE, HAULER_ROLE]
 
-export function runHarvest(colonyName: string, room: Room, basePlan: BasePlan, context: TickContext): void {
+export function runHarvest(
+  colonyName: string,
+  room: Room,
+  basePlan: BasePlan,
+  context: TickContext,
+  logistics: LogisticsState,
+): void {
   const sourceDataById = ensureSourceDataById(colonyName, room, basePlan)
 
   if (sourceDataById === undefined) {
@@ -132,7 +139,7 @@ export function runHarvest(colonyName: string, room: Room, basePlan: BasePlan, c
   }
 
   runMiners(miners, sourceStateById)
-  runHaulers(haulers, sourceOrder, sourceStateById)
+  runHaulers(colonyName, haulers, sourceOrder, sourceStateById, logistics)
 }
 
 function getMinerReplacementLeadTime(miner: Creep, path: readonly RoomPosition[]): number {

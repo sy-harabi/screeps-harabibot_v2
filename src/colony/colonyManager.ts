@@ -3,6 +3,7 @@ import { basePlanStore } from "../capabilities/basePlanning/basePlanStore"
 import { planBase } from "../capabilities/basePlanning/planBase"
 import type { TickContext } from "../kernel/tickContext"
 import { runHarvest } from "./harvest/harvest"
+import { createLogisticsState, runLogistics } from "./logistics/logistics"
 
 export function runColonies(context: TickContext): void {
   for (const room of context.ownedRooms.values()) {
@@ -21,7 +22,11 @@ function runColony(room: Room, context: TickContext): void {
     visualizeFinalPlan(basePlan, new RoomVisual(room.name))
   }
 
-  runHarvest(room.name, room, basePlan, context)
+  const logistics = createLogisticsState()
+
+  runHarvest(room.name, room, basePlan, context, logistics)
+
+  runLogistics(room, logistics)
 }
 
 function ensureBasePlan(room: Room): BasePlan | undefined {

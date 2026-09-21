@@ -1,14 +1,15 @@
-import { moveCreep } from "../../capabilities/movement/movement"
+import { moveCreep, moveCreepByPath } from "../../capabilities/movement/movement"
+import { LogisticsState, registerEnergySupplier } from "../logistics/logistics"
 import type { SourceState } from "./harvest"
 
 export const HAULER_ROLE = "hauler"
 
-type DeliveryTarget = StructureSpawn | StructureExtension | StructureStorage
-
 export function runHaulers(
+  colonyName: string,
   haulers: readonly Creep[],
   sourceOrder: readonly Id<Source>[],
   sourceStateById: Map<Id<Source>, SourceState>,
+  logistics: LogisticsState,
 ): void {
   preparePendingEnergy(sourceOrder, sourceStateById)
 
@@ -28,11 +29,28 @@ export function runHaulers(
   }
 
   for (const hauler of haulers) {
-    if (!hauler.memory.sourceId && !hauler.memory.delivering) {
+    if (hauler.spawning) {
+      continue
+    }
+
+    if (hauler.memory.delivering) {
+      if (hauler.store.getUsedCapacity(RESOURCE_ENERGY) === 0) {
+        finishDelivery(hauler, sourceOrder, sourceStateById)
+        continue
+      }
+
+      if (hauler.pos.roomName !== colonyName) {
+        moveToColony(colonyName,hauler, sourceStateById)
+      }
+
+      registerEnergySupplier(logistics, hauler)
+    }
+
+    if (!hauler.memory.sourceId) {
       assignHauler(hauler, sourceOrder, sourceStateById)
     }
 
-    runHauler(hauler, sourceOrder, sourceStateById)
+    runHauler(hauler, sourceOrder, sourceStateById, logistics)
   }
 }
 
@@ -40,6 +58,7 @@ function runHauler(
   hauler: Creep,
   sourceOrder: readonly Id<Source>[],
   sourceStateById: Map<Id<Source>, SourceState>,
+  logistics: LogisticsState,
 ): void {
   const sourceId = hauler.memory.sourceId
 
@@ -56,6 +75,12 @@ function runHauler(
   }
 
   if (hauler.memory.delivering) {
+    if (hauler.store.getUsedCapacity(RESOURCE_ENERGY) === 0) {
+      finishDelivery(hauler, sourceOrder, sourceStateById)
+    } else {
+      registerEnergySupplier(logistics, hauler)
+    }
+
     runDeliver(hauler, sourceState, sourceOrder, sourceStateById)
     return
   }
@@ -63,53 +88,14 @@ function runHauler(
   runFetch(hauler, sourceState)
 }
 
-function runDeliver(
-  hauler: Creep,
-  sourceState: SourceState,
-  sourceOrder: readonly Id<Source>[],
-  sourceStateById: Map<Id<Source>, SourceState>,
-): void {
-  const energy = hauler.store.getUsedCapacity(RESOURCE_ENERGY)
+function moveToColony(colonyName:string,hauler: Creep, sourceStateById: Map<Id<Source>, SourceState>): void {
+  const sourceState = hauler.memory.sourceId ? sourceStateById.get(hauler.memory.sourceId) : undefined
 
-  if (energy === 0) {
-    finishDelivery(hauler, sourceOrder, sourceStateById)
-    return
+  if (sourceState) {
+    moveCreepByPath(hauler, sourceState.data.path, { reverse: true })
   }
 
-  const room = Game.rooms[sourceState.data.colonyName]
-
-  if (!room) {
-    moveToColony(hauler, sourceState)
-    return
-  }
-
-  const target = findDeliveryTarget(hauler, room)
-
-  if (!target) {
-    return
-  }
-
-  if (!hauler.pos.isNearTo(target)) {
-    moveCreep(hauler, {
-      pos: target.pos,
-      range: 1,
-    })
-    return
-  }
-
-  const freeCapacity = target.store.getFreeCapacity(RESOURCE_ENERGY)
-
-  if (hauler.transfer(target, RESOURCE_ENERGY) !== OK) {
-    return
-  }
-
-  if (freeCapacity >= energy) {
-    finishDelivery(hauler, sourceOrder, sourceStateById)
-  }
-}
-
-function moveToColony(hauler: Creep, sourceState: SourceState): void {
-  const returnPos = sourceState.data.path[0]
+  const returnPos = sourceStateById.
 
   if (!returnPos) {
     return
@@ -160,26 +146,6 @@ function finishDelivery(
   }
 
   moveToSource(hauler, sourceState)
-}
-
-function findDeliveryTarget(hauler: Creep, room: Room): DeliveryTarget | undefined {
-  const energyStructures = room.find(FIND_MY_STRUCTURES, {
-    filter: (structure): structure is StructureSpawn | StructureExtension =>
-      (structure.structureType === STRUCTURE_SPAWN || structure.structureType === STRUCTURE_EXTENSION) &&
-      structure.store.getFreeCapacity(RESOURCE_ENERGY) > 0,
-  })
-
-  const target = hauler.pos.findClosestByRange(energyStructures)
-
-  if (target) {
-    return target
-  }
-
-  if (room.storage && room.storage.store.getFreeCapacity(RESOURCE_ENERGY) > 0) {
-    return room.storage
-  }
-
-  return
 }
 
 function runFetch(hauler: Creep, sourceState: SourceState): void {
