@@ -2,20 +2,20 @@
 
 HarabiBot v2 is an in-progress TypeScript rewrite of HarabiBot for [Screeps](https://screeps.com/).
 
-The rewrite is not a line-by-line port. It is being rebuilt around explicit data flow, hierarchical operations, reusable capabilities, and a clearer separation between persistent state and per-tick runtime state. The design direction and collaboration rules are documented in [docs/rewrite-context.md](./docs/rewrite-context.md).
+The rewrite is not a line-by-line port. It is being rebuilt around explicit data flow, ordered colony execution, reusable capabilities, and clearer state ownership. The design direction and collaboration rules are documented in [docs/rewrite-context.md](./docs/rewrite-context.md).
 
-> **Status:** active development. The current vertical slice reaches colony-level harvesting with owned-source miner spawning and execution, but this is not yet a complete autonomous bot.
+> **Status:** active development. The current vertical slice reaches colony-level harvesting with owned-source miner and hauler spawning/execution, but this is not yet a complete autonomous bot.
 
 ## Current implementation
 
 Implemented so far:
 
-- Tick orchestration with a `plan -> allocate -> execute` flow.
-- Hierarchical operations: `EmpireOperation -> ColonyOperation -> HarvestOperation`.
-- Persistent operation records in `Memory.operations` with typed handlers.
-- Per-tick `TickContext` indexes for owned rooms and operation creeps.
+- Direct colony execution rather than a generic operation tree.
+- Per-tick `TickContext` indexes for owned rooms, colony creeps, and future mission creeps.
+- Exclusive creep ownership through `colony | mission` assignment, with role stored separately.
 - Spawn requests, priority ordering, queueing, and global spawn allocation.
-- The first economy role: owned-source miners can request a body, spawn, and harvest.
+- Colony harvesting with owned-source miners, a shared hauler pool, source ordering, and replacement-aware spawn demand.
+- Dedicated movement and traffic capabilities.
 - A runtime base planner with in-game `RoomVisual` output.
 - Base-plan persistence through `RawMemory` segments.
 - Map/planner primitives including distance transform, Dijkstra maps, flood fill, terrain regions, and min-cut.
@@ -23,7 +23,7 @@ Implemented so far:
 
 The base planner currently covers the core layout, controller/upgrader area, resource endpoints and road tree, labs, structure slots, towers, outer ramparts, rampart access roads, and repair roads. Existing manually placed spawns are respected by the planner.
 
-Still under construction are haulers, upgrader/scout roles, construction execution, the rest of the economy, remotes, combat, market/logistics, and other late-game systems. The miner currently uses Screeps `moveTo()` as a temporary movement implementation before being wired into the dedicated movement capability.
+Still under construction are upgrading, scouting, construction execution, remotes, combat, market/logistics, and other late-game systems. A persistent mission framework is intentionally deferred until the first real cross-room mission requires it.
 
 ## Runtime flow
 
@@ -34,46 +34,51 @@ segmentManager.pretick()
         |
 create TickContext
         |
-plan operation tree
+run colonies
         |
 allocate spawns
         |
-execute operation tree
+resolve traffic
         |
 segmentManager.endTick()
 ```
 
-Operations own persistent goals and coordination. Capabilities provide reusable mechanisms such as base planning and spawning. World modules provide map-level algorithms and data structures. Temporary indexes and caches belong to the per-tick/runtime layer rather than persistent Memory.
+A colony is the operating unit centered on one owned room. Colony-local responsibilities run in explicit gameplay order rather than through a universal `plan/execute` interface.
 
-The current operation tree is intentionally small:
+Harvesting is currently the first colony subsystem:
 
 ```text
-EmpireOperation
-└─ ColonyOperation:<roomName>
-   └─ HarvestOperation:<roomName>
-      └─ miner roles assigned to sources by sourceId
+Colony:<roomName>
+└─ harvest
+   ├─ miners
+   └─ shared hauler pool
 ```
 
-Sources are harvesting entities/state rather than operations. `HarvestOperation` is the colony-level boundary for source ordering, miner assignments, and the shared hauler pool that will be added next.
+Creeps belong to exactly one colony or mission. `TickContext` derives per-tick rosters from creep memory instead of storing persistent creep-name rosters on owners.
+
+Missions are reserved for independent persistent goals such as future assault, claim, power-bank, or remote-defense work. No generic mission framework is created before such a lifecycle is needed.
+
+Capabilities provide reusable mechanisms such as base planning, spawning, movement, and traffic. Temporary indexes belong to the per-tick layer, while disposable cross-tick caches remain owned by their domains and are registered through the runtime registry when appropriate.
 
 ## Project layout
 
 ```text
 src/main.ts                         Screeps tick entry point
-src/kernel/                         Tick context and operation runner
-src/operations/                     Persistent hierarchical goals
-  empire/
-  colony/
+src/kernel/                         Tick context and low-level tick coordination
+src/colony/                         Ordered colony execution
+  colonyManager.ts
   harvest/
+src/creeps/                         Creep ownership types
 src/capabilities/basePlanning/      Runtime base planner
 src/capabilities/spawning/          Spawn requests, queue, priority, allocator
+src/capabilities/movement/          Movement, path state, and traffic
 src/world/map/                      Map algorithms and room-grid utilities
 src/persistence/                    RawMemory segment lifecycle
 src/runtime/                        Runtime-only registries/caches
 src/options/                        Bot option definitions
 src/console/                        Screeps console API
 src/visuals/                        RoomVisual helpers
-docs/decisions/                     Architecture/design decision records
+docs/decisions/                     Architecture/design decision history
 docs/rewrite-log/                   Rewrite and experiment notes
 experiment/                         Standalone research/visualization experiments
 dist/                               Generated bundle; not committed
