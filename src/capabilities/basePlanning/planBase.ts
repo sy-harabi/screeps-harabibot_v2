@@ -3,6 +3,7 @@ import { getRange, RoomCoordinate } from "../../world/map/roomCoordinate"
 import { fromRoomIndex, ROOM_AREA, toRoomIndex } from "../../world/map/roomGrid"
 import { findTerrainRegions, TerrainRegion } from "../../world/map/terrainRegions"
 import type { BasePlan } from "./basePlan"
+import { visualizeBasePlanStructures } from "./basePlanVisual"
 import { classifyDefensiveTiles } from "./classifyDefensiveTiles"
 import { buildProvisionalBasePlanStructures, finalizeBasePlanStructures } from "./finalizeBasePlan"
 import { finalizeDefensePlan } from "./finalizeDefensePlan"
@@ -283,11 +284,11 @@ function tryPlanBaseWithRegions(
     return
   }
 
+  visualizeBasePlanStructures(structures, finalVisual)
+
   if (visualizeIntermediate) {
     Game.map.visual.text("SUCCESS", new RoomPosition(25, 25, roomName))
   }
-
-  finalVisual.connectRoads()
 
   return {
     version: 1,

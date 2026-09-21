@@ -11,8 +11,13 @@ export const botConsoleApi: BotConsoleApi = {
 bot.help()
 
 bot.options.show()
+bot.options.show("W1N1")
 bot.options.setBasePlanVisual(true | false)
 bot.options.clearBasePlanVisual()
+bot.options.setRampartBuildRcl(6)
+bot.options.setRampartBuildRcl(6, "W1N1")
+bot.options.clearRampartBuildRcl()
+bot.options.clearRampartBuildRcl("W1N1")
 `)
   },
 

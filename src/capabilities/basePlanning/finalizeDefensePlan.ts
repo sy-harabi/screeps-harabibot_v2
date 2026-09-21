@@ -12,7 +12,7 @@ import {
   ROOM_SIZE,
   toRoomIndex,
 } from "../../world/map/roomGrid"
-import type { PlannedStructure } from "./basePlan"
+import type { PlannedStructure, PlannedStructureTag } from "./basePlan"
 import { classifyDefensiveTiles } from "./classifyDefensiveTiles"
 import type { CorePlan } from "./findCorePlans"
 import type { OuterRampartPlan } from "./planOuterRamparts"
@@ -817,7 +817,12 @@ function assembleFinalStructures(
     provisionalStructures.find(({ structureType }) => structureType === STRUCTURE_RAMPART)?.rcl ??
     getStructureRcl(STRUCTURE_RAMPART)
 
-  const add = (structureType: BuildableStructureConstant, coordinate: RoomCoordinate, rcl: number): void => {
+  const add = (
+    structureType: BuildableStructureConstant,
+    coordinate: RoomCoordinate,
+    rcl: number,
+    tag?: PlannedStructureTag,
+  ): void => {
     const key = `${structureType}:${coordinate.x}:${coordinate.y}`
 
     if (seen.has(key)) {
@@ -825,15 +830,19 @@ function assembleFinalStructures(
     }
 
     seen.add(key)
-    structures.push({ structureType, coordinate, rcl })
+    structures.push({ structureType, coordinate, rcl, tag })
   }
 
-  for (const road of [...civilRoads, ...defenseRoads]) {
+  for (const road of civilRoads) {
     add(STRUCTURE_ROAD, road, roadRcl)
   }
 
+  for (const road of defenseRoads) {
+    add(STRUCTURE_ROAD, road, roadRcl, { kind: "rampartBuild" })
+  }
+
   for (const rampart of [...outerRamparts, ...dangerRamparts]) {
-    add(STRUCTURE_RAMPART, rampart, rampartRcl)
+    add(STRUCTURE_RAMPART, rampart, rampartRcl, { kind: "rampartBuild" })
   }
 
   return structures

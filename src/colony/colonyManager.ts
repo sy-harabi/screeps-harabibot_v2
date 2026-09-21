@@ -1,5 +1,6 @@
 import type { BasePlan } from "../capabilities/basePlanning/basePlan"
 import { basePlanStore } from "../capabilities/basePlanning/basePlanStore"
+import { visualizeBasePlanStructures } from "../capabilities/basePlanning/basePlanVisual"
 import { planBase } from "../capabilities/basePlanning/planBase"
 import type { TickContext } from "../kernel/tickContext"
 import { runHarvest } from "./harvest/harvest"
@@ -19,7 +20,7 @@ function runColony(room: Room, context: TickContext): void {
   }
 
   if (Memory.options?.visuals?.basePlan) {
-    visualizeFinalPlan(basePlan, new RoomVisual(room.name))
+    visualizeBasePlanStructures(basePlan.structures, new RoomVisual(room.name))
   }
 
   const logistics = createLogisticsState()
@@ -56,15 +57,4 @@ function ensureBasePlan(room: Room): BasePlan | undefined {
   basePlanStore.set(room.name, plan)
 
   return plan
-}
-
-function visualizeFinalPlan(basePlan: BasePlan, visual: RoomVisual): void {
-  visual.clear()
-  visual.roads = []
-
-  for (const structure of basePlan.structures) {
-    visual.structure(structure.coordinate.x, structure.coordinate.y, structure.structureType)
-  }
-
-  visual.connectRoads()
 }

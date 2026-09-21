@@ -1,5 +1,6 @@
 import { RoomCoordinate } from "../../world/map/roomCoordinate"
 import { NEIGHBOR_OFFSETS, ROOM_AREA, toRoomIndex } from "../../world/map/roomGrid"
+import { assignRoadRcls } from "./assignRoadRcls"
 import type { PlannedStructure, PlannedStructureTag } from "./basePlan"
 import type { ControllerAreaCandidate } from "./findControllerAreaCandidates"
 import type { CorePlan } from "./findCorePlans"
@@ -152,7 +153,7 @@ export function finalizeBasePlanStructures(
     addStructure(STRUCTURE_EXTENSION, rankedSlot.slot.coordinate, getStructureRcl(STRUCTURE_EXTENSION, index)),
   )
 
-  return structures
+  return assignRoadRcls(structures, corePlan.roads)
 }
 
 function addFixedStructures(
