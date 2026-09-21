@@ -1,7 +1,8 @@
-import { BasePlan } from "../capabilities/basePlanning/basePlan"
+import type { BasePlan } from "../capabilities/basePlanning/basePlan"
 import { basePlanStore } from "../capabilities/basePlanning/basePlanStore"
 import { planBase } from "../capabilities/basePlanning/planBase"
-import { TickContext } from "../kernel/tickContext"
+import type { TickContext } from "../kernel/tickContext"
+import { runHarvest } from "./harvest/harvest"
 
 export function runColonies(context: TickContext): void {
   for (const room of context.ownedRooms.values()) {
@@ -23,7 +24,7 @@ function runColony(room: Room, context: TickContext): void {
   runHarvest(room.name, room, basePlan, context)
 }
 
-function ensureBasePlan(room: Room) {
+function ensureBasePlan(room: Room): BasePlan | undefined {
   const basePlanResult = basePlanStore.get(room.name)
 
   if (basePlanResult.status === "ready") {
@@ -35,11 +36,8 @@ function ensureBasePlan(room: Room) {
   }
 
   const sources = room.find(FIND_SOURCES)
-
   const terrain = Game.map.getRoomTerrain(room.name)
-
   const minerals = room.find(FIND_MINERALS)
-
   const existingSpawn = room.find(FIND_MY_SPAWNS)[0]
 
   const plan = planBase(room.name, terrain, room.controller!, sources, minerals, {
