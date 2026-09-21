@@ -185,12 +185,12 @@ function addFixedStructures(
   addStructure(STRUCTURE_LINK, corePlan.link, getStructureRcl(STRUCTURE_LINK, 0), { kind: "storage" })
 
   let linkOrdinal = 1
-  let containerOrdinal = 0
 
   for (const branch of resourceTree.branches) {
     const tag = getResourceTag(branch.targetId, sources, minerals)
+    const containerRcl = tag?.kind === "mineral" ? 6 : 3
 
-    addStructure(STRUCTURE_CONTAINER, branch.container, getStructureRcl(STRUCTURE_CONTAINER, containerOrdinal++), tag)
+    addStructure(STRUCTURE_CONTAINER, branch.container, containerRcl, tag)
 
     if (branch.link) {
       addStructure(STRUCTURE_LINK, branch.link, getStructureRcl(STRUCTURE_LINK, linkOrdinal++), tag)
