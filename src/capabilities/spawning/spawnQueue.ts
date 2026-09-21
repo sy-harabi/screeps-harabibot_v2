@@ -1,3 +1,4 @@
+import type { CreepAssignment } from "../../creeps/creepAssignment"
 import { getTickContext } from "../../kernel/tickContext"
 import type { SpawnPriorityType } from "./spawnPriority"
 import type { RenewRequest, SpawnRequest } from "./spawnRequest"
@@ -6,7 +7,8 @@ export type SpawnBody = readonly BodyPartConstant[] | (() => readonly BodyPartCo
 
 export interface SpawnRequestContext {
   readonly requesterId: string
-  readonly roomName: string
+  readonly spawnRoomName: string
+  readonly assignment: CreepAssignment
   readonly priorityType: SpawnPriorityType
   readonly order: number
   readonly rolesByPriority: readonly string[]
@@ -32,11 +34,11 @@ export function requestSpawn(
   body: SpawnBody,
   role: string,
   options: {
-    memory?: Partial<CreepMemory>
+    memory?: Partial<Omit<CreepMemory, "assignment" | "role">>
   } = {},
 ): void {
   const roleOrder = getRoleOrder(context, role)
-  const state = getSpawnRoomState(context.roomName)
+  const state = getSpawnRoomState(context.spawnRoomName)
 
   if (state === undefined || state.freeSpawns.length === 0) {
     return
@@ -50,7 +52,7 @@ export function requestSpawn(
 
   state.spawnRequests.push({
     requesterId: context.requesterId,
-    roomName: context.roomName,
+    spawnRoomName: context.spawnRoomName,
     role,
     body: resolvedBody,
     priority: {
@@ -58,13 +60,17 @@ export function requestSpawn(
       order: context.order,
       roleOrder,
     },
-    memory: { ...options.memory, operationId: context.requesterId, role },
+    memory: {
+      ...options.memory,
+      assignment: context.assignment,
+      role,
+    },
   })
 }
 
 export function requestRenew(context: SpawnRequestContext, creepName: string, role: string): void {
   const roleOrder = getRoleOrder(context, role)
-  const state = getSpawnRoomState(context.roomName)
+  const state = getSpawnRoomState(context.spawnRoomName)
 
   if (state === undefined || state.freeSpawns.length === 0) {
     return
@@ -73,7 +79,7 @@ export function requestRenew(context: SpawnRequestContext, creepName: string, ro
   state.renewRequests.push({
     requesterId: context.requesterId,
     creepName,
-    roomName: context.roomName,
+    spawnRoomName: context.spawnRoomName,
     priority: {
       type: context.priorityType,
       order: context.order,
@@ -92,17 +98,17 @@ function getRoleOrder(context: SpawnRequestContext, role: string): number {
   return roleOrder
 }
 
-function getSpawnRoomState(roomName: string): SpawnRoomState | undefined {
+function getSpawnRoomState(spawnRoomName: string): SpawnRoomState | undefined {
   prepareState()
 
-  const existing = roomStates.get(roomName)
+  const existing = roomStates.get(spawnRoomName)
 
   if (existing !== undefined) {
     return existing
   }
 
   const context = getTickContext()
-  const room = context.ownedRooms.get(roomName)
+  const room = context.ownedRooms.get(spawnRoomName)
 
   if (room === undefined) {
     return undefined
@@ -110,12 +116,11 @@ function getSpawnRoomState(roomName: string): SpawnRoomState | undefined {
 
   const state: SpawnRoomState = {
     freeSpawns: room.find(FIND_MY_SPAWNS).filter((spawn) => spawn.isActive() && !spawn.spawning),
-
     spawnRequests: [],
     renewRequests: [],
   }
 
-  roomStates.set(roomName, state)
+  roomStates.set(spawnRoomName, state)
 
   return state
 }
