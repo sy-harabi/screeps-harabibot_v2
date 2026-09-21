@@ -1,24 +1,13 @@
-import type { OperationsMemory } from "./operations/operation"
+import type { CreepAssignment } from "./creeps/creepAssignment"
 import type { BotOptionsOverride } from "./options/botOptions"
-
-type CreepAssignment =
-  | {
-      type: "colony"
-      colonyName: string
-    }
-  | {
-      type: "mission"
-      missionId: string
-    }
 
 declare global {
   interface Memory {
-    operations: OperationsMemory
     options?: BotOptionsOverride
   }
 
   interface CreepMemory {
-    assignment?: CreepAssignment
+    assignment: CreepAssignment
     role: string
     sourceId?: Id<Source>
     delivering?: boolean
