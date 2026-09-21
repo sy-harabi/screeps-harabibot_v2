@@ -235,7 +235,7 @@ A global reset may discard paths and diagnostics. Operations must be able to ree
 
 ### 10. Use the base plan without confusing it with the current world
 
-The current `BasePlan` stores an anchor and planned structures with optional resource tags. An operation can use the tagged source-container position to choose a mining position.
+The current `BasePlan` stores the planned storage coordinate and planned structures with optional resource tags. An operation can use the tagged source-container position to choose a mining position.
 
 Planned roads are not necessarily built roads, and planned buildings are not necessarily current obstacles. Use the observed world for actual movement costs and walkability; introduce plan-based preferences separately when useful.
 
