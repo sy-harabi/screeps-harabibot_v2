@@ -27,6 +27,10 @@ export function runMiners(
       continue
     }
 
+    if (miner.spawning) {
+      continue
+    }
+
     if (runMiner(miner, sourceState) === "harvesting") {
       sourceState.harvestingPower += miner.getActiveBodyparts(WORK) * HARVEST_POWER
     }
