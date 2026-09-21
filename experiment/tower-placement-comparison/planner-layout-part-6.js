@@ -137,7 +137,7 @@ function planBaseOffline(room) {
     }
     return {
       ok: true,
-      plan: { version: 1, roomName: room.roomName, anchor: { ...bca.storage }, structures },
+      plan: { version: 1, roomName: room.roomName, storage: { ...bca.storage }, structures },
       towerContext: { ...towerContext, plannerTowers: towers },
       diagnostics: { ...diag, success: true, structures: structures.length, towers: towers.length },
     }
