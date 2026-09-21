@@ -1,62 +1,16 @@
-import type { OperationRecord } from "../operations/operation"
-
 export interface TickContext {
   readonly tick: number
+
   readonly ownedRooms: ReadonlyMap<string, Room>
-  readonly creepsByOperation: ReadonlyMap<string, CreepsByRole>
-  readonly childOperationsByParentId: ReadonlyMap<string, readonly OperationRecord[]>
+
+  readonly creepsByColony: ReadonlyMap<string, CreepsByRole>
+  readonly creepsByMission: ReadonlyMap<string, CreepsByRole>
 }
 
 type CreepsByRole = ReadonlyMap<string, readonly Creep[]>
 type MutableCreepsByRole = Map<string, Creep[]>
 
 let currentContext: TickContext | undefined
-let currentChildOperationsByParentId: Map<string, OperationRecord[]> | undefined
-
-export function getOperationCreeps(context: TickContext, operationId: string, role: string): readonly Creep[] {
-  return context.creepsByOperation.get(operationId)?.get(role) ?? []
-}
-
-export function getChildOperations(context: TickContext, parentId: string): readonly OperationRecord[] {
-  return context.childOperationsByParentId.get(parentId) ?? []
-}
-
-export function registerOperationInTickContext(operation: OperationRecord): void {
-  if (currentContext === undefined || currentContext.tick !== Game.time || currentChildOperationsByParentId === undefined) {
-    return
-  }
-
-  addChildOperation(currentChildOperationsByParentId, operation)
-}
-
-export function unregisterOperationFromTickContext(operation: OperationRecord): void {
-  if (
-    currentContext === undefined ||
-    currentContext.tick !== Game.time ||
-    currentChildOperationsByParentId === undefined ||
-    operation.parentId === undefined
-  ) {
-    return
-  }
-
-  const children = currentChildOperationsByParentId.get(operation.parentId)
-
-  if (children === undefined) {
-    return
-  }
-
-  const index = children.findIndex((child) => child.id === operation.id)
-
-  if (index === -1) {
-    return
-  }
-
-  children.splice(index, 1)
-
-  if (children.length === 0) {
-    currentChildOperationsByParentId.delete(operation.parentId)
-  }
-}
 
 export function createTickContext(): TickContext {
   const ownedRooms = new Map<string, Room>()
@@ -67,49 +21,55 @@ export function createTickContext(): TickContext {
     }
   }
 
-  const creepsByOperation = new Map<string, MutableCreepsByRole>()
+  const creepsByColony = new Map<string, MutableCreepsByRole>()
+  const creepsByMission = new Map<string, MutableCreepsByRole>()
 
   for (const creep of Object.values(Game.creeps)) {
-    const { operationId, role } = creep.memory
+    const assignment = creep.memory.assignment
 
-    if (!operationId || !role) {
+    if (!assignment) {
       continue
     }
 
-    let creepsByRole = creepsByOperation.get(operationId)
+    switch (assignment.type) {
+      case "colony":
+        addCreep(creepsByColony, assignment.colonyName, creep.memory.role, creep)
+        break
 
-    if (creepsByRole === undefined) {
-      creepsByRole = new Map<string, Creep[]>()
-      creepsByOperation.set(operationId, creepsByRole)
+      case "mission":
+        addCreep(creepsByMission, assignment.missionId, creep.memory.role, creep)
+        break
     }
-
-    let creeps = creepsByRole.get(role)
-
-    if (creeps === undefined) {
-      creeps = []
-      creepsByRole.set(role, creeps)
-    }
-
-    creeps.push(creep)
-  }
-
-  const childOperationsByParentId = new Map<string, OperationRecord[]>()
-
-  for (const operation of Object.values(Memory.operations ?? {})) {
-    addChildOperation(childOperationsByParentId, operation)
   }
 
   const context: TickContext = {
     tick: Game.time,
     ownedRooms,
-    creepsByOperation,
-    childOperationsByParentId,
+    creepsByColony,
+    creepsByMission,
   }
 
   currentContext = context
-  currentChildOperationsByParentId = childOperationsByParentId
 
   return context
+}
+
+function addCreep(index: Map<string, MutableCreepsByRole>, id: string, role: string, creep: Creep): void {
+  let creepsByRole = index.get(id)
+
+  if (creepsByRole === undefined) {
+    creepsByRole = new Map()
+    index.set(id, creepsByRole)
+  }
+
+  let creeps = creepsByRole.get(role)
+
+  if (creeps === undefined) {
+    creeps = []
+    creepsByRole.set(role, creeps)
+  }
+
+  creeps.push(creep)
 }
 
 export function getTickContext(): TickContext {
@@ -118,22 +78,4 @@ export function getTickContext(): TickContext {
   }
 
   return currentContext
-}
-
-function addChildOperation(
-  childOperationsByParentId: Map<string, OperationRecord[]>,
-  operation: OperationRecord,
-): void {
-  if (operation.parentId === undefined) {
-    return
-  }
-
-  let children = childOperationsByParentId.get(operation.parentId)
-
-  if (children === undefined) {
-    children = []
-    childOperationsByParentId.set(operation.parentId, children)
-  }
-
-  children.push(operation)
 }
