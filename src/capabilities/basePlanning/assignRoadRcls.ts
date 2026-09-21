@@ -100,9 +100,17 @@ export function assignRoadRcls(
     const { x, y } = structure.coordinate
     const assignedRcl = roadRcls[toRoomIndex(x, y)]
 
+    if (assignedRcl === UNASSIGNED_RCL) {
+      return {
+        ...structure,
+        rcl: 8,
+        tag: { kind: "unassignedRoad" },
+      }
+    }
+
     return {
       ...structure,
-      rcl: assignedRcl === UNASSIGNED_RCL ? Math.max(MIN_CIVIL_ROAD_RCL, structure.rcl) : assignedRcl,
+      rcl: assignedRcl,
     }
   })
 }

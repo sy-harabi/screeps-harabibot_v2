@@ -13,7 +13,12 @@ export function visualizeBasePlanStructures(structures: readonly PlannedStructur
 
   for (const structure of structures) {
     const { x, y } = structure.coordinate
-    const label = structure.tag?.kind === "rampartBuild" ? "R" : String(structure.rcl)
+    const label =
+      structure.tag?.kind === "rampartBuild"
+        ? "R"
+        : structure.tag?.kind === "unassignedRoad"
+          ? "U"
+          : String(structure.rcl)
 
     visual.text(label, x + 0.26, y + 0.36, {
       align: "left",

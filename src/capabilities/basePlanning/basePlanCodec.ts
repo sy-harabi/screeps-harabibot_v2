@@ -12,6 +12,7 @@ type PackedStructureTag =
   | ["labInput"]
   | ["labOutput"]
   | ["rampartBuild"]
+  | ["unassignedRoad"]
   | ["source", Id<Source>]
   | ["mineral", Id<Mineral>]
 
@@ -107,6 +108,9 @@ function unpackTag(tag: PackedStructureTag | undefined): PlannedStructureTag | u
     case "rampartBuild":
       return { kind: "rampartBuild" }
 
+    case "unassignedRoad":
+      return { kind: "unassignedRoad" }
+
     case "source":
       return {
         kind: "source",
@@ -141,6 +145,9 @@ function packTag(tag: PlannedStructureTag | undefined): PackedStructureTag | und
 
     case "rampartBuild":
       return ["rampartBuild"]
+
+    case "unassignedRoad":
+      return ["unassignedRoad"]
 
     case "source":
       return ["source", tag.id]

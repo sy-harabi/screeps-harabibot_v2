@@ -1,7 +1,7 @@
 import { RoomCoordinate } from "../../world/map/roomCoordinate"
 
 export type PlannedStructureTag =
-  | { readonly kind: "storage" | "controller" | "labInput" | "labOutput" | "rampartBuild" }
+  | { readonly kind: "storage" | "controller" | "labInput" | "labOutput" | "rampartBuild" | "unassignedRoad" }
   | { readonly kind: "source"; readonly id: Id<Source> }
   | { readonly kind: "mineral"; readonly id: Id<Mineral> }
 
