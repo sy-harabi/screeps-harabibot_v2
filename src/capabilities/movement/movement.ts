@@ -127,11 +127,7 @@ export function moveCreepByPath(
   return "pending"
 }
 
-function rejoinKnownPath(
-  creep: Creep,
-  path: readonly RoomPosition[],
-  options: MoveByPathOptions = {},
-): MoveStatus {
+function rejoinKnownPath(creep: Creep, path: readonly RoomPosition[], options: MoveByPathOptions = {}): MoveStatus {
   const goals = path.map((pos) => ({ pos, range: 0 }))
   const result = moveCreep(creep, goals, { useRoomRoute: false, priority: options.priority })
 

@@ -1,4 +1,5 @@
-import { moveCreep } from "../../capabilities/movement/movement"
+import { moveCreep, moveCreepByPath } from "../../capabilities/movement/movement"
+import { estimatePathTravelTicks } from "../../capabilities/movement/travelTime"
 import { getCreepHeap } from "../../runtime/creepRuntime"
 import type { SourceState } from "./harvest"
 
@@ -10,10 +11,7 @@ export const MINER_ROLE = "miner"
 
 type RunMinerResult = "harvesting" | "moving"
 
-export function runMiners(
-  miners: readonly Creep[],
-  sourceStateById: Map<Id<Source>, SourceState>,
-): void {
+export function runMiners(miners: readonly Creep[], sourceStateById: Map<Id<Source>, SourceState>): void {
   for (const miner of miners) {
     const sourceId = miner.memory.sourceId
 
@@ -38,9 +36,17 @@ export function runMiners(
 }
 
 function runMiner(miner: Creep, sourceState: SourceState): RunMinerResult {
+  const path = sourceState.data.path
+  const pathEnd = path[path.length - 1]
+
+  if (pathEnd !== undefined && (miner.pos.roomName !== pathEnd.roomName || !miner.pos.inRangeTo(pathEnd, 3))) {
+    moveCreepByPath(miner, path)
+    return "moving"
+  }
+
   const miningPos = getMiningPosition(miner, sourceState)
 
-  if (miningPos === undefined) {
+  if (!miningPos) {
     return "moving"
   }
 
@@ -107,7 +113,12 @@ function findFallbackMiningPosition(miner: Creep, sourceState: SourceState): Roo
   return
 }
 
-export function createMinerBody(roomName: string, useEnergyCapacity: boolean): readonly BodyPartConstant[] | undefined {
+export function createMinerBody(
+  roomName: string,
+  path: readonly RoomPosition[],
+  targetWork: number,
+  useEnergyCapacity: boolean,
+): readonly BodyPartConstant[] | undefined {
   const room = Game.rooms[roomName]
 
   if (!room) {
@@ -122,7 +133,34 @@ export function createMinerBody(roomName: string, useEnergyCapacity: boolean): r
     return undefined
   }
 
-  const workCount = Math.min(5, Math.floor((budget - BODYPART_COST[MOVE]) / BODYPART_COST[WORK]))
+  const workCount = Math.min(targetWork, Math.floor((budget - BODYPART_COST[MOVE]) / BODYPART_COST[WORK]))
 
-  return [...Array<BodyPartConstant>(workCount).fill(WORK), MOVE]
+  const maxMoveByEnergy = Math.floor((budget - workCount * BODYPART_COST[WORK]) / BODYPART_COST[MOVE])
+
+  const maxMoveBySize = MAX_CREEP_SIZE - workCount
+
+  const maxMoveCount = Math.min(workCount * 5, maxMoveByEnergy, maxMoveBySize)
+
+  let bestMoveCount = 1
+  let bestSpawnUsage = Infinity
+
+  for (let moveCount = 1; moveCount <= maxMoveCount; moveCount++) {
+    const travelTicks = estimatePathTravelTicks(path, moveCount, workCount)
+
+    if (travelTicks >= CREEP_LIFE_TIME) {
+      continue
+    }
+
+    const bodySize = workCount + moveCount
+    const spawnTime = bodySize * CREEP_SPAWN_TIME
+    const productiveLifetime = CREEP_LIFE_TIME - travelTicks
+
+    const spawnUsage = spawnTime / productiveLifetime
+
+    if (spawnUsage < bestSpawnUsage) {
+      bestSpawnUsage = spawnUsage
+      bestMoveCount = moveCount
+    }
+  }
+  return [...Array<BodyPartConstant>(workCount).fill(WORK), ...Array<BodyPartConstant>(bestMoveCount).fill(MOVE)]
 }

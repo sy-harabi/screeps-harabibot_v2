@@ -54,9 +54,7 @@ No generic mission framework is created until the first real mission requires it
 Creep ownership is represented by a discriminated assignment:
 
 ```ts
-type CreepAssignment =
-  | { type: "colony"; colonyName: string }
-  | { type: "mission"; missionId: string }
+type CreepAssignment = { type: "colony"; colonyName: string } | { type: "mission"; missionId: string }
 ```
 
 `role` is separate from ownership.

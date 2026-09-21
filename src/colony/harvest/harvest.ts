@@ -7,6 +7,7 @@ import { getHarvestRuntime } from "./harvestRuntime"
 import { createMinerBody, MINER_ROLE, runMiners } from "./miner"
 import { createSourceData, type SourceData } from "./sourceData"
 import { sourceDataStore } from "./sourceDataStore"
+import { estimatePathTravelTicks } from "../../capabilities/movement/travelTime"
 
 export interface SourceState {
   readonly data: SourceData
@@ -24,12 +25,7 @@ export interface SourceState {
 
 const ROLES_BY_PRIORITY = [MINER_ROLE, HAULER_ROLE]
 
-export function runHarvest(
-  colonyName: string,
-  room: Room,
-  basePlan: BasePlan,
-  context: TickContext,
-): void {
+export function runHarvest(colonyName: string, room: Room, basePlan: BasePlan, context: TickContext): void {
   const sourceDataById = ensureSourceDataById(colonyName, room, basePlan)
 
   if (sourceDataById === undefined) {
@@ -56,7 +52,7 @@ export function runHarvest(
       continue
     }
 
-    const replacementLeadTime = miner.body.length * CREEP_SPAWN_TIME + sourceState.data.path.length + 10
+    const replacementLeadTime = getMinerReplacementLeadTime(miner, sourceState.data.path)
     const harvestPower = miner.getActiveBodyparts(WORK) * HARVEST_POWER
 
     if (harvestPower > 0) {
@@ -104,6 +100,8 @@ export function runHarvest(
       minerRatio <= haulerRatio &&
       sourceState.numMiners < sourceState.data.miningPositions.length
     ) {
+      const targetWork = Math.ceil(sourceState.requiredHarvestPower / HARVEST_POWER)
+
       requestSpawn(
         {
           requesterId,
@@ -113,7 +111,7 @@ export function runHarvest(
           order: sourceState.data.path.length,
           rolesByPriority: ROLES_BY_PRIORITY,
         },
-        () => createMinerBody(colonyName, hasHarvestIncome),
+        () => createMinerBody(colonyName, sourceState.data.path, targetWork, hasHarvestIncome),
         MINER_ROLE,
         { memory: { sourceId } },
       )
@@ -135,6 +133,23 @@ export function runHarvest(
 
   runMiners(miners, sourceStateById)
   runHaulers(haulers, sourceOrder, sourceStateById)
+}
+
+function getMinerReplacementLeadTime(miner: Creep, path: readonly RoomPosition[]): number {
+  let workCount = 0
+  let moveCount = 0
+
+  for (const part of miner.body) {
+    if (part.type === WORK) {
+      workCount++
+    } else if (part.type === MOVE) {
+      moveCount++
+    }
+  }
+
+  const travelTicks = estimatePathTravelTicks(path, workCount, moveCount)
+
+  return miner.body.length * CREEP_SPAWN_TIME + travelTicks + 10
 }
 
 function ensureSourceState(
