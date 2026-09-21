@@ -30,7 +30,7 @@ export interface BasePlanController {
 export interface BasePlan {
   readonly version: 1
   readonly roomName: string
-  readonly anchor: RoomCoordinate
+  readonly storage: RoomCoordinate
   readonly structures: PlannedStructure[]
 
   readonly core: BasePlanCore
