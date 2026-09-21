@@ -147,7 +147,7 @@ function getMinerReplacementLeadTime(miner: Creep, path: readonly RoomPosition[]
     }
   }
 
-  const travelTicks = estimatePathTravelTicks(path, workCount, moveCount)
+  const travelTicks = estimatePathTravelTicks(path, moveCount, workCount)
 
   return miner.body.length * CREEP_SPAWN_TIME + travelTicks + 10
 }
