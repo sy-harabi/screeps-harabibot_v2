@@ -19,7 +19,7 @@ type PackedStructureTag =
 export interface PackedBasePlan {
   formatVersion: 1
   roomName: string
-  anchor: number
+  storage: number
   structures: PackedPlannedStructure[]
   core: PackedCore
   upgradeChains: PackedUpgradeChains
@@ -33,7 +33,7 @@ export function unpackBasePlan(packed: PackedBasePlan): BasePlan {
   return {
     version: 1,
     roomName: packed.roomName,
-    anchor: fromRoomIndex(packed.anchor),
+    storage: fromRoomIndex(packed.storage),
     structures: packed.structures.map(unpackStructure),
     core: {
       manager: fromRoomIndex(packed.core[0]),
@@ -53,7 +53,7 @@ export function packBasePlan(plan: BasePlan): PackedBasePlan {
   return {
     formatVersion: 1,
     roomName: plan.roomName,
-    anchor: packCoordinate(plan.anchor),
+    storage: packCoordinate(plan.storage),
     structures: plan.structures.map(packStructure),
     core: [packCoordinate(plan.core.manager), plan.core.parking.map(packCoordinate)],
     upgradeChains: [
