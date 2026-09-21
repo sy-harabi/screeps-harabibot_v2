@@ -1,6 +1,7 @@
 import { moveCreep } from "../../capabilities/movement/movement"
 import { getCreepHeap } from "../../runtime/creepRuntime"
 import { getStructuresByType } from "../../world/roomStructures"
+import { matchEnergySuppliers } from "./logisticsMatcher"
 
 export interface LogisticsState {
   readonly suppliers: Map<string, Creep>
@@ -23,27 +24,130 @@ interface LogisticsSupplierRuntime {
 }
 
 const SPAWN_ENERGY_PRIORITY = 1
-
 const STORAGE_PRIORITY = 100
-
 const COMMIT_RANGE = 5
 
-const SOFT_ASSIGNMENT_PENALTY = 4
+const unassignedScratch: Creep[] = []
 
 export function runLogistics(room: Room, state: LogisticsState): void {
   registerColonyRequests(room, state)
 
-  const unassigned: Creep[] = []
+  unassignedScratch.length = 0
+  reconcileAssignments(state, unassignedScratch)
 
-  reconcileAssignments(state, unassigned)
+  matchEnergySuppliers(state.energyRequests, unassignedScratch)
+  commitMatchedAssignments(state, unassignedScratch)
 
   runAssignedSuppliers(state)
+}
+
+function reconcileAssignments(state: LogisticsState, unassigned: Creep[]): void {
+  for (const supplier of state.suppliers.values()) {
+    const runtime = getCreepHeap<LogisticsSupplierRuntime>(supplier.name)
+
+    if (!runtime.committed) {
+      continue
+    }
+
+    const targetId = runtime.targetRequestId
+    const request = targetId ? state.energyRequests.get(targetId) : undefined
+    const energy = supplier.store.getUsedCapacity(RESOURCE_ENERGY)
+
+    if (!request || energy <= 0) {
+      clearAssignment(runtime)
+      continue
+    }
+
+    const reserved = Math.min(energy, request.remainingAmount)
+
+    if (reserved <= 0) {
+      clearAssignment(runtime)
+      continue
+    }
+
+    request.remainingAmount -= reserved
+  }
+
+  for (const supplier of state.suppliers.values()) {
+    const runtime = getCreepHeap<LogisticsSupplierRuntime>(supplier.name)
+
+    if (runtime.committed) {
+      continue
+    }
+
+    const energy = supplier.store.getUsedCapacity(RESOURCE_ENERGY)
+
+    if (energy <= 0) {
+      clearAssignment(runtime)
+      continue
+    }
+
+    const targetId = runtime.targetRequestId
+
+    if (!targetId) {
+      unassigned.push(supplier)
+      continue
+    }
+
+    const request = state.energyRequests.get(targetId)
+
+    if (!request || request.remainingAmount <= 0) {
+      clearAssignment(runtime)
+      unassigned.push(supplier)
+      continue
+    }
+
+    if (
+      supplier.pos.roomName === request.target.pos.roomName &&
+      supplier.pos.getRangeTo(request.target.pos) <= COMMIT_RANGE
+    ) {
+      runtime.committed = true
+      request.remainingAmount -= Math.min(energy, request.remainingAmount)
+      continue
+    }
+
+    request.softAssignments++
+  }
+}
+
+function commitMatchedAssignments(state: LogisticsState, suppliers: readonly Creep[]): void {
+  for (const supplier of suppliers) {
+    const runtime = getCreepHeap<LogisticsSupplierRuntime>(supplier.name)
+
+    if (runtime.committed || !runtime.targetRequestId) {
+      continue
+    }
+
+    const request = state.energyRequests.get(runtime.targetRequestId)
+
+    if (!request || request.remainingAmount <= 0) {
+      clearAssignment(runtime)
+      continue
+    }
+
+    if (
+      supplier.pos.roomName !== request.target.pos.roomName ||
+      supplier.pos.getRangeTo(request.target.pos) > COMMIT_RANGE
+    ) {
+      continue
+    }
+
+    const energy = supplier.store.getUsedCapacity(RESOURCE_ENERGY)
+    const reserved = Math.min(energy, request.remainingAmount)
+
+    if (reserved <= 0) {
+      clearAssignment(runtime)
+      continue
+    }
+
+    runtime.committed = true
+    request.remainingAmount -= reserved
+  }
 }
 
 function runAssignedSuppliers(state: LogisticsState): void {
   for (const supplier of state.suppliers.values()) {
     const runtime = getCreepHeap<LogisticsSupplierRuntime>(supplier.name)
-
     const targetId = runtime.targetRequestId
 
     if (!targetId) {
@@ -53,6 +157,11 @@ function runAssignedSuppliers(state: LogisticsState): void {
     const request = state.energyRequests.get(targetId)
 
     if (!request) {
+      clearAssignment(runtime)
+      continue
+    }
+
+    if (!runtime.committed && request.remainingAmount <= 0) {
       clearAssignment(runtime)
       continue
     }
@@ -70,67 +179,6 @@ function runAssignedSuppliers(state: LogisticsState): void {
     if (result === OK) {
       clearAssignment(runtime)
     }
-  }
-}
-
-function getMatchDistance(supplier: Creep, request: EnergyRequest): number {
-  return supplier.pos.getRangeTo(request.target.pos) + request.softAssignments * SOFT_ASSIGNMENT_PENALTY
-}
-
-function reconcileAssignments(state: LogisticsState, unassigned: Creep[]): void {
-  for (const supplier of state.suppliers.values()) {
-    const runtime = getCreepHeap<LogisticsSupplierRuntime>(supplier.name)
-
-    const targetId = runtime.targetRequestId
-
-    if (!targetId) {
-      unassigned.push(supplier)
-      continue
-    }
-
-    const request = state.energyRequests.get(targetId)
-
-    if (!request) {
-      clearAssignment(runtime)
-      unassigned.push(supplier)
-      continue
-    }
-
-    const energy = supplier.store.getUsedCapacity(RESOURCE_ENERGY)
-
-    if (energy <= 0) {
-      clearAssignment(runtime)
-      continue
-    }
-
-    if (runtime.committed) {
-      const reserved = Math.min(energy, request.remainingAmount)
-
-      if (reserved <= 0) {
-        clearAssignment(runtime)
-        unassigned.push(supplier)
-        continue
-      }
-
-      request.remainingAmount -= reserved
-      continue
-    }
-
-    if (supplier.pos.getRangeTo(request.target.pos) <= COMMIT_RANGE) {
-      const reserved = Math.min(energy, request.remainingAmount)
-
-      if (reserved <= 0) {
-        clearAssignment(runtime)
-        unassigned.push(supplier)
-        continue
-      }
-
-      runtime.committed = true
-      request.remainingAmount -= reserved
-      continue
-    }
-
-    request.softAssignments++
   }
 }
 
