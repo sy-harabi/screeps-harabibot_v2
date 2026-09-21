@@ -1,25 +1,20 @@
-import { createTickContext } from "./kernel/tickContext"
-import { executeOperationTree, planOperationTree } from "./kernel/operationRunner"
-import { createEmpireOperation } from "./operations/empire/empireOperation"
-import { ensureOperation } from "./operations/operation"
-import "./visuals/roomVisual"
-import "./console/consoleApi"
-import { segmentManager } from "./persistence/segmentManager"
-import { allocateSpawns } from "./capabilities/spawning/spawnAllocator"
-import { run as runTraffic } from "./capabilities/movement/traffic"
 import { getRoomCostMatrix } from "./capabilities/movement/roomCostMatrix"
+import { run as runTraffic } from "./capabilities/movement/traffic"
+import { allocateSpawns } from "./capabilities/spawning/spawnAllocator"
+import { runColonies } from "./colony/colonyManager"
+import "./console/consoleApi"
+import { createTickContext } from "./kernel/tickContext"
+import { segmentManager } from "./persistence/segmentManager"
+import "./visuals/roomVisual"
 
 export function loop(): void {
   segmentManager.pretick()
 
   const context = createTickContext()
-  const rootOperation = ensureOperation(createEmpireOperation())
 
-  planOperationTree(rootOperation, context)
+  runColonies(context)
 
   allocateSpawns()
-
-  executeOperationTree(rootOperation, context)
 
   for (const room of Object.values(Game.rooms)) {
     runTraffic(room, () => getRoomCostMatrix(room.name))
