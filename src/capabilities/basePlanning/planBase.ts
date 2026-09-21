@@ -293,7 +293,7 @@ function tryPlanBaseWithRegions(
   return {
     version: 1,
     roomName,
-    anchor: bestControllerArea.storage,
+    storage: bestControllerArea.storage,
     structures,
     core: {
       manager: bestCorePlan.manager,
