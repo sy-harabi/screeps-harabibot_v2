@@ -70,11 +70,7 @@ export function runHaulers(
   }
 }
 
-function moveToColony(
-  colonyName: string,
-  hauler: Creep,
-  sourceStateById: Map<Id<Source>, SourceState>,
-): void {
+function moveToColony(colonyName: string, hauler: Creep, sourceStateById: Map<Id<Source>, SourceState>): void {
   const sourceId = hauler.memory.sourceId
   let path: readonly RoomPosition[] | undefined
 

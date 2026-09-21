@@ -1,82 +1,148 @@
 import { moveCreep } from "../../capabilities/movement/movement"
+import { getCreepHeap } from "../../runtime/creepRuntime"
 import { getStructuresByType } from "../../world/roomStructures"
 
 export interface LogisticsState {
-  readonly suppliers: Creep[]
-  readonly energyRequests: EnergyRequest[]
+  readonly suppliers: Map<string, Creep>
+  readonly energyRequests: Map<string, EnergyRequest>
 }
 
 export interface EnergyRequest {
+  readonly id: string
   readonly target: Creep | AnyStoreStructure
   readonly priority: number
+  readonly requestedAmount: number
+
   remainingAmount: number
+  softAssignments: number
+}
+
+interface LogisticsSupplierRuntime {
+  targetRequestId?: string
+  committed?: boolean
 }
 
 const SPAWN_ENERGY_PRIORITY = 1
 
 const STORAGE_PRIORITY = 100
 
+const COMMIT_RANGE = 5
+
+const SOFT_ASSIGNMENT_PENALTY = 4
+
 export function runLogistics(room: Room, state: LogisticsState): void {
   registerColonyRequests(room, state)
 
-  state.energyRequests.sort((a, b) => a.priority - b.priority)
+  const unassigned: Creep[] = []
 
-  for (const supplier of state.suppliers) {
-    const request = findBestRequest(supplier, state.energyRequests)
+  reconcileAssignments(state, unassigned)
+
+  runAssignedSuppliers(state)
+}
+
+function runAssignedSuppliers(state: LogisticsState): void {
+  for (const supplier of state.suppliers.values()) {
+    const runtime = getCreepHeap<LogisticsSupplierRuntime>(supplier.name)
+
+    const targetId = runtime.targetRequestId
+
+    if (!targetId) {
+      continue
+    }
+
+    const request = state.energyRequests.get(targetId)
 
     if (!request) {
+      clearAssignment(runtime)
       continue
     }
 
-    const amount = Math.min(supplier.store.getUsedCapacity(RESOURCE_ENERGY), request.remainingAmount)
-
-    request.remainingAmount -= amount
-
-    runSupplier(supplier, request.target)
-  }
-}
-
-function runSupplier(supplier: Creep, target: Creep | AnyStoreStructure): void {
-  if (!supplier.pos.isNearTo(target)) {
-    moveCreep(supplier, {
-      pos: target.pos,
-      range: 1,
-    })
-
-    return
-  }
-
-  supplier.transfer(target, RESOURCE_ENERGY)
-}
-
-function findBestRequest(supplier: Creep, requests: readonly EnergyRequest[]): EnergyRequest | undefined {
-  let best: EnergyRequest | undefined
-  let bestDistance = Infinity
-
-  for (const request of requests) {
-    if (request.remainingAmount <= 0) {
+    if (!supplier.pos.isNearTo(request.target)) {
+      moveCreep(supplier, {
+        pos: request.target.pos,
+        range: 1,
+      })
       continue
     }
 
-    if (best && request.priority > best.priority) {
-      break
-    }
+    const result = supplier.transfer(request.target, RESOURCE_ENERGY)
 
-    const distance = supplier.pos.getRangeTo(request.target.pos)
-
-    if (!best || distance < bestDistance) {
-      best = request
-      bestDistance = distance
+    if (result === OK) {
+      clearAssignment(runtime)
     }
   }
+}
 
-  return best
+function getMatchDistance(supplier: Creep, request: EnergyRequest): number {
+  return supplier.pos.getRangeTo(request.target.pos) + request.softAssignments * SOFT_ASSIGNMENT_PENALTY
+}
+
+function reconcileAssignments(state: LogisticsState, unassigned: Creep[]): void {
+  for (const supplier of state.suppliers.values()) {
+    const runtime = getCreepHeap<LogisticsSupplierRuntime>(supplier.name)
+
+    const targetId = runtime.targetRequestId
+
+    if (!targetId) {
+      unassigned.push(supplier)
+      continue
+    }
+
+    const request = state.energyRequests.get(targetId)
+
+    if (!request) {
+      clearAssignment(runtime)
+      unassigned.push(supplier)
+      continue
+    }
+
+    const energy = supplier.store.getUsedCapacity(RESOURCE_ENERGY)
+
+    if (energy <= 0) {
+      clearAssignment(runtime)
+      continue
+    }
+
+    if (runtime.committed) {
+      const reserved = Math.min(energy, request.remainingAmount)
+
+      if (reserved <= 0) {
+        clearAssignment(runtime)
+        unassigned.push(supplier)
+        continue
+      }
+
+      request.remainingAmount -= reserved
+      continue
+    }
+
+    if (supplier.pos.getRangeTo(request.target.pos) <= COMMIT_RANGE) {
+      const reserved = Math.min(energy, request.remainingAmount)
+
+      if (reserved <= 0) {
+        clearAssignment(runtime)
+        unassigned.push(supplier)
+        continue
+      }
+
+      runtime.committed = true
+      request.remainingAmount -= reserved
+      continue
+    }
+
+    request.softAssignments++
+  }
+}
+
+function clearAssignment(runtime: LogisticsSupplierRuntime): void {
+  runtime.targetRequestId = undefined
+  runtime.committed = false
 }
 
 export function createLogisticsState(): LogisticsState {
   return {
-    suppliers: [],
-    energyRequests: [],
+    suppliers: new Map(),
+    energyRequests: new Map(),
   }
 }
 
@@ -114,21 +180,20 @@ export function requestEnergy(
     return
   }
 
-  state.energyRequests.push({
+  state.energyRequests.set(target.id, {
+    id: target.id,
     target,
     priority,
+    requestedAmount: amount,
     remainingAmount: amount,
+    softAssignments: 0,
   })
 }
 
 export function registerEnergySupplier(state: LogisticsState, creep: Creep): void {
-  if (creep.spawning) {
+  if (creep.spawning || creep.store.getUsedCapacity(RESOURCE_ENERGY) === 0) {
     return
   }
 
-  if (creep.store.getUsedCapacity(RESOURCE_ENERGY) === 0) {
-    return
-  }
-
-  state.suppliers.push(creep)
+  state.suppliers.set(creep.name, creep)
 }
