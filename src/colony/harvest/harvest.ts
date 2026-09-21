@@ -1,14 +1,14 @@
 import { BasePlan } from "../../capabilities/basePlanning/basePlan"
+import { estimatePathTravelTicks } from "../../capabilities/movement/travelTime"
 import { requestSpawn } from "../../capabilities/spawning/spawnQueue"
 import { getColonyCreeps, type TickContext } from "../../kernel/tickContext"
 import { RoomCoordinate } from "../../world/map/roomCoordinate"
+import type { LogisticsState } from "../logistics/logistics"
 import { createHaulerBody, HAULER_ROLE, runHaulers } from "./hauler"
 import { getHarvestRuntime } from "./harvestRuntime"
 import { createMinerBody, MINER_ROLE, runMiners } from "./miner"
 import { createSourceData, type SourceData } from "./sourceData"
 import { sourceDataStore } from "./sourceDataStore"
-import { estimatePathTravelTicks } from "../../capabilities/movement/travelTime"
-import { LogisticsState } from "../logistics/logistics"
 
 export interface SourceState {
   readonly data: SourceData
