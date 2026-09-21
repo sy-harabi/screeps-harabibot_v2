@@ -294,6 +294,17 @@ function tryPlanBaseWithRegions(
     roomName,
     anchor: bestControllerArea.storage,
     structures,
+    core: {
+      manager: bestCorePlan.manager,
+      parking: bestCorePlan.parking,
+    },
+    controller: {
+      upgradeChains: bestControllerArea.upgradeChains,
+    },
+    labs: {
+      inputs: labPlan.inputLabs,
+      outputs: labPlan.outputLabs,
+    },
   }
 }
 

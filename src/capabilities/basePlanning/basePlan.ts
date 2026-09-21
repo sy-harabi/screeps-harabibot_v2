@@ -12,9 +12,33 @@ export interface PlannedStructure {
   readonly tag?: PlannedStructureTag
 }
 
+export interface BasePlanCore {
+  readonly manager: RoomCoordinate
+  readonly parking: readonly RoomCoordinate[]
+}
+
+export interface BasePlanUpgradeChains {
+  readonly left: readonly RoomCoordinate[]
+  readonly middle: readonly RoomCoordinate[]
+  readonly right: readonly RoomCoordinate[]
+}
+
+export interface BasePlanController {
+  readonly upgradeChains: BasePlanUpgradeChains
+}
+
+export interface BasePlanLabs {
+  readonly inputs: readonly [RoomCoordinate, RoomCoordinate]
+  readonly outputs: readonly RoomCoordinate[]
+}
+
 export interface BasePlan {
   readonly version: 1
   readonly roomName: string
   readonly anchor: RoomCoordinate
   readonly structures: PlannedStructure[]
+
+  readonly core: BasePlanCore
+  readonly controller: BasePlanController
+  readonly labs: BasePlanLabs
 }
