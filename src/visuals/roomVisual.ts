@@ -1,4 +1,4 @@
-import { isInsideRoom, NEIGHBOR_OFFSETS, ROOM_SIZE, toRoomIndex } from "../world/map/roomGrid"
+import { isInsideRoom, NEIGHBOR_OFFSETS, toRoomIndex } from "../world/map/roomGrid"
 
 export type Point = [number, number]
 

@@ -27,7 +27,7 @@ export function parseRoomName(roomName: string): WorldRoomCoordinate {
 }
 
 export function formatRoomName(coordinate: WorldRoomCoordinate): string {
-  let { x, y } = coordinate
+  const { x, y } = coordinate
 
   let roomName = ""
 

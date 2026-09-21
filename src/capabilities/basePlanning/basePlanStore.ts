@@ -1,4 +1,5 @@
 import { segmentManager } from "../../persistence/segmentManager"
+import { BASE_PLAN_SEGMENT_IDS } from "../../persistence/segmentIds"
 import { runtimeRegistry } from "../../runtime/runtimeRegistry"
 import { BasePlan } from "./basePlan"
 import { packBasePlan, PackedBasePlan, unpackBasePlan } from "./basePlanCodec"
@@ -7,8 +8,6 @@ interface BasePlanSegment {
   version: 1
   plans: Record<string, PackedBasePlan>
 }
-
-const BASE_PLAN_SEGMENT_IDS = [0, 1, 2, 3, 4, 5, 6, 7] as const
 
 export type BasePlanReadResult = { status: "loading" } | { status: "missing" } | { status: "ready"; value: BasePlan }
 

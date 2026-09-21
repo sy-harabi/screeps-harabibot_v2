@@ -7,8 +7,8 @@
   "eslint.validate": ["typescript"],
   "eslint.workingDirectories": [{ "mode": "auto" }],
   "files.eol": "\n",
-  "typescript.tsdk": "node_modules/typescript/lib",
-  "typescript.enablePromptUseWorkspaceTsdk": true,
+  "js/ts.tsdk.path": "node_modules/typescript/lib",
+  "js/ts.tsdk.promptToUseWorkspaceVersion": true,
   "[typescript]": {
     "editor.defaultFormatter": "esbenp.prettier-vscode"
   },

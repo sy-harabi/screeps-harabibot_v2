@@ -361,39 +361,15 @@ function getMaskCenter(mask: Uint8Array): RoomCoordinate {
   }
 }
 
-function visualizeUpgradePath(visual: RoomVisual, path: RoomCoordinate[], label: string, color: string): void {
-  path.forEach((coordinate, index) => {
-    if (index > 0) {
-      const previous = path[index - 1]
-      visual.arrow(
-        new RoomPosition(previous.x, previous.y, visual.roomName),
-        new RoomPosition(coordinate.x, coordinate.y, visual.roomName),
-        {
-          color,
-          opacity: 0.8,
-        },
-      )
-    }
-
-    visual.text(`${label}${index + 1}`, coordinate.x, coordinate.y, {
-      color,
-      font: 0.45,
-      stroke: "black",
-    })
-  })
-}
-
 function clearVisual(visual: RoomVisual): void {
   visual.clear()
   visual.roads = []
 }
 
 function createNoopVisual(roomName: string): RoomVisual {
-  let visual: RoomVisual
-
   const noop = (): RoomVisual => visual
 
-  visual = {
+  const visual = {
     roomName,
     structure: noop,
     text: noop,

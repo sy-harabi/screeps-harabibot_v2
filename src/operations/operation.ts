@@ -1,7 +1,8 @@
+import { registerOperationInTickContext, unregisterOperationFromTickContext } from "../kernel/tickContext"
 import { clearOperationRuntime } from "../runtime/operationRuntime"
 import type { ColonyOperationRecord } from "./colony/colonyOperation"
 import type { EmpireOperationRecord } from "./empire/empireOperation"
-import { OwnedSourceOperationRecord } from "./ownedSource/ownedSourceOperation"
+import type { HarvestOperationRecord } from "./harvest/harvestOperation"
 
 export type OperationStatus = "active" | "completed"
 
@@ -14,7 +15,7 @@ export interface OperationBase {
   result?: unknown
 }
 
-export type OperationRecord = EmpireOperationRecord | ColonyOperationRecord | OwnedSourceOperationRecord
+export type OperationRecord = EmpireOperationRecord | ColonyOperationRecord | HarvestOperationRecord
 
 export type OperationsMemory = Record<string, OperationRecord>
 
@@ -34,14 +35,18 @@ export function ensureOperation(operation: OperationRecord): OperationRecord {
   }
 
   memory[operation.id] = operation
+  registerOperationInTickContext(operation)
   return operation
 }
 
-export function getChildOperations(parentId: string): OperationRecord[] {
-  return Object.values(getOperationsMemory()).filter((operation) => operation.parentId === parentId)
-}
-
 export function removeOperation(operationId: string): void {
-  delete getOperationsMemory()[operationId]
+  const memory = getOperationsMemory()
+  const operation = memory[operationId]
+
+  if (operation !== undefined) {
+    unregisterOperationFromTickContext(operation)
+    delete memory[operationId]
+  }
+
   clearOperationRuntime(operationId)
 }

@@ -1,17 +1,22 @@
 import { getCreepHeap } from "../../runtime/creepRuntime"
 
-interface MovementRuntime {
+export interface MovementRuntime {
   cachedPath?: readonly RoomPosition[]
   nextPathIndex?: number
-  goalKey?: string
   lastObservedPosition?: RoomPosition
+  stuckTicks?: number
+  lastMoveTick?: number
+  stuckRepathAttempted?: boolean
+
+  knownPathIndex?: number
 }
 
-interface MovementCreepHeap {
-  movement?: MovementRuntime
+interface MovementCreepRuntime {
+  _movement?: MovementRuntime
 }
 
 export function getMovementRuntime(creepName: string): MovementRuntime {
-  const heap = getCreepHeap<MovementCreepHeap>(creepName)
-  return (heap.movement ??= {})
+  const runtime = getCreepHeap<MovementCreepRuntime>(creepName)
+
+  return (runtime._movement ??= {})
 }

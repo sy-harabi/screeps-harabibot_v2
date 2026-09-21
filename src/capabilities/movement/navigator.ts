@@ -1,11 +1,7 @@
 import { PriorityQueue } from "../../utils/priorityQueue"
 import { getAdjacentRooms, getRoomManhattanDistance } from "../../world/map/roomTopology"
+import { MoveGoal } from "./movement"
 import { getRoomCostMatrix } from "./roomCostMatrix"
-
-export interface MoveGoal {
-  pos: RoomPosition
-  range: number
-}
 
 interface FindRouteOptions {
   maxRoomHops?: number
@@ -121,8 +117,6 @@ export function findRoute(
 }
 
 type MoveGoals = MoveGoal | MoveGoal[]
-
-export type MoveStatus = "arrived" | "pending" | "failed"
 
 export function findPath(
   origin: RoomPosition,

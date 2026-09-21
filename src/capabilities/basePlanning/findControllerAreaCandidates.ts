@@ -373,7 +373,7 @@ function findStorageCandidates(
   planningMask: Uint8Array,
   upgradeTileIndices: Set<number>,
 ): StorageCandidate[] {
-  let candidates: StorageCandidate[] = []
+  const candidates: StorageCandidate[] = []
 
   forEachCoordinateAtRange(controller.pos, 4, (x, y) => {
     const index = toRoomIndex(x, y)

@@ -1,5 +1,5 @@
 import { type RoomCoordinate } from "./roomCoordinate"
-import { fromRoomIndex, isInsideRoom, NEIGHBOR_OFFSETS, ROOM_AREA, ROOM_SIZE, toRoomIndex } from "./roomGrid"
+import { fromRoomIndex, isInsideRoom, NEIGHBOR_OFFSETS, ROOM_AREA, toRoomIndex } from "./roomGrid"
 
 export interface FloodFillResult {
   /**

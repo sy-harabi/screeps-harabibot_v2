@@ -2,10 +2,9 @@ import { BasePlan } from "../../capabilities/basePlanning/basePlan"
 import { basePlanStore } from "../../capabilities/basePlanning/basePlanStore"
 import { planBase } from "../../capabilities/basePlanning/planBase"
 import type { EmpireOperationRecord } from "../empire/empireOperation"
+import { createHarvestOperation } from "../harvest/harvestOperation"
 import { ensureOperation, OperationBase } from "../operation"
 import type { OperationHandler } from "../operationHandler"
-
-import { createOwnedSourceOperation } from "../ownedSource/ownedSourceOperation"
 
 export interface ColonyOperationRecord extends OperationBase {
   readonly id: string
@@ -29,48 +28,18 @@ export function createColonyOperation(roomName: string): ColonyOperationRecord {
 }
 
 export const colonyOperationHandler: OperationHandler<ColonyOperationRecord> = {
-  plan(operation, context): void {
+  plan(operation): void {
     const { roomName } = operation
-
-    const terrain = Game.map.getRoomTerrain(roomName)
 
     const room = Game.rooms[roomName]
 
-    if (!room || !room.controller || !room.controller.my) {
+    if (!room?.controller?.my) {
       return
     }
 
-    const sources = room.find(FIND_SOURCES)
+    const basePlan = ensureBasePlan(room)
 
-    const minerals = room.find(FIND_MINERALS)
-
-    const existingSpawn = room.find(FIND_MY_SPAWNS)[0]
-
-    const basePlanResult = basePlanStore.get(roomName)
-
-    let basePlan: BasePlan | undefined
-
-    if (basePlanResult.status === "loading") {
-      return
-    }
-
-    if (basePlanResult.status === "ready") {
-      basePlan = basePlanResult.value
-    } else if (basePlanResult.status === "missing") {
-      const plan = planBase(roomName, terrain, room.controller, sources, minerals, {
-        existingSpawn: existingSpawn?.pos,
-      })
-
-      if (plan === undefined) {
-        return
-      }
-
-      basePlanStore.set(roomName, plan)
-
-      basePlan = plan
-    }
-
-    if (!basePlan) {
+    if (basePlan === undefined) {
       return
     }
 
@@ -78,12 +47,42 @@ export const colonyOperationHandler: OperationHandler<ColonyOperationRecord> = {
       visualizeFinalPlan(basePlan, new RoomVisual(roomName))
     }
 
-    for (const source of sources) {
-      ensureOperation(createOwnedSourceOperation(operation.id, roomName, source.id))
-    }
+    ensureOperation(createHarvestOperation(operation.id, roomName))
   },
 
-  execute(operation, context): void {},
+  execute(): void {},
+}
+
+function ensureBasePlan(room: Room) {
+  const basePlanResult = basePlanStore.get(room.name)
+
+  if (basePlanResult.status === "ready") {
+    return basePlanResult.value
+  }
+
+  if (basePlanResult.status === "loading") {
+    return
+  }
+
+  const sources = room.find(FIND_SOURCES)
+
+  const terrain = Game.map.getRoomTerrain(room.name)
+
+  const minerals = room.find(FIND_MINERALS)
+
+  const existingSpawn = room.find(FIND_MY_SPAWNS)[0]
+
+  const plan = planBase(room.name, terrain, room.controller!, sources, minerals, {
+    existingSpawn: existingSpawn?.pos,
+  })
+
+  if (plan === undefined) {
+    return
+  }
+
+  basePlanStore.set(room.name, plan)
+
+  return plan
 }
 
 function visualizeFinalPlan(basePlan: BasePlan, visual: RoomVisual): void {

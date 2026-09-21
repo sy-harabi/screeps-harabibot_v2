@@ -10,5 +10,7 @@ declare global {
   interface CreepMemory {
     operationId: string
     role: string
+    sourceId?: Id<Source>
+    delivering?: boolean
   }
 }
