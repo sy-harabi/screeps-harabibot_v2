@@ -94,6 +94,18 @@ Use explicit request/allocation stages when consumers compete for a genuinely sc
 
 Do not infer from this that all gameplay systems require global `plan/allocate/execute` phases.
 
+### Empire-level coordination
+
+Keep empire-wide policy and coordination above individual colonies and missions when the responsibility genuinely spans them.
+
+Resource coordination such as inter-colony balancing, funneling, terminal transfers, production, and market policy belongs to the empire resource domain rather than to a standalone funnel abstraction. Colonies remain responsible for carrying out their local side of those decisions.
+
+Combat strategy and force allocation may create or direct combat missions, while missions remain responsible for executing their own persistent goals. Mission orchestration should stay focused on lifecycle and dispatch rather than becoming the place where unrelated empire strategy accumulates.
+
+CPU and bucket management are cross-cutting execution policy rather than a gameplay domain by themselves. Keep them as focused policy or service code unless their responsibilities grow enough to justify a dedicated manager.
+
+Do not freeze a fixed top-level manager list before the concrete systems require it. Manager boundaries should follow real empire-wide responsibilities rather than architectural symmetry.
+
 ### Runtime state
 
 One-tick indexes and derived state belong to `TickContext` or the owning subsystem call.
