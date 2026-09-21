@@ -6,15 +6,15 @@ import { SpawnRequest } from "./spawnRequest"
 export function allocateSpawns(): void {
   const roomStates = getSpawnRoomStates()
 
-  for (const [roomName, state] of roomStates) {
-    allocateRoomSpawns(roomName, state)
+  for (const [spawnRoomName, state] of roomStates) {
+    allocateRoomSpawns(spawnRoomName, state)
   }
 }
 
-function allocateRoomSpawns(roomName: string, state: SpawnRoomState): void {
+function allocateRoomSpawns(spawnRoomName: string, state: SpawnRoomState): void {
   const requests = [...state.spawnRequests].sort((left, right) => compareSpawnPriority(left.priority, right.priority))
 
-  const room = getTickContext().ownedRooms.get(roomName)
+  const room = getTickContext().ownedRooms.get(spawnRoomName)
 
   if (!room) {
     return
