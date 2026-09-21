@@ -1,6 +1,8 @@
 import { moveCreep, moveCreepByPath } from "../../capabilities/movement/movement"
-import { LogisticsState, registerEnergySupplier } from "../logistics/logistics"
+import type { LogisticsState } from "../logistics/logistics"
+import { registerEnergySupplier } from "../logistics/logistics"
 import type { SourceState } from "./harvest"
+import { sourceDataStore } from "./sourceDataStore"
 
 export const HAULER_ROLE = "hauler"
 
@@ -18,8 +20,7 @@ export function runHaulers(
       continue
     }
 
-    const sourceId = hauler.memory.sourceId
-    const sourceState = sourceStateById.get(sourceId)
+    const sourceState = sourceStateById.get(hauler.memory.sourceId)
 
     if (!sourceState) {
       continue
@@ -39,85 +40,80 @@ export function runHaulers(
         continue
       }
 
-      if (hauler.pos.roomName !== colonyName) {
-        moveToColony(colonyName,hauler, sourceStateById)
+      if (hauler.room.name !== colonyName) {
+        moveToColony(colonyName, hauler, sourceStateById)
+        continue
       }
 
       registerEnergySupplier(logistics, hauler)
+      continue
     }
 
     if (!hauler.memory.sourceId) {
       assignHauler(hauler, sourceOrder, sourceStateById)
     }
 
-    runHauler(hauler, sourceOrder, sourceStateById, logistics)
-  }
-}
+    const sourceId = hauler.memory.sourceId
 
-function runHauler(
-  hauler: Creep,
-  sourceOrder: readonly Id<Source>[],
-  sourceStateById: Map<Id<Source>, SourceState>,
-  logistics: LogisticsState,
-): void {
-  const sourceId = hauler.memory.sourceId
-
-  if (!sourceId) {
-    return
-  }
-
-  const sourceState = sourceStateById.get(sourceId)
-
-  if (!sourceState) {
-    delete hauler.memory.sourceId
-    delete hauler.memory.delivering
-    return
-  }
-
-  if (hauler.memory.delivering) {
-    if (hauler.store.getUsedCapacity(RESOURCE_ENERGY) === 0) {
-      finishDelivery(hauler, sourceOrder, sourceStateById)
-    } else {
-      registerEnergySupplier(logistics, hauler)
+    if (!sourceId) {
+      continue
     }
 
-    runDeliver(hauler, sourceState, sourceOrder, sourceStateById)
-    return
-  }
+    const sourceState = sourceStateById.get(sourceId)
 
-  runFetch(hauler, sourceState)
+    if (!sourceState) {
+      delete hauler.memory.sourceId
+      continue
+    }
+
+    runFetch(hauler, sourceState)
+  }
 }
 
-function moveToColony(colonyName:string,hauler: Creep, sourceStateById: Map<Id<Source>, SourceState>): void {
-  const sourceState = hauler.memory.sourceId ? sourceStateById.get(hauler.memory.sourceId) : undefined
+function moveToColony(
+  colonyName: string,
+  hauler: Creep,
+  sourceStateById: Map<Id<Source>, SourceState>,
+): void {
+  const sourceId = hauler.memory.sourceId
+  let path: readonly RoomPosition[] | undefined
 
-  if (sourceState) {
-    moveCreepByPath(hauler, sourceState.data.path, { reverse: true })
+  if (sourceId) {
+    const sourceState = sourceStateById.get(sourceId)
+
+    if (sourceState) {
+      path = sourceState.data.path
+    } else {
+      const sourceDataResult = sourceDataStore.get(sourceId)
+
+      if (sourceDataResult.status === "ready" && sourceDataResult.value.colonyName === colonyName) {
+        path = sourceDataResult.value.path
+      }
+    }
   }
 
-  const returnPos = sourceStateById.
+  if (path) {
+    const result = moveCreepByPath(hauler, path, { reverse: true })
 
-  if (!returnPos) {
-    return
+    if (result === "pending") {
+      return
+    }
   }
 
-  moveCreep(hauler, {
-    pos: returnPos,
-    range: 0,
-  })
+  moveCreep(
+    hauler,
+    {
+      pos: new RoomPosition(25, 25, colonyName),
+      range: 20,
+    },
+    {
+      useRoomRoute: true,
+    },
+  )
 }
 
 function moveToSource(hauler: Creep, sourceState: SourceState): void {
-  const sourcePos = sourceState.data.path[sourceState.data.path.length - 1]
-
-  if (!sourcePos) {
-    return
-  }
-
-  moveCreep(hauler, {
-    pos: sourcePos,
-    range: 1,
-  })
+  moveCreepByPath(hauler, sourceState.data.path)
 }
 
 function finishDelivery(
@@ -149,8 +145,19 @@ function finishDelivery(
 }
 
 function runFetch(hauler: Creep, sourceState: SourceState): void {
+  const path = sourceState.data.path
+  const sourcePos = path[path.length - 1]
+
+  if (!sourcePos) {
+    return
+  }
+
+  if (hauler.room.name !== sourcePos.roomName || !hauler.pos.inRangeTo(sourcePos, 3)) {
+    moveCreepByPath(hauler, path)
+    return
+  }
+
   const source = Game.getObjectById(sourceState.data.sourceId)
-  const sourcePos = sourceState.data.path[sourceState.data.path.length - 1]
 
   if (!source) {
     moveCreep(hauler, { pos: sourcePos, range: 1 })
@@ -213,16 +220,9 @@ function runFetch(hauler: Creep, sourceState: SourceState): void {
 function startDelivering(hauler: Creep, sourceState: SourceState): void {
   hauler.memory.delivering = true
 
-  const returnPos = sourceState.data.path[0]
-
-  if (!returnPos) {
-    return
+  if (hauler.room.name !== sourceState.data.colonyName) {
+    moveCreepByPath(hauler, sourceState.data.path, { reverse: true })
   }
-
-  moveCreep(hauler, {
-    pos: returnPos,
-    range: 0,
-  })
 }
 
 function getSourceContainer(sourceState: SourceState): StructureContainer | undefined {
