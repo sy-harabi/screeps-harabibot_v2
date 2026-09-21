@@ -2,7 +2,7 @@ import type { SpawnPriority } from "./spawnPriority"
 
 export interface SpawnRequest {
   readonly requesterId: string
-  readonly roomName: string
+  readonly spawnRoomName: string
   readonly role: string
   readonly body: readonly BodyPartConstant[]
   readonly priority: SpawnPriority
@@ -12,6 +12,6 @@ export interface SpawnRequest {
 export interface RenewRequest {
   readonly requesterId: string
   readonly creepName: string
-  readonly roomName: string
+  readonly spawnRoomName: string
   readonly priority: SpawnPriority
 }
