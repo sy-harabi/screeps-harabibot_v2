@@ -1,5 +1,5 @@
 import { PriorityQueue } from "../../utils/priorityQueue"
-import { RoomCoordinate } from "./roomCoordinate"
+import type { RoomCoordinate } from "./roomCoordinate"
 import { fromRoomIndex, isInsideRoom, NEIGHBOR_OFFSETS, ROOM_AREA, toRoomIndex } from "./roomGrid"
 
 /**
