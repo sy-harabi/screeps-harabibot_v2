@@ -1,4 +1,4 @@
-import { BotOptionsConsoleApi, botOptionsConsoleApi } from "./optionsConsoleApi"
+import { botOptionsConsoleApi, type BotOptionsConsoleApi } from "./optionsConsoleApi"
 
 export interface BotConsoleApi {
   help(): void
