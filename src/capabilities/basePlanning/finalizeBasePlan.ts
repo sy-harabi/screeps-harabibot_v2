@@ -1,4 +1,4 @@
-import { RoomCoordinate } from "../../world/map/roomCoordinate"
+import type { RoomCoordinate } from "../../world/map/roomCoordinate"
 import { NEIGHBOR_OFFSETS, ROOM_AREA, toRoomIndex } from "../../world/map/roomGrid"
 import { assignRoadRcls } from "./assignRoadRcls"
 import type { PlannedStructure, PlannedStructureTag } from "./basePlan"
