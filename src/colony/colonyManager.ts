@@ -3,6 +3,7 @@ import { basePlanStore } from "../capabilities/basePlanning/basePlanStore"
 import { visualizeBasePlanStructures } from "../capabilities/basePlanning/basePlanVisual"
 import { planBase } from "../capabilities/basePlanning/planBase"
 import type { TickContext } from "../kernel/tickContext"
+import { runConstruction } from "./build/construction"
 import { runHarvest } from "./harvest/harvest"
 import { createLogisticsState, runLogistics } from "./logistics/logistics"
 import { runUpgrade } from "./upgrade/upgrade"
@@ -27,6 +28,9 @@ function runColony(room: Room, context: TickContext): void {
   const logistics = createLogisticsState()
 
   const harvest = runHarvest(room, basePlan, context, logistics)
+
+  const construction = runConstruction(room, basePlan)
+
   runUpgrade(room, basePlan, context, logistics, harvest.income)
 
   runLogistics(room, logistics)

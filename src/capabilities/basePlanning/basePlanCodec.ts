@@ -2,7 +2,7 @@ import type { RoomCoordinate } from "../../world/map/roomCoordinate"
 import { fromRoomIndex, toRoomIndex } from "../../world/map/roomGrid"
 import type { BasePlan, PlannedStructure, PlannedStructureTag } from "./basePlan"
 
-type PackedPlannedStructure = [StructureConstant, number, number, PackedStructureTag?]
+type PackedPlannedStructure = [BuildableStructureConstant, number, number, PackedStructureTag?]
 type PackedCore = [manager: number, parking: number[]]
 type PackedUpgradeChains = [left: number[], middle: number[], right: number[]]
 

@@ -6,7 +6,7 @@ export type PlannedStructureTag =
   | { readonly kind: "mineral"; readonly id: Id<Mineral> }
 
 export interface PlannedStructure {
-  readonly structureType: StructureConstant
+  readonly structureType: BuildableStructureConstant
   readonly coordinate: RoomCoordinate
   readonly rcl: number
   readonly tag?: PlannedStructureTag
