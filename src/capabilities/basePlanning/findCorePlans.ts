@@ -1,7 +1,7 @@
-import { getRange, RoomCoordinate } from "../../world/map/roomCoordinate"
+import { getRange, type RoomCoordinate } from "../../world/map/roomCoordinate"
 import { isInsideRoom, toRoomIndex } from "../../world/map/roomGrid"
 
-import { ControllerAreaCandidate, UpgradeChains } from "./findControllerAreaCandidates"
+import type { ControllerAreaCandidate, UpgradeChains } from "./findControllerAreaCandidates"
 
 export const CORE_STAMP = {
   storage: { x: 0, y: 0 },
