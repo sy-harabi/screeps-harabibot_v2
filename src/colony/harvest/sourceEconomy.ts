@@ -1,7 +1,7 @@
 import { estimatePathTravelTicks } from "../../capabilities/movement/travelTime"
 import { getHarvestRuntime } from "./harvestRuntime"
 import { createMinerBody } from "./miner"
-import { SourceData } from "./sourceData"
+import type { SourceData } from "./sourceData"
 
 export interface SourceEconomy {
   readonly key: number
