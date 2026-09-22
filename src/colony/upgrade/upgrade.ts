@@ -8,7 +8,7 @@ import type { RoomCoordinate } from "../../world/map/roomCoordinate"
 import { toRoomIndex } from "../../world/map/roomGrid"
 import { getStructuresByType } from "../../world/roomStructures"
 import { type ConstructionState } from "../build/construction"
-import { requestEnergy, type LogisticsState } from "../logistics/logistics"
+import { ENERGY_REQUEST_PRIORITY, requestEnergy, type LogisticsState } from "../logistics/logistics"
 import { createUpgraderBody, UPGRADER_ROLE } from "./upgrader"
 
 interface UpgradeRuntime {
@@ -21,8 +21,6 @@ interface UpgradeLayout {
   readonly rootPositions: ReadonlySet<number>
   readonly nextByPosition: ReadonlyMap<number, number>
 }
-
-const UPGRADE_ENERGY_PRIORITY = 20
 
 const upgradeRuntimes = runtimeRegistry.createCache<string, UpgradeRuntime>("upgrade.colonies", {
   cleanupInterval: 500,
@@ -125,7 +123,7 @@ function registerUpgradeEnergyRequests(
 
   if (energyDepot instanceof Structure) {
     if (energyDepot.structureType === STRUCTURE_CONTAINER) {
-      requestEnergy(logistics, energyDepot, UPGRADE_ENERGY_PRIORITY)
+      requestEnergy(logistics, energyDepot, ENERGY_REQUEST_PRIORITY.upgrade)
     }
     return
   }
@@ -134,7 +132,7 @@ function registerUpgradeEnergyRequests(
     const rootUpgrader = upgraderByPosition.get(rootPosition)
 
     if (rootUpgrader !== undefined) {
-      requestEnergy(logistics, rootUpgrader, UPGRADE_ENERGY_PRIORITY)
+      requestEnergy(logistics, rootUpgrader, ENERGY_REQUEST_PRIORITY.upgrade)
     }
   }
 }
