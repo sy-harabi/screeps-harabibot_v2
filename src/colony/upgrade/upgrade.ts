@@ -31,6 +31,7 @@ export function runUpgrade(
   basePlan: BasePlan,
   context: TickContext,
   logistics: LogisticsState,
+  income: number,
 ): void {
   const controller = room.controller
 
@@ -75,7 +76,7 @@ export function runUpgrade(
 
   fillAreaWithCreeps(colonyName, fillArea, spawnedUpgraders)
 
-  const targetWork = getTargetUpgradeWork(room)
+  const targetWork = getTargetUpgradeWork(room, income)
 
   if (effectiveWork < targetWork && effectiveUpgraders < layout.area.length) {
     const workNeeded = targetWork - effectiveWork
@@ -195,22 +196,18 @@ function getUpgradeEnergyDepot(
     .find((resource) => resource.resourceType === RESOURCE_ENERGY)
 }
 
-function getTargetUpgradeWork(room: Room): number {
+function getTargetUpgradeWork(room: Room, income: number): number {
   const level = room.controller?.level
 
   if (level === undefined) {
     return 0
   }
 
-  if (level === 1) {
-    return 5
-  }
-
   if (level === 8) {
     return CONTROLLER_MAX_UPGRADE_PER_TICK
   }
 
-  return 10
+  return Math.floor(income)
 }
 
 function getUpgradeLayout(roomName: string, basePlan: BasePlan, rcl: number): UpgradeLayout {

@@ -9,6 +9,7 @@ import { getHarvestRuntime } from "./harvestRuntime"
 import { createMinerBody, MINER_ROLE, runMiners } from "./miner"
 import { createSourceData, type SourceData } from "./sourceData"
 import { sourceDataStore } from "./sourceDataStore"
+import { getSourceEconomy } from "./sourceEconomy"
 
 export interface SourceState {
   readonly data: SourceData
@@ -24,6 +25,12 @@ export interface SourceState {
   pendingEnergy: number
 }
 
+export interface HarvestResult {
+  readonly income: number
+  readonly maxIncome: number
+  readonly spawnUsage: number
+}
+
 const ROLES_BY_PRIORITY = [MINER_ROLE, HAULER_ROLE]
 
 export function runHarvest(
@@ -32,11 +39,11 @@ export function runHarvest(
   basePlan: BasePlan,
   context: TickContext,
   logistics: LogisticsState,
-): void {
+): HarvestResult {
   const sourceDataById = ensureSourceDataById(colonyName, room, basePlan)
 
   if (sourceDataById === undefined) {
-    return
+    return { income: 0, maxIncome: 0, spawnUsage: 0 }
   }
 
   const sourceOrder = getSourceOrder(colonyName, sourceDataById)
@@ -89,6 +96,10 @@ export function runHarvest(
     colonyName,
   }
 
+  let income = 0
+  let maxIncome = 0
+  let spawnUsage = 0
+
   for (const sourceId of sourceOrder) {
     const sourceState = ensureSourceState(sourceDataById, sourceStateById, sourceId)
 
@@ -101,6 +112,12 @@ export function runHarvest(
 
     const minerRatio = sourceState.harvestPower / sourceState.requiredHarvestPower
     const haulerRatio = sourceState.carryCapacity / sourceState.requiredCarryCapacity
+
+    const sourceEconomy = getSourceEconomy(room, sourceState.data)
+
+    income += sourceEconomy.maxIncome * Math.min(1, minerRatio, haulerRatio)
+    maxIncome += sourceEconomy.maxIncome
+    spawnUsage += sourceEconomy.spawnUsage
 
     if (
       minerRatio < 1 &&
@@ -140,6 +157,8 @@ export function runHarvest(
 
   runMiners(miners, sourceStateById)
   runHaulers(colonyName, haulers, sourceOrder, sourceStateById, logistics)
+
+  return { income, maxIncome, spawnUsage }
 }
 
 function getMinerReplacementLeadTime(miner: Creep, path: readonly RoomPosition[]): number {
