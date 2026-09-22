@@ -3,6 +3,8 @@
 Status: accepted
 Date: 2026-09-15
 
+Follow-up: [ADR 0012: Module-owned runtime lifecycles and cleanup](0012-module-runtime-lifecycles-and-cleanup.md)
+
 ## Context
 
 The old bot used a central `dataStorage.heap` object for data that should survive across ticks but may be lost on a global reset. It contained room, creep, mission, cost-matrix, segment, generic cache, and other runtime data.
