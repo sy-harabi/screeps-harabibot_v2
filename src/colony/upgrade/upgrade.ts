@@ -1,13 +1,13 @@
-import { BasePlan } from "../../capabilities/basePlanning/basePlan"
+import type { BasePlan } from "../../capabilities/basePlanning/basePlan"
 import { fillAreaWithCreeps } from "../../capabilities/movement/fillAreaWithCreeps"
 import { setWorkingArea } from "../../capabilities/movement/traffic"
 import { requestSpawn } from "../../capabilities/spawning/spawnQueue"
-import { getColonyCreeps, TickContext } from "../../kernel/tickContext"
+import { getColonyCreeps, type TickContext } from "../../kernel/tickContext"
 import { runtimeRegistry } from "../../runtime/runtimeRegistry"
-import { RoomCoordinate } from "../../world/map/roomCoordinate"
+import type { RoomCoordinate } from "../../world/map/roomCoordinate"
 import { toRoomIndex } from "../../world/map/roomGrid"
 import { getStructuresByType } from "../../world/roomStructures"
-import { LogisticsState, requestEnergy } from "../logistics/logistics"
+import { requestEnergy, type LogisticsState } from "../logistics/logistics"
 import { createUpgraderBody, UPGRADER_ROLE } from "./upgrader"
 
 interface UpgradeRuntime {
