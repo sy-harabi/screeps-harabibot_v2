@@ -1,4 +1,4 @@
-import { getRange, type RoomCoordinate } from "../../world/map/roomCoordinate"
+import { type RoomCoordinate } from "../../world/map/roomCoordinate"
 import { fromRoomIndex, isInsideRoom, NEIGHBOR_OFFSETS, toRoomIndex } from "../../world/map/roomGrid"
 import { moveCreep } from "./movement"
 import { registerMove } from "./traffic"
@@ -95,7 +95,7 @@ export function fillAreaWithCreeps(
       .filter((coord) => !posMatch.has(toRoomIndex(coord.x, coord.y)))
       .map((coord) => ({ pos: new RoomPosition(coord.x, coord.y, roomName), range: 1 }))
     for (const creep of creepsToTravel) {
-      moveCreep(creep, goals)
+      moveCreep(creep, goals, { priority: options.movePriority })
     }
   }
 
