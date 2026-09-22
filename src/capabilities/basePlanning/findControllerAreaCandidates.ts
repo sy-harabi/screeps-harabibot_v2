@@ -1,4 +1,4 @@
-import { RoomCoordinate } from "../../world/map/roomCoordinate"
+import type { RoomCoordinate } from "../../world/map/roomCoordinate"
 import {
   forEachCoordinateAtRange,
   forEachCoordinateInRange,
