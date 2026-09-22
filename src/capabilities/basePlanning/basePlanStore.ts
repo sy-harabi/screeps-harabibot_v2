@@ -1,8 +1,8 @@
 import { segmentManager } from "../../persistence/segmentManager"
 import { BASE_PLAN_SEGMENT_IDS } from "../../persistence/segmentIds"
 import { runtimeRegistry } from "../../runtime/runtimeRegistry"
-import { BasePlan } from "./basePlan"
-import { packBasePlan, PackedBasePlan, unpackBasePlan } from "./basePlanCodec"
+import type { BasePlan } from "./basePlan"
+import { packBasePlan, unpackBasePlan, type PackedBasePlan } from "./basePlanCodec"
 
 interface BasePlanSegment {
   version: 1
@@ -18,7 +18,8 @@ export const basePlanStore = {
   set,
 }
 
-function set(roomName: string, plan: BasePlan): void {
+function set(plan: BasePlan): void {
+  const roomName = plan.roomName
   const segmentId = getBasePlanSegmentId(roomName)
 
   const result = segmentManager.getSegment<BasePlanSegment>(segmentId)
