@@ -40,7 +40,7 @@ export function runUpgrade(
   }
 
   const upgraders = getColonyCreeps(context, colonyName, UPGRADER_ROLE)
-  const layout = getUpgradeLayout(colonyName, basePlan, controller.level)
+  const layout = getUpgradeLayout(basePlan, controller.level)
 
   if (layout.area.length === 0) {
     return
@@ -208,8 +208,8 @@ function getTargetUpgradeWork(room: Room, income: number): number {
   return Math.min(Math.floor(income), limit)
 }
 
-function getUpgradeLayout(roomName: string, basePlan: BasePlan, rcl: number): UpgradeLayout {
-  const runtime = getUpgradeRuntime(roomName)
+function getUpgradeLayout(basePlan: BasePlan, rcl: number): UpgradeLayout {
+  const runtime = getUpgradeRuntime(basePlan.roomName)
 
   if (runtime.rcl === rcl && runtime.layout !== undefined) {
     return runtime.layout
