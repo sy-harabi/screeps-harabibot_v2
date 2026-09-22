@@ -19,10 +19,12 @@ interface RoomStructureTemp {
 const CACHE_MAX_UNUSED_TICKS = 1000
 const CACHE_CLEANUP_INTERVAL = 100
 
-const cache = runtimeRegistry.createCache<string, RoomStructureCacheEntry>("roomStructures")
+const cache = runtimeRegistry.createCache<string, RoomStructureCacheEntry>("roomStructures", {
+  cleanupInterval: CACHE_CLEANUP_INTERVAL,
+  cleanup: cleanupRoomStructureCache,
+})
 
 let tempTick = -1
-let lastCleanupTick = -Infinity
 
 const temp = new Map<string, RoomStructureTemp>()
 
@@ -69,16 +71,10 @@ export function invalidateRoomStructureCache(roomName: string): void {
   temp.delete(roomName)
 }
 
-export function cleanupRoomStructureCache(): void {
-  if (Game.time - lastCleanupTick < CACHE_CLEANUP_INTERVAL) {
-    return
-  }
-
-  lastCleanupTick = Game.time
-
-  for (const [roomName, entry] of cache) {
+function cleanupRoomStructureCache(targetCache: Map<string, RoomStructureCacheEntry>): void {
+  for (const [roomName, entry] of targetCache) {
     if (Game.time - entry.lastUsed > CACHE_MAX_UNUSED_TICKS) {
-      cache.delete(roomName)
+      targetCache.delete(roomName)
     }
   }
 }
@@ -88,7 +84,6 @@ function getRoomStructureState(room: Room): {
   temp: RoomStructureTemp
 } {
   prepareTemp()
-  cleanupRoomStructureCache()
 
   const tempEntry = temp.get(room.name)
   const cached = cache.get(room.name)
