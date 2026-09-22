@@ -1,5 +1,5 @@
 import { dijkstraMap } from "../../world/map/dijkstraMap"
-import { RoomCoordinate } from "../../world/map/roomCoordinate"
+import type { RoomCoordinate } from "../../world/map/roomCoordinate"
 import { toRoomIndex } from "../../world/map/roomGrid"
 
 export function buildResourceDistanceMap(
