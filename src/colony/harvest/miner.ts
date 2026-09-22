@@ -119,7 +119,6 @@ export function createMinerBody(
   targetWork: number,
   useEnergyCapacity: boolean,
 ): readonly BodyPartConstant[] | undefined {
-
   const budget = useEnergyCapacity
     ? room.energyCapacityAvailable
     : Math.max(room.energyAvailable, SPAWN_ENERGY_CAPACITY)
