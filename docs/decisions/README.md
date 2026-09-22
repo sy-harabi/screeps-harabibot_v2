@@ -48,3 +48,4 @@ Date: YYYY-MM-DD
 - [0009: Early-empire economy control and spawn-driven remote frontier](0009-early-empire-economy-control.md)
 - [0010: Harvest operation boundary](0010-harvest-operation-boundary.md) — superseded by 0011
 - [0011: Colony pipeline and mission boundary](0011-colony-pipeline-and-mission-boundary.md)
+- [0012: Module-owned runtime lifecycles and cleanup](0012-module-runtime-lifecycles-and-cleanup.md)
