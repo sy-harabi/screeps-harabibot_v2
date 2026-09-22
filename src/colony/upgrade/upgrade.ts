@@ -17,7 +17,8 @@ interface UpgradeRuntime {
 
 interface UpgradeLayout {
   readonly area: readonly RoomCoordinate[]
-  readonly chains: readonly (readonly RoomCoordinate[])[]
+  readonly rootPositions: ReadonlySet<number>
+  readonly nextByPosition: ReadonlyMap<number, number>
 }
 
 const UPGRADE_ENERGY_PRIORITY = 20
@@ -86,38 +87,59 @@ export function runUpgrade(
   }
 
   const energyDepot = getUpgradeEnergyDepot(room, basePlan)
+  const upgraderByPosition = indexUpgradersByPosition(room.name, spawnedUpgraders)
 
-  if (
-    energyDepot !== undefined &&
-    !(energyDepot instanceof Resource) &&
-    energyDepot.structureType === STRUCTURE_CONTAINER
-  ) {
-    requestEnergy(logistics, energyDepot, UPGRADE_ENERGY_PRIORITY)
+  registerUpgradeEnergyRequests(logistics, energyDepot, layout, upgraderByPosition)
+  runUpgraders(room, spawnedUpgraders, layout, energyDepot, upgraderByPosition)
+}
+
+function indexUpgradersByPosition(roomName: string, upgraders: readonly Creep[]): Map<number, Creep> {
+  const result = new Map<number, Creep>()
+
+  for (const creep of upgraders) {
+    if (creep.pos.roomName !== roomName) {
+      continue
+    }
+
+    result.set(toRoomIndex(creep.pos.x, creep.pos.y), creep)
   }
 
-  runUpgraders(room, spawnedUpgraders, layout, energyDepot)
+  return result
+}
+
+function registerUpgradeEnergyRequests(
+  logistics: LogisticsState,
+  energyDepot: StructureStorage | StructureContainer | Resource | undefined,
+  layout: UpgradeLayout,
+  upgraderByPosition: ReadonlyMap<number, Creep>,
+): void {
+  if (energyDepot !== undefined) {
+    if (!(energyDepot instanceof Resource) && energyDepot.structureType === STRUCTURE_CONTAINER) {
+      requestEnergy(logistics, energyDepot, UPGRADE_ENERGY_PRIORITY)
+    }
+    return
+  }
+
+  for (const rootPosition of layout.rootPositions) {
+    const rootUpgrader = upgraderByPosition.get(rootPosition)
+
+    if (rootUpgrader !== undefined) {
+      requestEnergy(logistics, rootUpgrader, UPGRADE_ENERGY_PRIORITY)
+    }
+  }
 }
 
 function runUpgraders(
   room: Room,
   upgraders: readonly Creep[],
   layout: UpgradeLayout,
-  energyDepot?: StructureStorage | StructureContainer | Resource,
+  energyDepot: StructureStorage | StructureContainer | Resource | undefined,
+  upgraderByPosition: ReadonlyMap<number, Creep>,
 ): void {
   const controller = room.controller
 
   if (!controller) {
     return
-  }
-
-  const upgraderByPosition = new Map<number, Creep>()
-
-  for (const creep of upgraders) {
-    if (creep.pos.roomName !== room.name) {
-      continue
-    }
-
-    upgraderByPosition.set(toRoomIndex(creep.pos.x, creep.pos.y), creep)
   }
 
   for (const creep of upgraders) {
@@ -128,13 +150,9 @@ function runUpgraders(
     creep.upgradeController(controller)
     setWorkingArea(creep, controller.pos, 3)
 
-    const position = findUpgradePosition(creep, layout.chains)
+    const position = toRoomIndex(creep.pos.x, creep.pos.y)
 
-    if (position === undefined) {
-      continue
-    }
-
-    if (position.depth === 0 && energyDepot !== undefined && creep.pos.isNearTo(energyDepot)) {
+    if (layout.rootPositions.has(position) && energyDepot !== undefined && creep.pos.isNearTo(energyDepot)) {
       if (energyDepot instanceof Resource) {
         creep.pickup(energyDepot)
       } else if (energyDepot.store.getUsedCapacity(RESOURCE_ENERGY) > 0) {
@@ -142,13 +160,13 @@ function runUpgraders(
       }
     }
 
-    const successorPos = position.chain[position.depth + 1]
+    const successorPosition = layout.nextByPosition.get(position)
 
-    if (successorPos === undefined) {
+    if (successorPosition === undefined) {
       continue
     }
 
-    const successor = upgraderByPosition.get(toRoomIndex(successorPos.x, successorPos.y))
+    const successor = upgraderByPosition.get(successorPosition)
 
     if (
       successor === undefined ||
@@ -180,23 +198,6 @@ function getUpgradeEnergyDepot(
   return room
     .lookForAt(LOOK_RESOURCES, basePlan.storage.x, basePlan.storage.y)
     .find((resource) => resource.resourceType === RESOURCE_ENERGY)
-}
-
-function findUpgradePosition(
-  creep: Creep,
-  chains: readonly (readonly RoomCoordinate[])[],
-): { chain: readonly RoomCoordinate[]; depth: number } | undefined {
-  for (const chain of chains) {
-    for (let depth = 0; depth < chain.length; depth++) {
-      const pos = chain[depth]
-
-      if (creep.pos.x === pos.x && creep.pos.y === pos.y) {
-        return { chain, depth }
-      }
-    }
-  }
-
-  return
 }
 
 function getTargetUpgradeWork(room: Room): number {
@@ -248,7 +249,24 @@ function createUpgradeLayout(basePlan: BasePlan, rcl: number): UpgradeLayout {
   const chains = [middle, left, right].filter((chain) => isChainAvailable(chain, basePlan, rcl))
 
   const area: RoomCoordinate[] = []
+  const rootPositions = new Set<number>()
+  const nextByPosition = new Map<number, number>()
   const maxLength = Math.max(...chains.map((chain) => chain.length), 0)
+
+  for (const chain of chains) {
+    const root = chain[0]
+
+    if (root !== undefined) {
+      rootPositions.add(toRoomIndex(root.x, root.y))
+    }
+
+    for (let i = 0; i < chain.length - 1; i++) {
+      const current = chain[i]
+      const next = chain[i + 1]
+
+      nextByPosition.set(toRoomIndex(current.x, current.y), toRoomIndex(next.x, next.y))
+    }
+  }
 
   for (let depth = 0; depth < maxLength; depth++) {
     for (const chain of chains) {
@@ -260,7 +278,7 @@ function createUpgradeLayout(basePlan: BasePlan, rcl: number): UpgradeLayout {
     }
   }
 
-  return { area, chains }
+  return { area, rootPositions, nextByPosition }
 }
 
 function isChainAvailable(chain: readonly RoomCoordinate[], basePlan: BasePlan, rcl: number): boolean {
