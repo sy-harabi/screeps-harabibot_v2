@@ -4,7 +4,7 @@ HarabiBot v2 is an in-progress TypeScript rewrite of HarabiBot for [Screeps](htt
 
 The rewrite is not a line-by-line port. It is being rebuilt around explicit data flow, ordered colony execution, reusable capabilities, and clearer state ownership. The design direction and collaboration rules are documented in [docs/rewrite-context.md](./docs/rewrite-context.md).
 
-> **Status:** active development. The current vertical slice reaches colony-level harvesting with owned-source miner and hauler spawning/execution, but this is not yet a complete autonomous bot.
+> **Status:** active development. The current vertical slice covers owned-source harvesting, shared hauling and logistics, and income-driven upgrading, but this is not yet a complete autonomous bot.
 
 ## Current implementation
 
@@ -14,8 +14,9 @@ Implemented so far:
 - Per-tick `TickContext` indexes for owned rooms, colony creeps, and future mission creeps.
 - Exclusive creep ownership through `colony | mission` assignment, with role stored separately.
 - Spawn requests, priority ordering, queueing, and global spawn allocation.
-- Colony harvesting with owned-source miners, a shared hauler pool, source ordering, and replacement-aware spawn demand.
-- One-tick colony logistics state that matches loaded suppliers to spawn/extension requests with storage fallback.
+- Colony harvesting with owned-source miners, a shared hauler pool, source ordering, replacement-aware spawn demand, and cached source-economy estimates.
+- Income-driven upgrading with planned controller chains and logistics-fed upgrade energy.
+- One-tick colony logistics state that matches loaded suppliers to spawn/extension and upgrade-energy requests with storage fallback.
 - Dedicated movement and traffic capabilities.
 - A runtime base planner with in-game `RoomVisual` output.
 - Base-plan persistence through `RawMemory` segments.
@@ -24,7 +25,7 @@ Implemented so far:
 
 The base planner currently covers the core layout, controller/upgrader area, resource endpoints and road tree, labs, structure slots, towers, outer ramparts, rampart access roads, and repair roads. Existing manually placed spawns are respected by the planner.
 
-Still under construction are upgrading, scouting, construction execution, remotes, combat, empire resource coordination/market logic, and other late-game systems. A persistent mission framework is intentionally deferred until the first real cross-room mission requires it.
+Still under construction are construction execution, scouting, remotes, combat, empire resource coordination/market logic, and other late-game systems. A persistent mission framework is intentionally deferred until the first real cross-room mission requires it.
 
 ## Runtime flow
 
@@ -46,17 +47,22 @@ segmentManager.endTick()
 
 A colony is the operating unit centered on one owned room. Colony-local responsibilities run in explicit gameplay order rather than through a universal `plan/execute` interface.
 
-Harvesting is currently the first colony subsystem:
+The implemented colony economy currently flows explicitly through harvesting, upgrading, and logistics:
 
 ```text
 Colony:<roomName>
 ├─ harvest
 │  ├─ miners
-│  └─ shared hauler pool
+│  ├─ shared hauler pool
+│  └─ sustainable income estimate
+├─ upgrade
+│  └─ target WORK from current harvest income
 └─ logistics
    ├─ loaded suppliers
-   └─ energy requests
+   └─ spawn/extension and upgrade-energy requests
 ```
+
+Subsystems pass derived results directly when later colony work depends on earlier work. For example, harvest returns the current sustainable income estimate used by upgrading rather than publishing that value through generic shared state.
 
 Creeps belong to exactly one colony or mission. `TickContext` derives per-tick rosters from creep memory instead of storing persistent creep-name rosters on owners.
 
@@ -73,6 +79,7 @@ src/colony/                         Ordered colony execution
   colonyManager.ts
   harvest/
   logistics/
+  upgrade/
 src/creeps/                         Creep ownership types
 src/capabilities/basePlanning/      Runtime base planner
 src/capabilities/spawning/          Spawn requests, queue, priority, allocator
@@ -106,7 +113,7 @@ Useful commands:
 
 - `npm run typecheck` — check TypeScript without emitting files.
 - `npm run build` — bundle `src/main.ts` as `dist/main.js`.
-- `npm run check` — run type checking, production build, and formatting checks.
+- `npm run check` — run type checking, linting, production build, and formatting checks.
 - `npm run format` — check formatting without changing files.
 - `npm run format:write` — format supported files.
 - `npm run push-private` — build and upload once to the configured private server.
@@ -180,4 +187,4 @@ Start with these documents when reading the rewrite:
 
 ## Verification
 
-`npm run check` verifies TypeScript, the production bundle, and formatting. Gameplay behavior is validated in Screeps. Targeted tests or experiments are added for algorithms where they provide concrete value; the project does not currently require a general-purpose unit-test framework.
+`npm run check` verifies TypeScript, lint rules, the production bundle, and formatting. Gameplay behavior is validated in Screeps. Targeted tests or experiments are added for algorithms where they provide concrete value; the project does not currently require a general-purpose unit-test framework.
