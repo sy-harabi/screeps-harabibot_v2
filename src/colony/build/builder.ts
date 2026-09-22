@@ -33,8 +33,7 @@ export function runBuilder(
     return
   }
 
-  if (creep.store.getUsedCapacity(RESOURCE_ENERGY) === 0) {
-    runBuilderEnergy(room, creep, logistics, target)
+  if (creep.store.getUsedCapacity(RESOURCE_ENERGY) === 0 && !runBuilderEnergy(room, creep, logistics, target)) {
     return
   }
 
@@ -50,7 +49,7 @@ export function runBuilder(
   setWorkingArea(creep, target.pos, 3)
 }
 
-function runBuilderEnergy(room: Room, creep: Creep, logistics: LogisticsState, target: ConstructionSite): void {
+function runBuilderEnergy(room: Room, creep: Creep, logistics: LogisticsState, target: ConstructionSite): boolean {
   if (!room.storage) {
     requestEnergy(logistics, creep, ENERGY_REQUEST_PRIORITY.build)
 
@@ -61,7 +60,7 @@ function runBuilderEnergy(room: Room, creep: Creep, logistics: LogisticsState, t
       })
     }
 
-    return
+    return false
   }
 
   if (!creep.pos.isNearTo(room.storage)) {
@@ -69,8 +68,8 @@ function runBuilderEnergy(room: Room, creep: Creep, logistics: LogisticsState, t
       pos: room.storage.pos,
       range: 1,
     })
-    return
+    return false
   }
 
-  creep.withdraw(room.storage, RESOURCE_ENERGY)
+  return creep.withdraw(room.storage, RESOURCE_ENERGY) === OK
 }
