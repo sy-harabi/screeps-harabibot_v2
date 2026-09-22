@@ -1,4 +1,4 @@
-import { RoomCoordinate } from "../../world/map/roomCoordinate"
+import type { RoomCoordinate } from "../../world/map/roomCoordinate"
 
 export type PlannedStructureTag =
   | { readonly kind: "storage" | "controller" | "labInput" | "labOutput" | "rampartBuild" | "unassignedRoad" }
