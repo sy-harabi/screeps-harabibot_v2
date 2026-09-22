@@ -93,7 +93,7 @@ export function runUpgrade(
         order: 0,
         rolesByPriority: [UPGRADER_ROLE],
       },
-      () => createUpgraderBody(colonyName, workNeeded),
+      () => createUpgraderBody(room, workNeeded),
       UPGRADER_ROLE,
     )
   }
