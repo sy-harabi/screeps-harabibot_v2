@@ -90,8 +90,6 @@ export function runUpgrade(
   const targetWork = getTargetUpgradeWork(room, income)
 
   if (!construction.active && effectiveWork < targetWork && effectiveUpgraders < layout.area.length) {
-    const workNeeded = targetWork - effectiveWork
-
     requestSpawn(
       {
         requesterId: `upgrade:${colonyName}`,
@@ -104,7 +102,7 @@ export function runUpgrade(
         order: 0,
         rolesByPriority: [UPGRADER_ROLE],
       },
-      () => createUpgraderBody(room, workNeeded),
+      () => createUpgraderBody(room, targetWork),
       UPGRADER_ROLE,
     )
   }

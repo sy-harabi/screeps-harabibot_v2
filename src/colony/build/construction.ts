@@ -1,11 +1,19 @@
 import { type BasePlan } from "../../capabilities/basePlanning/basePlan"
-import { tryCreateConstructionSite } from "../../capabilities/construction/constructionSite"
+import { hasConstructionSiteBudget, tryCreateConstructionSite } from "../../capabilities/construction/constructionSite"
 import { runtimeRegistry } from "../../runtime/runtimeRegistry"
 import { getRoomStructures, getStructuresByType } from "../../world/roomStructures"
 
 export interface ConstructionState {
   readonly active: boolean
   readonly sites: readonly ConstructionSite[]
+}
+
+interface ConstructionCandidate {
+  structureType: BuildableStructureConstant
+  x: number
+  y: number
+  priority: number
+  bootstrap?: "storageContainer"
 }
 
 const MAX_ACTIVE_SITES = 3
@@ -115,15 +123,44 @@ function reconcileConstruction(room: Room, basePlan: BasePlan, runtime: Construc
     existingSites.add(structureKey(site.pos.x, site.pos.y, site.structureType))
   }
 
-  const candidates = basePlan.structures.filter((planned) => {
+  const candidates: ConstructionCandidate[] = []
+
+  const hasSpawn = getStructuresByType(room, STRUCTURE_SPAWN).some((spawn) => spawn.my)
+
+  for (const planned of basePlan.structures) {
     if (planned.rcl > controller.level) {
-      return false
+      continue
     }
 
     const key = structureKey(planned.coordinate.x, planned.coordinate.y, planned.structureType)
 
-    return !existingStructures.has(key) && !existingSites.has(key)
-  })
+    if (existingStructures.has(key) || existingSites.has(key)) {
+      continue
+    }
+
+    candidates.push({
+      structureType: planned.structureType,
+      x: planned.coordinate.x,
+      y: planned.coordinate.y,
+      priority: getConstructionPriority(room, planned.structureType, hasSpawn),
+    })
+  }
+
+  if (controller.level < 4) {
+    const { x, y } = basePlan.storage
+
+    const containerKey = structureKey(x, y, STRUCTURE_CONTAINER)
+
+    if (!existingStructures.has(containerKey) && !existingSites.has(containerKey)) {
+      candidates.push({
+        structureType: STRUCTURE_CONTAINER,
+        x,
+        y,
+        priority: getBootstrapStoragePriority(room),
+        bootstrap: "storageContainer",
+      })
+    }
+  }
 
   runtime.hasPendingWork = sites.length > 0 || candidates.length > 0
 
@@ -138,13 +175,8 @@ function reconcileConstruction(room: Room, basePlan: BasePlan, runtime: Construc
     }
   }
 
-  const hasSpawn = getStructuresByType(room, STRUCTURE_SPAWN).some((spawn) => spawn.my)
-
   candidates.sort((a, b) => {
-    return (
-      getConstructionPriority(room, a.structureType, hasSpawn) -
-      getConstructionPriority(room, b.structureType, hasSpawn)
-    )
+    return a.priority - b.priority
   })
 
   let slots = Math.max(0, MAX_ACTIVE_SITES - sites.length)
@@ -155,12 +187,29 @@ function reconcileConstruction(room: Room, basePlan: BasePlan, runtime: Construc
       break
     }
 
-    const result = tryCreateConstructionSite(
-      room,
-      candidate.coordinate.x,
-      candidate.coordinate.y,
-      candidate.structureType,
-    )
+    if (!hasConstructionSiteBudget()) {
+      break
+    }
+
+    if (candidate.structureType === STRUCTURE_STORAGE) {
+      const bootstrapContainer = getBootstrapStorageContainer(structures, basePlan)
+
+      if (bootstrapContainer !== undefined) {
+        const result = bootstrapContainer.destroy()
+
+        runtime.rcl = controller.level
+        runtime.siteIds = sites.map((site) => site.id)
+        runtime.hasPendingWork = true
+        runtime.nextCheckTick = result === OK ? Game.time + 1 : Game.time + RETRY_INTERVAL
+
+        return {
+          active: true,
+          sites: sortConstructionSites(room, sites),
+        }
+      }
+    }
+
+    const result = tryCreateConstructionSite(room, candidate.x, candidate.y, candidate.structureType)
 
     if (result === OK) {
       created++
@@ -187,6 +236,10 @@ function reconcileConstruction(room: Room, basePlan: BasePlan, runtime: Construc
   return { active: true, sites: sortConstructionSites(room, sites) }
 }
 
+function getBootstrapStoragePriority(room: Room): number {
+  return room.controller?.level === 1 ? -95 : -70
+}
+
 function sortConstructionSites(room: Room, sites: ConstructionSite[]): ConstructionSite[] {
   const hasSpawn = getStructuresByType(room, STRUCTURE_SPAWN).some((spawn) => spawn.my)
 
@@ -201,6 +254,18 @@ function sortConstructionSites(room: Room, sites: ConstructionSite[]): Construct
 
     return b.progress - a.progress
   })
+}
+
+function getBootstrapStorageContainer(
+  structures: readonly AnyStructure[],
+  basePlan: BasePlan,
+): StructureContainer | undefined {
+  return structures.find(
+    (structure): structure is StructureContainer =>
+      structure.structureType === STRUCTURE_CONTAINER &&
+      structure.pos.x === basePlan.storage.x &&
+      structure.pos.y === basePlan.storage.y,
+  )
 }
 
 function getConstructionPriority(room: Room, structureType: BuildableStructureConstant, hasSpawn: boolean): number {

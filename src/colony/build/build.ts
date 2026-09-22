@@ -48,7 +48,7 @@ export function runBuild(
     return
   }
 
-  const workNeeded = Math.ceil((targetBuildPower - effectiveBuildPower) / EFFECTIVE_BUILD_POWER)
+  const targetWork = Math.ceil(targetBuildPower / EFFECTIVE_BUILD_POWER)
 
   requestSpawn(
     {
@@ -62,7 +62,7 @@ export function runBuild(
       order: 0,
       rolesByPriority: [BUILDER_ROLE],
     },
-    () => createBuilderBody(room, workNeeded),
+    () => createBuilderBody(room, targetWork),
     BUILDER_ROLE,
   )
 }

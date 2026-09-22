@@ -30,3 +30,8 @@ function prepareBudget(): void {
   budgetTick = Game.time
   remainingBudget = MAX_CONSTRUCTION_SITES - Object.keys(Game.constructionSites).length
 }
+
+export function hasConstructionSiteBudget(): boolean {
+  prepareBudget()
+  return remainingBudget > 0
+}
