@@ -1,6 +1,7 @@
 import { getRange, type RoomCoordinate } from "../../world/map/roomCoordinate"
-import { isInsideRoom, NEIGHBOR_OFFSETS, toRoomIndex } from "../../world/map/roomGrid"
+import { fromRoomIndex, isInsideRoom, NEIGHBOR_OFFSETS, toRoomIndex } from "../../world/map/roomGrid"
 import { moveCreep } from "./movement"
+import { registerMove } from "./traffic"
 
 interface FillAreaOptions {
   getPriority?: (creep: Creep) => number
@@ -24,18 +25,31 @@ export function fillAreaWithCreeps(
 
   area.forEach((pos) => areaSet.add(toRoomIndex(pos.x, pos.y)))
 
-  creep: for (const creep of creeps) {
-    let adjacent: boolean = false
+  for (const creep of creeps) {
+    if (creep.pos.roomName !== roomName) {
+      creepsToTravel.push(creep)
+      continue
+    }
 
-    for (const pos of area) {
-      const range = getRange(creep.pos, pos)
-      if (range === 0) {
-        const index = toRoomIndex(pos.x, pos.y)
-        creepMatch.set(creep.name, index)
-        posMatch.set(index, creep)
-        continue creep
-      } else if (range === 1) {
+    const currentIndex = toRoomIndex(creep.pos.x, creep.pos.y)
+
+    if (areaSet.has(currentIndex)) {
+      creepMatch.set(creep.name, currentIndex)
+      posMatch.set(currentIndex, creep)
+      continue
+    }
+
+    let adjacent = false
+
+    for (const offset of NEIGHBOR_OFFSETS) {
+      const x = creep.pos.x + offset.x
+      const y = creep.pos.y + offset.y
+
+      if (!isInsideRoom(x, y)) continue
+
+      if (areaSet.has(toRoomIndex(x, y))) {
         adjacent = true
+        break
       }
     }
 
@@ -60,6 +74,19 @@ export function fillAreaWithCreeps(
       if (!tryPlaceCreep(creep, areaSet, creepMatch, posMatch, visited)) {
         creepsToTravel.push(creep)
       }
+    }
+
+    for (const [creepName, index] of creepMatch) {
+      const creep = Game.creeps[creepName]
+      if (!creep) continue
+
+      const coord = fromRoomIndex(index)
+
+      if (creep.pos.x === coord.x && creep.pos.y === coord.y) {
+        continue
+      }
+
+      registerMove(creep, new RoomPosition(coord.x, coord.y, roomName), options.movePriority)
     }
   }
 
@@ -100,7 +127,7 @@ function tryPlaceCreep(
       continue
     }
 
-    if (posMatch.has(index)) {
+    if (!posMatch.has(index)) {
       creepMatch.set(creep.name, index)
       posMatch.set(index, creep)
       return true
