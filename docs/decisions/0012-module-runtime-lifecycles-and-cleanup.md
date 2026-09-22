@@ -56,13 +56,11 @@ Periodic cleanup remains a safety net for lifecycles without a reliable explicit
 
 Initial sweep intervals are guidelines rather than gameplay constants:
 
-| Runtime kind | Typical sweep | Stale rule |
-| --- | ---: | --- |
-| creep/entity runtime | 100 ticks | entity no longer exists |
-| colony/mission runtime | 500 ticks | owner no longer exists |
-| room-derived cache | 100 ticks | `lastUsed` older than about 1000 ticks |
-| heavy decoded cache | 1000 ticks if needed | domain-specific, often 5000-10000 unused ticks |
-| scratch/high-water buffer | none | retained intentionally |
+- Creep/entity runtime: sweep about every 100 ticks; delete entries whose entity no longer exists.
+- Colony/mission runtime: sweep about every 500 ticks; delete entries whose owner no longer exists.
+- Room-derived cache: sweep about every 100 ticks; a typical stale threshold is about 1000 unused ticks.
+- Heavy decoded cache: add a roughly 1000-tick sweep only when needed; stale thresholds are domain-specific and may be 5000-10000 unused ticks.
+- Scratch/high-water buffers: do not periodically clean them; retained capacity is intentional.
 
 Intervals should be changed based on profiling and retained-object size, not for architectural symmetry.
 
