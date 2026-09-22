@@ -1,10 +1,10 @@
 import { dijkstraMap } from "../../world/map/dijkstraMap"
-import { getRange, RoomCoordinate } from "../../world/map/roomCoordinate"
+import { getRange, type RoomCoordinate } from "../../world/map/roomCoordinate"
 import { fromRoomIndex, isInsideRoom, NEIGHBOR_OFFSETS, ROOM_AREA, toRoomIndex } from "../../world/map/roomGrid"
-import { ControllerAreaCandidate } from "./findControllerAreaCandidates"
-import { CorePlan } from "./findCorePlans"
-import { RegionBoundaryRoadPlan } from "./planRegionBoundaryRoads"
-import { ResourceTreePlan } from "./planResourceTree"
+import type { ControllerAreaCandidate } from "./findControllerAreaCandidates"
+import type { CorePlan } from "./findCorePlans"
+import type { RegionBoundaryRoadPlan } from "./planRegionBoundaryRoads"
+import type { ResourceTreePlan } from "./planResourceTree"
 
 const MAX_SERVICE_DISTANCE = 20
 const MAX_BRANCH_LENGTH = 3
