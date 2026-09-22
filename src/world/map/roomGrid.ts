@@ -1,4 +1,4 @@
-import { RoomCoordinate } from "./roomCoordinate"
+import type { RoomCoordinate } from "./roomCoordinate"
 
 export const ROOM_SIZE = 50
 export const ROOM_AREA = ROOM_SIZE * ROOM_SIZE
