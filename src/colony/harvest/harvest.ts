@@ -34,13 +34,13 @@ export interface HarvestResult {
 const ROLES_BY_PRIORITY = [MINER_ROLE, HAULER_ROLE]
 
 export function runHarvest(
-  colonyName: string,
   room: Room,
   basePlan: BasePlan,
   context: TickContext,
   logistics: LogisticsState,
 ): HarvestResult {
-  const sourceDataById = ensureSourceDataById(colonyName, room, basePlan)
+  const colonyName = room.name
+  const sourceDataById = ensureSourceDataById(room, basePlan)
 
   if (sourceDataById === undefined) {
     return { income: 0, maxIncome: 0, spawnUsage: 0 }
@@ -212,12 +212,8 @@ function ensureSourceState(
   return sourceState
 }
 
-function ensureSourceDataById(
-  colonyName: string,
-  room: Room,
-  basePlan: BasePlan,
-): Map<Id<Source>, SourceData> | undefined {
-  const runtime = getHarvestRuntime(colonyName)
+function ensureSourceDataById(room: Room, basePlan: BasePlan): Map<Id<Source>, SourceData> | undefined {
+  const runtime = getHarvestRuntime(room.name)
 
   if (runtime.sourceDataById !== undefined) {
     return runtime.sourceDataById
