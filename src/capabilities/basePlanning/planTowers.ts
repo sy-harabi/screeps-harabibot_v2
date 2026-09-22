@@ -1,5 +1,5 @@
 import { floodFill } from "../../world/map/floodFill"
-import { getRange, RoomCoordinate } from "../../world/map/roomCoordinate"
+import { getRange, type RoomCoordinate } from "../../world/map/roomCoordinate"
 import {
   fromRoomIndex,
   isInsideRoom,
