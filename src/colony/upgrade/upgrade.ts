@@ -87,7 +87,11 @@ export function runUpgrade(
 
   const energyDepot = getUpgradeEnergyDepot(room, basePlan)
 
-  if (energyDepot !== undefined && !(energyDepot instanceof Resource) && energyDepot.structureType === STRUCTURE_CONTAINER) {
+  if (
+    energyDepot !== undefined &&
+    !(energyDepot instanceof Resource) &&
+    energyDepot.structureType === STRUCTURE_CONTAINER
+  ) {
     requestEnergy(logistics, energyDepot, UPGRADE_ENERGY_PRIORITY)
   }
 
