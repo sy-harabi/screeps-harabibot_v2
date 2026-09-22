@@ -3,13 +3,7 @@ export const UPGRADER_ROLE = "upgrader"
 const CARRY_ENERGY_PER_WORK = 6
 const WORK_PER_MOVE = 10
 
-export function createUpgraderBody(roomName: string, targetWork: number): readonly BodyPartConstant[] | undefined {
-  const room = Game.rooms[roomName]
-
-  if (!room) {
-    return
-  }
-
+export function createUpgraderBody(room: Room, targetWork: number): readonly BodyPartConstant[] | undefined {
   const budget = room.energyCapacityAvailable
 
   for (let work = targetWork; work >= 1; work--) {
