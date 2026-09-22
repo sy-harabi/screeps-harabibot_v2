@@ -1,10 +1,5 @@
-import { getCreepHeap } from "../../runtime/creepRuntime"
 import type { EnergyRequest } from "./logistics"
-
-interface LogisticsSupplierRuntime {
-  targetRequestId?: string
-  committed?: boolean
-}
+import { getLogisticsSupplierRuntime } from "./logisticsRuntime"
 
 const SOFT_ASSIGNMENT_PENALTY = 4
 const NO_REQUEST = 0xffff
@@ -153,7 +148,7 @@ function writeAssignments(suppliers: readonly Creep[], supplierCount: number): v
 
     const supplier = suppliers[supplierIndex]
     const request = requestScratch[requestIndex]
-    const runtime = getCreepHeap<LogisticsSupplierRuntime>(supplier.name)
+    const runtime = getLogisticsSupplierRuntime(supplier.name)
 
     runtime.targetRequestId = request.id
     runtime.committed = false

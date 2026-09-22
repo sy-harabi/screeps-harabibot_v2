@@ -1,7 +1,7 @@
 import { moveCreep } from "../../capabilities/movement/movement"
-import { getCreepHeap } from "../../runtime/creepRuntime"
 import { getStructuresByType } from "../../world/roomStructures"
 import { matchEnergySuppliers } from "./logisticsMatcher"
+import { getLogisticsSupplierRuntime, type LogisticsSupplierRuntime } from "./logisticsRuntime"
 
 export interface LogisticsState {
   readonly suppliers: Map<string, Creep>
@@ -16,11 +16,6 @@ export interface EnergyRequest {
 
   remainingAmount: number
   softAssignments: number
-}
-
-interface LogisticsSupplierRuntime {
-  targetRequestId?: string
-  committed?: boolean
 }
 
 const SPAWN_ENERGY_PRIORITY = 1
@@ -43,7 +38,7 @@ export function runLogistics(room: Room, state: LogisticsState): void {
 
 function reconcileAssignments(state: LogisticsState, unassigned: Creep[]): void {
   for (const supplier of state.suppliers.values()) {
-    const runtime = getCreepHeap<LogisticsSupplierRuntime>(supplier.name)
+    const runtime = getLogisticsSupplierRuntime(supplier.name)
 
     if (!runtime.committed) {
       continue
@@ -69,7 +64,7 @@ function reconcileAssignments(state: LogisticsState, unassigned: Creep[]): void 
   }
 
   for (const supplier of state.suppliers.values()) {
-    const runtime = getCreepHeap<LogisticsSupplierRuntime>(supplier.name)
+    const runtime = getLogisticsSupplierRuntime(supplier.name)
 
     if (runtime.committed) {
       continue
@@ -112,7 +107,7 @@ function reconcileAssignments(state: LogisticsState, unassigned: Creep[]): void 
 
 function commitMatchedAssignments(state: LogisticsState, suppliers: readonly Creep[]): void {
   for (const supplier of suppliers) {
-    const runtime = getCreepHeap<LogisticsSupplierRuntime>(supplier.name)
+    const runtime = getLogisticsSupplierRuntime(supplier.name)
 
     if (runtime.committed || !runtime.targetRequestId) {
       continue
@@ -147,7 +142,7 @@ function commitMatchedAssignments(state: LogisticsState, suppliers: readonly Cre
 
 function runAssignedSuppliers(state: LogisticsState): void {
   for (const supplier of state.suppliers.values()) {
-    const runtime = getCreepHeap<LogisticsSupplierRuntime>(supplier.name)
+    const runtime = getLogisticsSupplierRuntime(supplier.name)
     const targetId = runtime.targetRequestId
 
     if (!targetId) {
