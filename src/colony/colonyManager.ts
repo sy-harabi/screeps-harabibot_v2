@@ -34,7 +34,7 @@ function runColony(room: Room, context: TickContext): void {
 
   runBuild(room, context, logistics, harvest.income, construction)
 
-  runUpgrade(room, basePlan, context, logistics, harvest.income)
+  runUpgrade(room, basePlan, context, logistics, harvest.income, construction)
 
   runLogistics(room, logistics)
 }

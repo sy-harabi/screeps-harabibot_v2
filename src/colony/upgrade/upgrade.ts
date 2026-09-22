@@ -7,6 +7,7 @@ import { runtimeRegistry } from "../../runtime/runtimeRegistry"
 import type { RoomCoordinate } from "../../world/map/roomCoordinate"
 import { toRoomIndex } from "../../world/map/roomGrid"
 import { getStructuresByType } from "../../world/roomStructures"
+import { type ConstructionState } from "../build/construction"
 import { requestEnergy, type LogisticsState } from "../logistics/logistics"
 import { createUpgraderBody, UPGRADER_ROLE } from "./upgrader"
 
@@ -40,6 +41,7 @@ export function runUpgrade(
   context: TickContext,
   logistics: LogisticsState,
   income: number,
+  construction: ConstructionState,
 ): void {
   const colonyName = room.name
   const controller = room.controller
@@ -87,7 +89,7 @@ export function runUpgrade(
 
   const targetWork = getTargetUpgradeWork(room, income)
 
-  if (effectiveWork < targetWork && effectiveUpgraders < layout.area.length) {
+  if (!construction.active && effectiveWork < targetWork && effectiveUpgraders < layout.area.length) {
     const workNeeded = targetWork - effectiveWork
 
     requestSpawn(
@@ -110,7 +112,7 @@ export function runUpgrade(
   const energyDepot = getUpgradeEnergyDepot(room, basePlan)
 
   registerUpgradeEnergyRequests(logistics, energyDepot, layout, upgraderByPosition)
-  runUpgraders(room, spawnedUpgraders, layout, energyDepot, upgraderByPosition)
+  runUpgraders(room, spawnedUpgraders, layout, energyDepot, upgraderByPosition, construction)
 }
 
 function registerUpgradeEnergyRequests(
@@ -139,12 +141,15 @@ function registerUpgradeEnergyRequests(
   }
 }
 
+const BUILDING_UPGRADE_CONTAINER_RATIO = 0.5
+
 function runUpgraders(
   room: Room,
   upgraders: readonly Creep[],
   layout: UpgradeLayout,
   energyDepot: StructureStorage | StructureContainer | Resource | undefined,
   upgraderByPosition: ReadonlyMap<number, Creep>,
+  construction: ConstructionState,
 ): void {
   const controller = room.controller
 
@@ -157,7 +162,8 @@ function runUpgraders(
       continue
     }
 
-    creep.upgradeController(controller)
+    runUpgraderWork(creep, controller, energyDepot, construction)
+
     setWorkingArea(creep, controller.pos, 3)
 
     const index = toRoomIndex(creep.pos.x, creep.pos.y)
@@ -183,6 +189,39 @@ function runUpgraders(
     }
 
     creep.transfer(successor, RESOURCE_ENERGY)
+  }
+}
+
+function runUpgraderWork(
+  creep: Creep,
+  controller: StructureController,
+  energyDepot: StructureStorage | StructureContainer | Resource | undefined,
+  construction: ConstructionState,
+): void {
+  if (!construction.active) {
+    creep.upgradeController(controller)
+    return
+  }
+
+  const site = construction.sites.find((site) => creep.pos.getRangeTo(site) <= 3)
+
+  if (site !== undefined) {
+    creep.build(site)
+    return
+  }
+
+  if (energyDepot instanceof Resource) {
+    creep.upgradeController(controller)
+    return
+  }
+
+  if (energyDepot?.structureType === STRUCTURE_CONTAINER) {
+    const energy = energyDepot.store.getUsedCapacity(RESOURCE_ENERGY)
+    const capacity = energyDepot.store.getCapacity(RESOURCE_ENERGY)
+
+    if (energy >= capacity * BUILDING_UPGRADE_CONTAINER_RATIO) {
+      creep.upgradeController(controller)
+    }
   }
 }
 
