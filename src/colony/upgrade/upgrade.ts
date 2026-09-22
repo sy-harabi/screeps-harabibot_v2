@@ -1,11 +1,13 @@
 import { BasePlan } from "../../capabilities/basePlanning/basePlan"
 import { fillAreaWithCreeps } from "../../capabilities/movement/fillAreaWithCreeps"
+import { setWorkingArea } from "../../capabilities/movement/traffic"
 import { requestSpawn } from "../../capabilities/spawning/spawnQueue"
 import { getColonyCreeps, TickContext } from "../../kernel/tickContext"
 import { runtimeRegistry } from "../../runtime/runtimeRegistry"
 import { RoomCoordinate } from "../../world/map/roomCoordinate"
+import { toRoomIndex } from "../../world/map/roomGrid"
 import { getStructuresByType } from "../../world/roomStructures"
-import { LogisticsState } from "../logistics/logistics"
+import { LogisticsState, requestEnergy } from "../logistics/logistics"
 import { createUpgraderBody, UPGRADER_ROLE } from "./upgrader"
 
 interface UpgradeRuntime {
@@ -17,6 +19,8 @@ interface UpgradeLayout {
   readonly area: readonly RoomCoordinate[]
   readonly chains: readonly (readonly RoomCoordinate[])[]
 }
+
+const UPGRADE_ENERGY_PRIORITY = 20
 
 const upgradeRuntimes = runtimeRegistry.createCache<string, UpgradeRuntime>("upgrade")
 
@@ -41,7 +45,6 @@ export function runUpgrade(
   }
 
   const spawnedUpgraders = upgraders.filter((creep) => !creep.spawning)
-
   const fillArea = layout.area.slice(0, Math.min(spawnedUpgraders.length, layout.area.length))
 
   fillAreaWithCreeps(colonyName, fillArea, spawnedUpgraders)
@@ -84,6 +87,10 @@ export function runUpgrade(
 
   const energyDepot = getUpgradeEnergyDepot(room, basePlan)
 
+  if (energyDepot !== undefined && !(energyDepot instanceof Resource) && energyDepot.structureType === STRUCTURE_CONTAINER) {
+    requestEnergy(logistics, energyDepot, UPGRADE_ENERGY_PRIORITY)
+  }
+
   runUpgraders(room, spawnedUpgraders, layout, energyDepot)
 }
 
@@ -99,10 +106,56 @@ function runUpgraders(
     return
   }
 
+  const upgraderByPosition = new Map<number, Creep>()
+
   for (const creep of upgraders) {
-    if (creep.pos.inRangeTo(controller, 3)) {
-      creep.upgradeController(controller)
+    if (creep.pos.roomName !== room.name) {
+      continue
     }
+
+    upgraderByPosition.set(toRoomIndex(creep.pos.x, creep.pos.y), creep)
+  }
+
+  for (const creep of upgraders) {
+    if (creep.pos.roomName !== room.name || creep.pos.getRangeTo(controller) > 3) {
+      continue
+    }
+
+    creep.upgradeController(controller)
+    setWorkingArea(creep, controller.pos, 3)
+
+    const position = findUpgradePosition(creep, layout.chains)
+
+    if (position === undefined) {
+      continue
+    }
+
+    if (position.depth === 0 && energyDepot !== undefined && creep.pos.isNearTo(energyDepot)) {
+      if (energyDepot instanceof Resource) {
+        creep.pickup(energyDepot)
+      } else if (energyDepot.store.getUsedCapacity(RESOURCE_ENERGY) > 0) {
+        creep.withdraw(energyDepot, RESOURCE_ENERGY)
+      }
+    }
+
+    const successorPos = position.chain[position.depth + 1]
+
+    if (successorPos === undefined) {
+      continue
+    }
+
+    const successor = upgraderByPosition.get(toRoomIndex(successorPos.x, successorPos.y))
+
+    if (
+      successor === undefined ||
+      !creep.pos.isNearTo(successor) ||
+      creep.store.getUsedCapacity(RESOURCE_ENERGY) === 0 ||
+      successor.store.getFreeCapacity(RESOURCE_ENERGY) === 0
+    ) {
+      continue
+    }
+
+    creep.transfer(successor, RESOURCE_ENERGY)
   }
 }
 
@@ -120,15 +173,9 @@ function getUpgradeEnergyDepot(
     }
   }
 
-  const resource: Resource | undefined = room
+  return room
     .lookForAt(LOOK_RESOURCES, basePlan.storage.x, basePlan.storage.y)
     .find((resource) => resource.resourceType === RESOURCE_ENERGY)
-
-  if (resource) {
-    return resource
-  }
-
-  return
 }
 
 function findUpgradePosition(
@@ -214,7 +261,10 @@ function createUpgradeLayout(basePlan: BasePlan, rcl: number): UpgradeLayout {
 
 function isChainAvailable(chain: readonly RoomCoordinate[], basePlan: BasePlan, rcl: number): boolean {
   const root = chain[0]
-  if (!root) return false
+
+  if (!root) {
+    return false
+  }
 
   for (const structure of basePlan.structures) {
     if (structure.rcl > rcl) continue
