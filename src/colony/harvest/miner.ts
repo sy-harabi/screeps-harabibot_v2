@@ -1,10 +1,32 @@
 import { moveCreep, moveCreepByPath } from "../../capabilities/movement/movement"
 import { estimatePathTravelTicks } from "../../capabilities/movement/travelTime"
-import { getCreepHeap } from "../../runtime/creepRuntime"
+import { runtimeRegistry } from "../../runtime/runtimeRegistry"
 import type { SourceState } from "./harvest"
 
 interface MinerRuntime {
   miningPosition?: RoomPosition
+}
+
+const minerRuntimes = runtimeRegistry.createCache<string, MinerRuntime>("harvest.miners", {
+  cleanupInterval: 100,
+  cleanup: (runtimes) => {
+    for (const creepName of runtimes.keys()) {
+      if (Game.creeps[creepName] === undefined) {
+        runtimes.delete(creepName)
+      }
+    }
+  },
+})
+
+function getMinerRuntime(creepName: string): MinerRuntime {
+  let runtime = minerRuntimes.get(creepName)
+
+  if (runtime === undefined) {
+    runtime = {}
+    minerRuntimes.set(creepName, runtime)
+  }
+
+  return runtime
 }
 
 export const MINER_ROLE = "miner"
@@ -67,7 +89,7 @@ function runMiner(miner: Creep, sourceState: SourceState): RunMinerResult {
 }
 
 function getMiningPosition(miner: Creep, sourceState: SourceState): RoomPosition | undefined {
-  const runtime = getCreepHeap<MinerRuntime>(miner.name)
+  const runtime = getMinerRuntime(miner.name)
   const primaryPos = sourceState.data.miningPositions[0]
 
   if (runtime.miningPosition !== undefined) {
