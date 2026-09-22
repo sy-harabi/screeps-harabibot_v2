@@ -1,5 +1,5 @@
-import { PackedPath, packPath } from "../../capabilities/movement/packedPath"
-import { RoomCoordinate } from "../../world/map/roomCoordinate"
+import { packPath, type PackedPath } from "../../capabilities/movement/packedPath"
+import type { RoomCoordinate } from "../../world/map/roomCoordinate"
 import { forEachCoordinateAtRange, toRoomIndex } from "../../world/map/roomGrid"
 
 export interface SourceData {
