@@ -1,6 +1,6 @@
 import { runtimeRegistry } from "../../runtime/runtimeRegistry"
 import type { SourceData } from "./sourceData"
-import { SourceEconomy } from "./sourceEconomy"
+import type { SourceEconomy } from "./sourceEconomy"
 
 export interface HarvestRuntime {
   sourceDataById?: Map<Id<Source>, SourceData>
