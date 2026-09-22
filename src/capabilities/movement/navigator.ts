@@ -1,6 +1,6 @@
 import { PriorityQueue } from "../../utils/priorityQueue"
 import { getAdjacentRooms, getRoomManhattanDistance } from "../../world/map/roomTopology"
-import { MoveGoal } from "./movement"
+import type { MoveGoal } from "./movement"
 import { getRoomCostMatrix } from "./roomCostMatrix"
 
 interface FindRouteOptions {
