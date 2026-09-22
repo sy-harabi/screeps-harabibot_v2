@@ -79,6 +79,24 @@ export function runUpgrade(
   }
 }
 
+function getTargetUpgradeWork(room: Room): number {
+  const level = room.controller?.level
+
+  if (level === undefined) {
+    return 0
+  }
+
+  if (level === 1) {
+    return 5
+  }
+
+  if (level === 8) {
+    return CONTROLLER_MAX_UPGRADE_PER_TICK
+  }
+
+  return 10
+}
+
 function getUpgradeArea(roomName: string, basePlan: BasePlan, rcl: number): readonly RoomCoordinate[] {
   const runtime = getUpgradeRuntime(roomName)
 
