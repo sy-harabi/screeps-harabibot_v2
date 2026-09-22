@@ -1,10 +1,8 @@
 import { moveCreep } from "../../capabilities/movement/movement"
 import { setWorkingArea } from "../../capabilities/movement/traffic"
-import { requestEnergy, type LogisticsState } from "../logistics/logistics"
+import { ENERGY_REQUEST_PRIORITY, requestEnergy, type LogisticsState } from "../logistics/logistics"
 
 export const BUILDER_ROLE = "builder"
-
-const BUILD_ENERGY_PRIORITY = 10
 
 export function createBuilderBody(room: Room, targetWork: number): readonly BodyPartConstant[] | undefined {
   const budget = room.energyCapacityAvailable
@@ -54,7 +52,7 @@ export function runBuilder(
 
 function runBuilderEnergy(room: Room, creep: Creep, logistics: LogisticsState, target: ConstructionSite): void {
   if (!room.storage) {
-    requestEnergy(logistics, creep, BUILD_ENERGY_PRIORITY)
+    requestEnergy(logistics, creep, ENERGY_REQUEST_PRIORITY.build)
 
     if (creep.pos.getRangeTo(target) > 3) {
       moveCreep(creep, {
