@@ -1,9 +1,4 @@
-import {
-  DEFAULT_BOT_OPTIONS,
-  getBotOptions,
-  getRampartBuildRcl,
-  isValidRcl,
-} from "../options/botOptions"
+import { DEFAULT_BOT_OPTIONS, getBotOptions, getRampartBuildRcl, isValidRcl } from "../options/botOptions"
 
 export interface BotOptionsConsoleApi {
   show(roomName?: string): void
