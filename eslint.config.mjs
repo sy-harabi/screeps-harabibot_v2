@@ -10,6 +10,13 @@ export default defineConfig([
     extends: [js.configs.recommended, tseslint.configs.recommended, prettier],
     rules: {
       "prefer-const": "off",
+      "@typescript-eslint/consistent-type-imports": [
+        "error",
+        {
+          prefer: "type-imports",
+          fixStyle: "inline-type-imports",
+        },
+      ],
     },
   },
 ])
