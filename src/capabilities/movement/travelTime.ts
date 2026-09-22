@@ -1,4 +1,4 @@
-import { getRoomCostMatrix } from "./roomCostMatrix"
+import { getBaseRoomCostMatrix } from "./roomCostMatrix"
 
 export function estimatePathTravelTicks(path: readonly RoomPosition[], moveParts: number, weightParts: number): number {
   if (moveParts <= 0) {
@@ -20,7 +20,7 @@ export function estimatePathTravelTicks(path: readonly RoomPosition[], moveParts
 }
 
 function getMovementTerrainCost(pos: RoomPosition): number {
-  const costs = getRoomCostMatrix(pos.roomName)
+  const costs = getBaseRoomCostMatrix(pos.roomName)
 
   if (costs?.get(pos.x, pos.y) === 1) {
     return 1
