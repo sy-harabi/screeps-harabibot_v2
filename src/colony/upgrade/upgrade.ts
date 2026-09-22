@@ -45,15 +45,22 @@ export function runUpgrade(
     return
   }
 
-  const spawnedUpgraders = upgraders.filter((creep) => !creep.spawning)
-  const fillArea = layout.area.slice(0, Math.min(spawnedUpgraders.length, layout.area.length))
-
-  fillAreaWithCreeps(colonyName, fillArea, spawnedUpgraders)
+  const spawnedUpgraders: Creep[] = []
 
   let effectiveWork = 0
   let effectiveUpgraders = 0
 
+  const upgraderByPosition = new Map<number, Creep>()
+
   for (const upgrader of upgraders) {
+    if (!upgrader.spawning) {
+      spawnedUpgraders.push(upgrader)
+
+      if (upgrader.pos.roomName === colonyName) {
+        upgraderByPosition.set(toRoomIndex(upgrader.pos.x, upgrader.pos.y), upgrader)
+      }
+    }
+
     const replacementLeadTime = upgrader.body.length * CREEP_SPAWN_TIME + 20
 
     if ((upgrader.ticksToLive ?? CREEP_LIFE_TIME) <= replacementLeadTime) {
@@ -63,6 +70,10 @@ export function runUpgrade(
     effectiveWork += upgrader.getActiveBodyparts(WORK)
     effectiveUpgraders++
   }
+
+  const fillArea = layout.area.slice(0, Math.min(spawnedUpgraders.length, layout.area.length))
+
+  fillAreaWithCreeps(colonyName, fillArea, spawnedUpgraders)
 
   const targetWork = getTargetUpgradeWork(room)
 
@@ -87,24 +98,9 @@ export function runUpgrade(
   }
 
   const energyDepot = getUpgradeEnergyDepot(room, basePlan)
-  const upgraderByPosition = indexUpgradersByPosition(room.name, spawnedUpgraders)
 
   registerUpgradeEnergyRequests(logistics, energyDepot, layout, upgraderByPosition)
   runUpgraders(room, spawnedUpgraders, layout, energyDepot, upgraderByPosition)
-}
-
-function indexUpgradersByPosition(roomName: string, upgraders: readonly Creep[]): Map<number, Creep> {
-  const result = new Map<number, Creep>()
-
-  for (const creep of upgraders) {
-    if (creep.pos.roomName !== roomName) {
-      continue
-    }
-
-    result.set(toRoomIndex(creep.pos.x, creep.pos.y), creep)
-  }
-
-  return result
 }
 
 function registerUpgradeEnergyRequests(
@@ -113,8 +109,12 @@ function registerUpgradeEnergyRequests(
   layout: UpgradeLayout,
   upgraderByPosition: ReadonlyMap<number, Creep>,
 ): void {
-  if (energyDepot !== undefined) {
-    if (!(energyDepot instanceof Resource) && energyDepot.structureType === STRUCTURE_CONTAINER) {
+  if (energyDepot instanceof Resource) {
+    return
+  }
+
+  if (energyDepot instanceof Structure) {
+    if (energyDepot.structureType === STRUCTURE_CONTAINER) {
       requestEnergy(logistics, energyDepot, UPGRADE_ENERGY_PRIORITY)
     }
     return
@@ -143,16 +143,16 @@ function runUpgraders(
   }
 
   for (const creep of upgraders) {
-    if (creep.pos.roomName !== room.name || creep.pos.getRangeTo(controller) > 3) {
+    if (creep.pos.getRangeTo(controller) > 3) {
       continue
     }
 
     creep.upgradeController(controller)
     setWorkingArea(creep, controller.pos, 3)
 
-    const position = toRoomIndex(creep.pos.x, creep.pos.y)
+    const index = toRoomIndex(creep.pos.x, creep.pos.y)
 
-    if (layout.rootPositions.has(position) && energyDepot !== undefined && creep.pos.isNearTo(energyDepot)) {
+    if (layout.rootPositions.has(index) && energyDepot !== undefined && creep.pos.isNearTo(energyDepot)) {
       if (energyDepot instanceof Resource) {
         creep.pickup(energyDepot)
       } else if (energyDepot.store.getUsedCapacity(RESOURCE_ENERGY) > 0) {
@@ -160,7 +160,7 @@ function runUpgraders(
       }
     }
 
-    const successorPosition = layout.nextByPosition.get(position)
+    const successorPosition = layout.nextByPosition.get(index)
 
     if (successorPosition === undefined) {
       continue
@@ -168,12 +168,7 @@ function runUpgraders(
 
     const successor = upgraderByPosition.get(successorPosition)
 
-    if (
-      successor === undefined ||
-      !creep.pos.isNearTo(successor) ||
-      creep.store.getUsedCapacity(RESOURCE_ENERGY) === 0 ||
-      successor.store.getFreeCapacity(RESOURCE_ENERGY) === 0
-    ) {
+    if (!successor) {
       continue
     }
 
