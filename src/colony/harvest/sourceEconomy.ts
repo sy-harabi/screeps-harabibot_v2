@@ -35,7 +35,7 @@ function calculateSourceEconomy(room: Room, sourceData: SourceData): SourceEcono
 
   const targetWork = Math.ceil(grossIncome / HARVEST_POWER)
 
-  const minerBody = createMinerBody(room.name, sourceData.path, targetWork, true)
+  const minerBody = createMinerBody(room, sourceData.path, targetWork, true)
 
   if (!minerBody) {
     return { key, maxIncome: 0, spawnUsage: 0 }
