@@ -1,4 +1,4 @@
-import { getMovementRuntime, MovementRuntime } from "./movementRuntime"
+import { getMovementRuntime, type MovementRuntime } from "./movementRuntime"
 import { findPath } from "./navigator"
 import { clearMoveRequest, registerMove } from "./traffic"
 
