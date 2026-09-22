@@ -72,6 +72,8 @@ A colony is the operating unit centered on one owned room. Routine colony respon
 
 Represent that order directly in the colony runner. Do not hide meaningful gameplay dependencies behind a generic operation tree, phase interface, or scheduler merely for architectural uniformity.
 
+When one colony subsystem produces derived information needed by a later subsystem, prefer explicit function inputs and return values over publishing that information through generic mutable shared state. Introduce a broader shared model only when multiple systems genuinely need shared ownership or arbitration.
+
 Colony subsystems may use focused modules and domain-owned runtime state, but they do not need independent persistent lifecycle records just because they are substantial pieces of code.
 
 ### Missions
