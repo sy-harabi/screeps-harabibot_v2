@@ -1,7 +1,7 @@
 import { PriorityQueue } from "../../utils/priorityQueue"
 import { getAdjacentRooms, getRoomManhattanDistance } from "../../world/map/roomTopology"
 import type { MoveGoal } from "./movement"
-import { getRoomCostMatrix } from "./roomCostMatrix"
+import { getBaseRoomCostMatrix } from "./roomCostMatrix"
 
 interface FindRouteOptions {
   maxRoomHops?: number
@@ -152,7 +152,7 @@ export function findPath(
         return false
       }
 
-      return getRoomCostMatrix(roomName) ?? true
+      return getBaseRoomCostMatrix(roomName) ?? true
     },
   })
 
