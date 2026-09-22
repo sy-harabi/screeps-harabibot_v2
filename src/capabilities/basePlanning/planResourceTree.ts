@@ -1,7 +1,7 @@
-import { RoomCoordinate } from "../../world/map/roomCoordinate"
+import type { RoomCoordinate } from "../../world/map/roomCoordinate"
 import { fromRoomIndex, isInsideRoom, NEIGHBOR_OFFSETS, ROOM_AREA, toRoomIndex } from "../../world/map/roomGrid"
-import { ControllerAreaCandidate } from "./findControllerAreaCandidates"
-import { CorePlan } from "./findCorePlans"
+import type { ControllerAreaCandidate } from "./findControllerAreaCandidates"
+import type { CorePlan } from "./findCorePlans"
 import { planResourceEndpoints } from "./planResourceEndpoints"
 import { buildResourceDistanceMap, getResourceRoadCost } from "./resourcePlanningUtils"
 
