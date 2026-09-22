@@ -333,13 +333,7 @@ function getAvailableEnergy(source: Source, sourceState: SourceState): number {
   return energy
 }
 
-export function createHaulerBody(roomName: string): readonly BodyPartConstant[] | undefined {
-  const room = Game.rooms[roomName]
-
-  if (!room) {
-    return undefined
-  }
-
+export function createHaulerBody(room: Room): readonly BodyPartConstant[] | undefined {
   const budget = room.energyAvailable
 
   if (budget < 100) {
