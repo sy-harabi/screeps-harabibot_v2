@@ -19,16 +19,17 @@ const CACHE_CLEANUP_INTERVAL = 100
 
 const obstacleObjectTypes = new Set<string>(OBSTACLE_OBJECT_TYPES)
 
-const cache = runtimeRegistry.createCache<string, RoomCostMatrixCacheEntry>("roomCostMatrix")
+const cache = runtimeRegistry.createCache<string, RoomCostMatrixCacheEntry>("roomCostMatrix", {
+  cleanupInterval: CACHE_CLEANUP_INTERVAL,
+  cleanup: cleanupRoomCostMatrixCache,
+})
 
 let tempTick = -1
-let lastCleanupTick = -Infinity
 
 const temp = new Map<string, CostMatrix | undefined>()
 
-export function getRoomCostMatrix(roomName: string): CostMatrix | undefined {
+export function getBaseRoomCostMatrix(roomName: string): CostMatrix | undefined {
   prepareTemp()
-  cleanupRoomCostMatrixCache()
 
   if (temp.has(roomName)) {
     return temp.get(roomName)
@@ -135,16 +136,10 @@ export function invalidateRoomCostMatrix(roomName: string): void {
   temp.delete(roomName)
 }
 
-export function cleanupRoomCostMatrixCache(): void {
-  if (Game.time - lastCleanupTick < CACHE_CLEANUP_INTERVAL) {
-    return
-  }
-
-  lastCleanupTick = Game.time
-
-  for (const [roomName, entry] of cache) {
+function cleanupRoomCostMatrixCache(targetCache: Map<string, RoomCostMatrixCacheEntry>): void {
+  for (const [roomName, entry] of targetCache) {
     if (Game.time - entry.lastUsed > CACHE_MAX_UNUSED_TICKS) {
-      cache.delete(roomName)
+      targetCache.delete(roomName)
     }
   }
 }
