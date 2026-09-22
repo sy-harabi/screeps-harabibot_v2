@@ -1,5 +1,5 @@
 import { dijkstraMap } from "../../world/map/dijkstraMap"
-import { RoomCoordinate } from "../../world/map/roomCoordinate"
+import type { RoomCoordinate } from "../../world/map/roomCoordinate"
 import {
   fromRoomIndex,
   isInsideRoom,
@@ -8,11 +8,11 @@ import {
   ROOM_SIZE,
   toRoomIndex,
 } from "../../world/map/roomGrid"
-import { ControllerAreaCandidate } from "./findControllerAreaCandidates"
-import { CorePlan } from "./findCorePlans"
-import { LabPlan } from "./planLabs"
-import { RegionBoundaryRoadPlan } from "./planRegionBoundaryRoads"
-import { ResourceTreePlan } from "./planResourceTree"
+import type { ControllerAreaCandidate } from "./findControllerAreaCandidates"
+import type { CorePlan } from "./findCorePlans"
+import type { LabPlan } from "./planLabs"
+import type { RegionBoundaryRoadPlan } from "./planRegionBoundaryRoads"
+import type { ResourceTreePlan } from "./planResourceTree"
 
 const REQUIRED_STRUCTURE_SLOTS = 70
 const MAX_BRANCH_LENGTH = 3
