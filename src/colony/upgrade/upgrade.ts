@@ -26,13 +26,13 @@ const UPGRADE_ENERGY_PRIORITY = 20
 const upgradeRuntimes = runtimeRegistry.createCache<string, UpgradeRuntime>("upgrade")
 
 export function runUpgrade(
-  colonyName: string,
   room: Room,
   basePlan: BasePlan,
   context: TickContext,
   logistics: LogisticsState,
   income: number,
 ): void {
+  const colonyName = room.name
   const controller = room.controller
 
   if (!controller) {
