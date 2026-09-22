@@ -18,8 +18,13 @@ export interface EnergyRequest {
   softAssignments: number
 }
 
-const SPAWN_ENERGY_PRIORITY = 1
-const STORAGE_PRIORITY = 100
+export const ENERGY_REQUEST_PRIORITY = {
+  spawn: 1,
+  build: 10,
+  upgrade: 20,
+  storage: 100,
+} as const
+
 const COMMIT_RANGE = 5
 
 const unassignedScratch: Creep[] = []
@@ -196,7 +201,7 @@ function registerColonyRequests(room: Room, state: LogisticsState): void {
         continue
       }
 
-      requestEnergy(state, spawn, SPAWN_ENERGY_PRIORITY)
+      requestEnergy(state, spawn, ENERGY_REQUEST_PRIORITY.spawn)
     }
 
     for (const extension of getStructuresByType(room, STRUCTURE_EXTENSION)) {
@@ -204,12 +209,12 @@ function registerColonyRequests(room: Room, state: LogisticsState): void {
         continue
       }
 
-      requestEnergy(state, extension, SPAWN_ENERGY_PRIORITY)
+      requestEnergy(state, extension, ENERGY_REQUEST_PRIORITY.spawn)
     }
   }
 
   if (room.storage) {
-    requestEnergy(state, room.storage, STORAGE_PRIORITY)
+    requestEnergy(state, room.storage, ENERGY_REQUEST_PRIORITY.storage)
   }
 }
 
