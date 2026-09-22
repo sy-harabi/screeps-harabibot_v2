@@ -23,7 +23,16 @@ interface UpgradeLayout {
 
 const UPGRADE_ENERGY_PRIORITY = 20
 
-const upgradeRuntimes = runtimeRegistry.createCache<string, UpgradeRuntime>("upgrade")
+const upgradeRuntimes = runtimeRegistry.createCache<string, UpgradeRuntime>("upgrade.colonies", {
+  cleanupInterval: 500,
+  cleanup: (runtimes) => {
+    for (const colonyName of runtimes.keys()) {
+      if (Game.rooms[colonyName]?.controller?.my !== true) {
+        runtimes.delete(colonyName)
+      }
+    }
+  },
+})
 
 export function runUpgrade(
   room: Room,
