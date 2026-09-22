@@ -9,7 +9,16 @@ export interface HarvestRuntime {
   sourceEconomyById?: Map<Id<Source>, SourceEconomy>
 }
 
-const harvestRuntimes = runtimeRegistry.createCache<string, HarvestRuntime>("harvest")
+const harvestRuntimes = runtimeRegistry.createCache<string, HarvestRuntime>("harvest.colonies", {
+  cleanupInterval: 500,
+  cleanup: (runtimes) => {
+    for (const colonyName of runtimes.keys()) {
+      if (Game.rooms[colonyName]?.controller?.my !== true) {
+        runtimes.delete(colonyName)
+      }
+    }
+  },
+})
 
 export function getHarvestRuntime(colonyName: string): HarvestRuntime {
   let runtime = harvestRuntimes.get(colonyName)
