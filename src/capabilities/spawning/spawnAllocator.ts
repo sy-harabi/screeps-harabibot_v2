@@ -1,7 +1,7 @@
 import { getTickContext } from "../../kernel/tickContext"
 import { compareSpawnPriority } from "./spawnPriority"
-import { getSpawnRoomStates, SpawnRoomState } from "./spawnQueue"
-import { SpawnRequest } from "./spawnRequest"
+import { getSpawnRoomStates, type SpawnRoomState } from "./spawnQueue"
+import type { SpawnRequest } from "./spawnRequest"
 
 export function allocateSpawns(): void {
   const roomStates = getSpawnRoomStates()
