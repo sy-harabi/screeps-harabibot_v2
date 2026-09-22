@@ -203,11 +203,9 @@ function getTargetUpgradeWork(room: Room, income: number): number {
     return 0
   }
 
-  if (level === 8) {
-    return CONTROLLER_MAX_UPGRADE_PER_TICK
-  }
+  const limit = level === 8 ? CONTROLLER_MAX_UPGRADE_PER_TICK : Infinity
 
-  return Math.floor(income)
+  return Math.min(Math.floor(income), limit)
 }
 
 function getUpgradeLayout(roomName: string, basePlan: BasePlan, rcl: number): UpgradeLayout {

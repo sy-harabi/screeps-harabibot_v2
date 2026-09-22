@@ -40,7 +40,6 @@ function calculateSourceEconomy(room: Room, sourceData: SourceData): SourceEcono
   if (!minerBody) {
     return { key, maxIncome: 0, spawnUsage: 0 }
   }
-
   let work = 0
   let move = 0
   let bodyCost = 0
@@ -55,13 +54,17 @@ function calculateSourceEconomy(room: Room, sourceData: SourceData): SourceEcono
     }
   }
 
+  const minerCount = Math.min(Math.ceil(targetWork / work), sourceData.miningPositions.length)
+
+  const harvestIncome = Math.min(grossIncome, minerCount * work * HARVEST_POWER)
+
   const travelTicks = estimatePathTravelTicks(sourceData.path, move, work)
 
   const productiveLifetime = CREEP_LIFE_TIME - travelTicks
 
-  const minerCost = bodyCost / productiveLifetime
+  const minerCost = (minerCount * bodyCost) / productiveLifetime
 
-  const requiredCarryCapacity = sourceData.path.length * 2 * grossIncome
+  const requiredCarryCapacity = sourceData.path.length * 2 * harvestIncome
 
   const carryParts = requiredCarryCapacity / CARRY_CAPACITY
 
@@ -69,10 +72,10 @@ function calculateSourceEconomy(room: Room, sourceData: SourceData): SourceEcono
 
   return {
     key,
-    maxIncome: grossIncome - minerCost - haulerCost,
+    maxIncome: harvestIncome - minerCost - haulerCost,
 
     spawnUsage:
-      (minerBody.length * CREEP_SPAWN_TIME) / productiveLifetime +
+      (minerCount * minerBody.length * CREEP_SPAWN_TIME) / productiveLifetime +
       (carryParts * 2 * CREEP_SPAWN_TIME) / CREEP_LIFE_TIME,
   }
 }
