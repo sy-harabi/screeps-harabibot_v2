@@ -135,7 +135,7 @@ export function runHarvest(
           order: sourceState.data.path.length,
           rolesByPriority: ROLES_BY_PRIORITY,
         },
-        () => createMinerBody(colonyName, sourceState.data.path, targetWork, hasHarvestIncome),
+        () => createMinerBody(room, sourceState.data.path, targetWork, hasHarvestIncome),
         MINER_ROLE,
         { memory: { sourceId } },
       )
@@ -149,7 +149,7 @@ export function runHarvest(
           order: sourceState.data.path.length,
           rolesByPriority: ROLES_BY_PRIORITY,
         },
-        () => createHaulerBody(colonyName),
+        () => createHaulerBody(room),
         HAULER_ROLE,
       )
     }
