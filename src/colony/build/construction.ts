@@ -1,5 +1,6 @@
 import { type BasePlan } from "../../capabilities/basePlanning/basePlan"
 import { hasConstructionSiteBudget, tryCreateConstructionSite } from "../../capabilities/construction/constructionSite"
+import { getRampartBuildRcl } from "../../options/botOptions"
 import { runtimeRegistry } from "../../runtime/runtimeRegistry"
 import { getRoomStructures, getStructuresByType } from "../../world/roomStructures"
 
@@ -41,6 +42,7 @@ const BUILD_PRIORITY: Partial<Record<BuildableStructureConstant, number>> = {
 
 interface ConstructionRuntime {
   rcl?: number
+  rampartBuildRcl?: number
   siteIds: Id<ConstructionSite>[]
   hasPendingWork: boolean
   nextCheckTick: number
@@ -84,9 +86,12 @@ export function runConstruction(room: Room, basePlan: BasePlan): ConstructionSta
     sites.push(site)
   }
 
+  const rampartBuildRcl = getRampartBuildRcl(room.name)
   const rclChanged = runtime.rcl !== controller.level
+  const rampartBuildRclChanged = runtime.rampartBuildRcl !== rampartBuildRcl
 
-  const shouldReconcile = rclChanged || missingCachedSite || Game.time >= runtime.nextCheckTick
+  const shouldReconcile =
+    rclChanged || rampartBuildRclChanged || missingCachedSite || Game.time >= runtime.nextCheckTick
 
   if (!shouldReconcile) {
     return {
@@ -95,10 +100,15 @@ export function runConstruction(room: Room, basePlan: BasePlan): ConstructionSta
     }
   }
 
-  return reconcileConstruction(room, basePlan, runtime)
+  return reconcileConstruction(room, basePlan, runtime, rampartBuildRcl)
 }
 
-function reconcileConstruction(room: Room, basePlan: BasePlan, runtime: ConstructionRuntime): ConstructionState {
+function reconcileConstruction(
+  room: Room,
+  basePlan: BasePlan,
+  runtime: ConstructionRuntime,
+  rampartBuildRcl: number,
+): ConstructionState {
   const controller = room.controller
 
   if (!controller) {
@@ -129,6 +139,10 @@ function reconcileConstruction(room: Room, basePlan: BasePlan, runtime: Construc
 
   for (const planned of basePlan.structures) {
     if (planned.rcl > controller.level) {
+      continue
+    }
+
+    if (planned.tag?.kind === "rampartBuild" && controller.level < rampartBuildRcl) {
       continue
     }
 
@@ -166,6 +180,7 @@ function reconcileConstruction(room: Room, basePlan: BasePlan, runtime: Construc
 
   if (!runtime.hasPendingWork) {
     runtime.rcl = controller.level
+    runtime.rampartBuildRcl = rampartBuildRcl
     runtime.siteIds = []
     runtime.nextCheckTick = Game.time + COMPLETE_RECHECK_INTERVAL
 
@@ -198,6 +213,7 @@ function reconcileConstruction(room: Room, basePlan: BasePlan, runtime: Construc
         const result = bootstrapContainer.destroy()
 
         runtime.rcl = controller.level
+        runtime.rampartBuildRcl = rampartBuildRcl
         runtime.siteIds = sites.map((site) => site.id)
         runtime.hasPendingWork = true
         runtime.nextCheckTick = result === OK ? Game.time + 1 : Game.time + RETRY_INTERVAL
@@ -230,6 +246,7 @@ function reconcileConstruction(room: Room, basePlan: BasePlan, runtime: Construc
   }
 
   runtime.rcl = controller.level
+  runtime.rampartBuildRcl = rampartBuildRcl
   runtime.siteIds = sites.map((site) => site.id)
   runtime.hasPendingWork = sites.length > 0 || candidates.length > 0 || created > 0
 
