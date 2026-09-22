@@ -108,6 +108,16 @@ CPU and bucket management are cross-cutting execution policy rather than a gamep
 
 Do not freeze a fixed top-level manager list before the concrete systems require it. Manager boundaries should follow real empire-wide responsibilities rather than architectural symmetry.
 
+### Scouting and intel
+
+Treat room intel as observed world state rather than as state owned by a scouting creep or scouting mission. Any source of vision may refresh room intel, including scouts, observers, remote workers, and combat creeps.
+
+Separate autonomous scouting policy from the mechanism used to obtain vision. Autonomous scouting has distinct purposes such as initial exploration, watching nearby territory for changes, and resource discovery. Other systems such as combat or claiming may request vision when their own lifecycle requires it without making scouting responsible for those strategic decisions.
+
+Prefer simple domain policy over a universal persistent vision scheduler. Introduce shared allocation or persistent request state only when concrete contention or lifecycle requirements justify it.
+
+Scout creeps remain owned by a colony even when their work crosses colony boundaries. Their current task does not redefine creep ownership.
+
 ### Runtime state
 
 One-tick indexes and derived state belong to `TickContext` or the owning subsystem call.
