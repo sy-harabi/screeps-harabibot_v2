@@ -4,7 +4,6 @@ import { moveCreep } from "./movement"
 import { registerMove } from "./traffic"
 
 interface FillAreaOptions {
-  getPriority?: (creep: Creep) => number
   movePriority?: number
 }
 
