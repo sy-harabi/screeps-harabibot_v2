@@ -4,17 +4,21 @@ import { requestSpawn } from "../../capabilities/spawning/spawnQueue"
 import { getColonyCreeps, TickContext } from "../../kernel/tickContext"
 import { runtimeRegistry } from "../../runtime/runtimeRegistry"
 import { RoomCoordinate } from "../../world/map/roomCoordinate"
+import { getStructuresByType } from "../../world/roomStructures"
 import { LogisticsState } from "../logistics/logistics"
-import { createUpgraderBody } from "./upgrader"
+import { createUpgraderBody, UPGRADER_ROLE } from "./upgrader"
 
 interface UpgradeRuntime {
   rcl?: number
-  area?: RoomCoordinate[]
+  layout?: UpgradeLayout
+}
+
+interface UpgradeLayout {
+  readonly area: readonly RoomCoordinate[]
+  readonly chains: readonly (readonly RoomCoordinate[])[]
 }
 
 const upgradeRuntimes = runtimeRegistry.createCache<string, UpgradeRuntime>("upgrade")
-
-export const UPGRADER_ROLE = "upgrader"
 
 export function runUpgrade(
   colonyName: string,
@@ -30,15 +34,15 @@ export function runUpgrade(
   }
 
   const upgraders = getColonyCreeps(context, colonyName, UPGRADER_ROLE)
-  const upgradeArea = getUpgradeArea(colonyName, basePlan, controller.level)
+  const layout = getUpgradeLayout(colonyName, basePlan, controller.level)
 
-  if (upgradeArea.length === 0) {
+  if (layout.area.length === 0) {
     return
   }
 
   const spawnedUpgraders = upgraders.filter((creep) => !creep.spawning)
 
-  const fillArea = upgradeArea.slice(0, Math.min(spawnedUpgraders.length, upgradeArea.length))
+  const fillArea = layout.area.slice(0, Math.min(spawnedUpgraders.length, layout.area.length))
 
   fillAreaWithCreeps(colonyName, fillArea, spawnedUpgraders)
 
@@ -58,7 +62,7 @@ export function runUpgrade(
 
   const targetWork = getTargetUpgradeWork(room)
 
-  if (effectiveWork < targetWork && effectiveUpgraders < upgradeArea.length) {
+  if (effectiveWork < targetWork && effectiveUpgraders < layout.area.length) {
     const workNeeded = targetWork - effectiveWork
 
     requestSpawn(
@@ -77,6 +81,71 @@ export function runUpgrade(
       UPGRADER_ROLE,
     )
   }
+
+  const energyDepot = getUpgradeEnergyDepot(room, basePlan)
+
+  runUpgraders(room, spawnedUpgraders, layout, energyDepot)
+}
+
+function runUpgraders(
+  room: Room,
+  upgraders: readonly Creep[],
+  layout: UpgradeLayout,
+  energyDepot?: StructureStorage | StructureContainer | Resource,
+): void {
+  const controller = room.controller
+
+  if (!controller) {
+    return
+  }
+
+  for (const creep of upgraders) {
+    if (creep.pos.inRangeTo(controller, 3)) {
+      creep.upgradeController(controller)
+    }
+  }
+}
+
+function getUpgradeEnergyDepot(
+  room: Room,
+  basePlan: BasePlan,
+): StructureStorage | StructureContainer | Resource | undefined {
+  if (room.storage) {
+    return room.storage
+  }
+
+  for (const container of getStructuresByType(room, STRUCTURE_CONTAINER)) {
+    if (container.pos.x === basePlan.storage.x && container.pos.y === basePlan.storage.y) {
+      return container
+    }
+  }
+
+  const resource: Resource | undefined = room
+    .lookForAt(LOOK_RESOURCES, basePlan.storage.x, basePlan.storage.y)
+    .find((resource) => resource.resourceType === RESOURCE_ENERGY)
+
+  if (resource) {
+    return resource
+  }
+
+  return
+}
+
+function findUpgradePosition(
+  creep: Creep,
+  chains: readonly (readonly RoomCoordinate[])[],
+): { chain: readonly RoomCoordinate[]; depth: number } | undefined {
+  for (const chain of chains) {
+    for (let depth = 0; depth < chain.length; depth++) {
+      const pos = chain[depth]
+
+      if (creep.pos.x === pos.x && creep.pos.y === pos.y) {
+        return { chain, depth }
+      }
+    }
+  }
+
+  return
 }
 
 function getTargetUpgradeWork(room: Room): number {
@@ -97,19 +166,19 @@ function getTargetUpgradeWork(room: Room): number {
   return 10
 }
 
-function getUpgradeArea(roomName: string, basePlan: BasePlan, rcl: number): readonly RoomCoordinate[] {
+function getUpgradeLayout(roomName: string, basePlan: BasePlan, rcl: number): UpgradeLayout {
   const runtime = getUpgradeRuntime(roomName)
 
-  if (runtime.rcl === rcl && runtime.area !== undefined) {
-    return runtime.area
+  if (runtime.rcl === rcl && runtime.layout !== undefined) {
+    return runtime.layout
   }
 
-  const area = createUpgradeArea(basePlan, rcl)
+  const layout = createUpgradeLayout(basePlan, rcl)
 
   runtime.rcl = rcl
-  runtime.area = area
+  runtime.layout = layout
 
-  return area
+  return layout
 }
 
 export function getUpgradeRuntime(colonyName: string): UpgradeRuntime {
@@ -123,7 +192,7 @@ export function getUpgradeRuntime(colonyName: string): UpgradeRuntime {
   return runtime
 }
 
-function createUpgradeArea(basePlan: BasePlan, rcl: number): RoomCoordinate[] {
+function createUpgradeLayout(basePlan: BasePlan, rcl: number): UpgradeLayout {
   const { left, middle, right } = basePlan.controller.upgradeChains
   const chains = [middle, left, right].filter((chain) => isChainAvailable(chain, basePlan, rcl))
 
@@ -140,7 +209,7 @@ function createUpgradeArea(basePlan: BasePlan, rcl: number): RoomCoordinate[] {
     }
   }
 
-  return area
+  return { area, chains }
 }
 
 function isChainAvailable(chain: readonly RoomCoordinate[], basePlan: BasePlan, rcl: number): boolean {

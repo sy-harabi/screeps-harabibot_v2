@@ -5,6 +5,7 @@ import { planBase } from "../capabilities/basePlanning/planBase"
 import type { TickContext } from "../kernel/tickContext"
 import { runHarvest } from "./harvest/harvest"
 import { createLogisticsState, runLogistics } from "./logistics/logistics"
+import { runUpgrade } from "./upgrade/upgrade"
 
 export function runColonies(context: TickContext): void {
   for (const room of context.ownedRooms.values()) {
@@ -28,6 +29,8 @@ function runColony(room: Room, context: TickContext): void {
   runHarvest(room.name, room, basePlan, context, logistics)
 
   runLogistics(room, logistics)
+
+  runUpgrade(room.name, room, basePlan, context, logistics)
 }
 
 function ensureBasePlan(room: Room): BasePlan | undefined {
