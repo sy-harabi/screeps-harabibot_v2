@@ -56,7 +56,7 @@ function ensureBasePlan(room: Room): BasePlan | undefined {
     return
   }
 
-  basePlanStore.set(room.name, plan)
+  basePlanStore.set(plan)
 
   return plan
 }
