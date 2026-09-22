@@ -3,7 +3,7 @@ import { SOURCE_DATA_SEGMENT_IDS } from "../../persistence/segmentIds"
 import { segmentManager } from "../../persistence/segmentManager"
 import { runtimeRegistry } from "../../runtime/runtimeRegistry"
 import { fromRoomIndex } from "../../world/map/roomGrid"
-import { createSourceData, PackedSourceData, packSourceData, SourceData } from "./sourceData"
+import { createSourceData, packSourceData, type PackedSourceData, type SourceData } from "./sourceData"
 
 interface SourceDataSegment {
   version: 1
