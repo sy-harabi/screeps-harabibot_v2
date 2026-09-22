@@ -1,5 +1,5 @@
 import { forEachCoordinateInRange, fromRoomIndex, toRoomIndex } from "../../world/map/roomGrid"
-import { OUTSIDE_REGION_ID, TerrainRegion } from "../../world/map/terrainRegions"
+import { OUTSIDE_REGION_ID, type TerrainRegion } from "../../world/map/terrainRegions"
 
 const MIN_INNER_TILES = 150
 
