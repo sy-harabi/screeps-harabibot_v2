@@ -1,6 +1,6 @@
 # Scouting purposes, intel, and initial exploration
 
-Status: accepted
+Status: accepted; persistence and Explore implementation details partially superseded by [0014](0014-intel-persistence-bootstrap-and-explore.md)
 Date: 2026-09-23
 
 ## Context
