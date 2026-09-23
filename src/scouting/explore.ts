@@ -1,3 +1,4 @@
+import { runtimeRegistry } from "../runtime/runtimeRegistry"
 import { getAdjacentRooms } from "../world/map/roomTopology"
 
 interface ExploreMap {
@@ -6,7 +7,30 @@ interface ExploreMap {
 }
 
 const MAX_EXPLORE_DEPTH = 17
+
 const EXPLORE_HORIZONS = [1, 3, 5, 9, 13, 17] as const
+
+const exploreMaps = runtimeRegistry.createCache<string, ExploreMap>("scouting.exploreMaps", {
+  cleanupInterval: 500,
+  cleanup: (maps) => {
+    for (const colonyName of maps.keys()) {
+      if (Game.rooms[colonyName]?.controller?.my !== true) {
+        maps.delete(colonyName)
+      }
+    }
+  },
+})
+
+export function getExploreMap(colonyName: string): ExploreMap {
+  let map = exploreMaps.get(colonyName)
+
+  if (map === undefined) {
+    map = createExploreMap(colonyName)
+    exploreMaps.set(colonyName, map)
+  }
+
+  return map
+}
 
 function createExploreMap(colonyName: string): ExploreMap {
   const depthByRoom = new Map<string, number>()
