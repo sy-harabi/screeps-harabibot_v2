@@ -112,11 +112,17 @@ Do not freeze a fixed top-level manager list before the concrete systems require
 
 Treat room intel as observed world state rather than as state owned by a scouting creep or scouting mission. Any source of vision may refresh room intel, including scouts, observers, remote workers, and combat creeps.
 
+Expose room intel as one merged model while allowing persistence to follow the data lifecycle. Static room facts such as source, mineral, controller, and keeper-lair identity or position are segment-backed; small mutable observations such as last-seen time, ownership, RCL, and reservation state live in Memory. Strategic judgments or behavioral history should remain in their own domains instead of being folded into room intel.
+
+Prefer simple reset behavior over complex partial readiness. The current intel store waits until all of its static-intel shards are loaded after a global reset; until then, intel refresh and scouting that depends on intel may pause for a few ticks. Economy-critical segment data is requested first, with base plans before source data and room intel after them.
+
 Separate autonomous scouting policy from the mechanism used to obtain vision. Autonomous scouting has distinct purposes such as initial exploration, watching nearby territory for changes, and resource discovery. Other systems such as combat or claiming may request vision when their own lifecycle requires it without making scouting responsible for those strategic decisions.
+
+Initial Explore uses a colony-relative room graph derived from actual exits, cached in heap to depth 17. Exploration widens through horizons 1, 3, 5, 9, 13, and 17. Normal, keeper, and center rooms may be active Explore targets; highways are traversable but are not actively targeted by Explore.
 
 Prefer simple domain policy over a universal persistent vision scheduler. Introduce shared allocation or persistent request state only when concrete contention or lifecycle requirements justify it.
 
-Scout creeps remain owned by a colony even when their work crosses colony boundaries. Their current task does not redefine creep ownership.
+Scout creeps remain owned by a colony even when their work crosses colony boundaries. Their current task does not redefine creep ownership. Explore produces candidate rooms; individual scouters choose and cache a concrete target while movement remains owned by the movement capability.
 
 ### Runtime state
 
