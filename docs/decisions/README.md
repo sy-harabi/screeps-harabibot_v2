@@ -49,4 +49,5 @@ Date: YYYY-MM-DD
 - [0010: Harvest operation boundary](0010-harvest-operation-boundary.md) — superseded by 0011
 - [0011: Colony pipeline and mission boundary](0011-colony-pipeline-and-mission-boundary.md)
 - [0012: Module-owned runtime lifecycles and cleanup](0012-module-runtime-lifecycles-and-cleanup.md)
-- [0013: Scouting purposes, intel, and initial exploration](0013-scouting-intel-and-exploration.md)
+- [0013: Scouting purposes, intel, and initial exploration](0013-scouting-intel-and-exploration.md) — persistence and Explore details partially superseded by 0014
+- [0014: Intel persistence, bootstrap, and Explore topology](0014-intel-persistence-bootstrap-and-explore.md)
