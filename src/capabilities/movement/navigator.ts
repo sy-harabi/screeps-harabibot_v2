@@ -1,5 +1,5 @@
 import { PriorityQueue } from "../../utils/priorityQueue"
-import { getAdjacentRooms, getRoomManhattanDistance } from "../../world/map/roomTopology"
+import { getAdjacentRooms, getRoomManhattanDistance, isRoomReachable } from "../../world/map/roomTopology"
 import type { MoveGoal } from "./movement"
 import { getBaseRoomCostMatrix } from "./roomCostMatrix"
 
@@ -104,6 +104,10 @@ export function findRoute(
     }
 
     for (const adjacentRoomName of getAdjacentRooms(currentRoomName)) {
+      if (!isRoomReachable(adjacentRoomName, originRoomName)) {
+        continue
+      }
+
       const nextCost = currentCost + (getRoomCost ? getRoomCost(adjacentRoomName) : 1)
       const bestCost = costs.get(adjacentRoomName)
 

@@ -1,6 +1,6 @@
 import { runtimeRegistry } from "../runtime/runtimeRegistry"
 import { intelStore } from "../world/intel/intelStore"
-import { getAdjacentRooms, getRoomType } from "../world/map/roomTopology"
+import { getAdjacentRooms, getRoomType, isRoomReachable } from "../world/map/roomTopology"
 
 type ExploreRoomsByDepth = readonly (readonly string[])[]
 
@@ -20,6 +20,10 @@ export function getExploreCandidates(colonyName: string): readonly string[] {
 
   for (let depth = 1; depth <= MAX_EXPLORE_DEPTH; depth++) {
     for (const roomName of exploreRoomsByDepth[depth]) {
+      if (!isRoomReachable(roomName, colonyName)) {
+        continue
+      }
+
       if (getRoomType(roomName) === "highway") {
         continue
       }

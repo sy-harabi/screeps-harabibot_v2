@@ -1,6 +1,25 @@
+import { runtimeRegistry } from "../../runtime/runtimeRegistry"
 import { parseRoomName } from "./roomName"
 
+const ROOM_STATUS_CACHE_TTL = 100
+
+interface CachedRoomStatus {
+  readonly status: string | undefined
+  readonly expiresAt: number
+}
+
 const adjacentRoomCache = new Map<string, readonly string[]>()
+
+const roomStatusCache = runtimeRegistry.createCache<string, CachedRoomStatus>("map.roomStatus", {
+  cleanupInterval: ROOM_STATUS_CACHE_TTL,
+  cleanup: (cache) => {
+    for (const [roomName, cached] of cache) {
+      if (Game.time >= cached.expiresAt) {
+        cache.delete(roomName)
+      }
+    }
+  },
+})
 
 export type RoomType = "highway" | "normal" | "center" | "keeper"
 
@@ -28,6 +47,35 @@ export function getAdjacentRooms(roomName: string): readonly string[] {
   adjacentRoomCache.set(roomName, adjacentRooms)
 
   return adjacentRooms
+}
+
+export function isRoomReachable(roomName: string, referenceRoomName: string): boolean {
+  const roomStatus = getRoomStatus(roomName)
+
+  if (roomStatus === undefined || roomStatus === "closed") {
+    return false
+  }
+
+  const referenceStatus = getRoomStatus(referenceRoomName) ?? "normal"
+
+  return roomStatus === referenceStatus
+}
+
+function getRoomStatus(roomName: string): string | undefined {
+  const cached = roomStatusCache.get(roomName)
+
+  if (cached !== undefined && Game.time < cached.expiresAt) {
+    return cached.status
+  }
+
+  const status = Game.map.getRoomStatus(roomName)?.status
+
+  roomStatusCache.set(roomName, {
+    status,
+    expiresAt: Game.time + ROOM_STATUS_CACHE_TTL,
+  })
+
+  return status
 }
 
 export function getRoomType(roomName: string): RoomType {
