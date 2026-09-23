@@ -1,6 +1,6 @@
 import type { CreepAssignment } from "./creeps/creepAssignment"
 import type { BotOptionsOverride } from "./options/botOptions"
-import { IntelMemory } from "./world/intel/roomDynamicIntelMemory"
+import type { IntelMemory } from "./world/intel/roomDynamicIntelMemory"
 
 declare global {
   interface Memory {
