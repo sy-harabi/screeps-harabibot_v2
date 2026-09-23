@@ -94,6 +94,10 @@ function createExploreRoomsByDepth(colonyName: string): ExploreRoomsByDepth {
         continue
       }
 
+      if (!isRoomReachable(adjacent, colonyName)) {
+        continue
+      }
+
       depthByRoom.set(adjacent, depth + 1)
 
       queue.push(adjacent)
