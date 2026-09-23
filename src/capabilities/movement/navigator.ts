@@ -31,10 +31,19 @@ const DEFAULT_MAX_ROOM_HOPS = 16
 
 export function findRoute(
   originRoomName: string,
-  destinationRoomName: string,
+  destinationRoomNames: string | readonly string[],
   options: FindRouteOptions = {},
 ): readonly string[] | undefined {
-  if (originRoomName === destinationRoomName) {
+  const destinations =
+    typeof destinationRoomNames === "string" ? [destinationRoomNames] : [...new Set(destinationRoomNames)]
+
+  if (destinations.length === 0) {
+    return
+  }
+
+  const destinationSet = new Set(destinations)
+
+  if (destinationSet.has(originRoomName)) {
     return [originRoomName]
   }
 
@@ -46,7 +55,7 @@ export function findRoute(
 
   costs.set(originRoomName, 0)
 
-  const initialHeuristic = getRoomManhattanDistance(originRoomName, destinationRoomName)
+  const initialHeuristic = getMinRoomDistance(originRoomName, destinations)
 
   queue.push({ roomName: originRoomName, cost: 0, distance: 0 }, initialHeuristic)
 
@@ -60,9 +69,9 @@ export function findRoute(
       continue
     }
 
-    if (currentRoomName === destinationRoomName) {
-      const reverseRoute = [destinationRoomName]
-      let roomName = destinationRoomName
+    if (destinationSet.has(currentRoomName)) {
+      const reverseRoute = [currentRoomName]
+      let roomName = currentRoomName
 
       while (roomName !== originRoomName) {
         const previousRoomName = previousRooms.get(roomName)
@@ -84,7 +93,7 @@ export function findRoute(
       continue
     }
 
-    const minRemainingDistance = getRoomManhattanDistance(currentRoomName, destinationRoomName)
+    const minRemainingDistance = getMinRoomDistance(currentRoomName, destinations)
 
     if (currentDistance + minRemainingDistance > maxRoomHops) {
       continue
@@ -107,7 +116,7 @@ export function findRoute(
       costs.set(adjacentRoomName, nextCost)
       previousRooms.set(adjacentRoomName, currentRoomName)
 
-      const heuristic = getRoomManhattanDistance(adjacentRoomName, destinationRoomName)
+      const heuristic = getMinRoomDistance(adjacentRoomName, destinations)
 
       queue.push({ roomName: adjacentRoomName, cost: nextCost, distance: nextDistance }, nextCost + heuristic)
     }
@@ -127,23 +136,29 @@ export function findPath(
 
   const normalizedGoals = Array.isArray(goals) ? goals : [goals]
 
+  if (normalizedGoals.length === 0) {
+    return
+  }
+
   let route: readonly string[] | undefined
+  let routedGoals = normalizedGoals
 
   if (useRoomRoute) {
-    const destinationRoomName = normalizedGoals[0].pos.roomName
+    const destinationRoomNames = [...new Set(normalizedGoals.map((goal) => goal.pos.roomName))]
 
-    if (normalizedGoals.every((goal) => goal.pos.roomName === destinationRoomName)) {
-      route = findRoute(origin.roomName, destinationRoomName, options)
+    route = findRoute(origin.roomName, destinationRoomNames, options)
 
-      if (route === undefined) {
-        return
-      }
+    if (route === undefined) {
+      return
     }
+
+    const destinationRoomName = route[route.length - 1]
+    routedGoals = normalizedGoals.filter((goal) => goal.pos.roomName === destinationRoomName)
   }
 
   const allowedRooms = route ? buildCorridor(route) : undefined
 
-  const result = PathFinder.search(origin, goals, {
+  const result = PathFinder.search(origin, routedGoals, {
     maxRooms: allowedRooms?.size ?? options.maxRooms,
     plainCost: 2,
     swampCost: 10,
@@ -161,6 +176,16 @@ export function findPath(
   }
 
   return result.path
+}
+
+function getMinRoomDistance(roomName: string, destinationRoomNames: readonly string[]): number {
+  let minDistance = Infinity
+
+  for (const destinationRoomName of destinationRoomNames) {
+    minDistance = Math.min(minDistance, getRoomManhattanDistance(roomName, destinationRoomName))
+  }
+
+  return minDistance
 }
 
 function buildCorridor(route: readonly string[]): Set<string> {
