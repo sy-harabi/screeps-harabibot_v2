@@ -1,78 +1,88 @@
-import type { RoomCoordinate } from "../map/roomCoordinate"
-
-export function createRoomIntel(room: Room): RoomIntel {
-  const sources = room.find(FIND_SOURCES).map((source) => ({
-    id: source.id,
-    coordinate: { x: source.pos.x, y: source.pos.y },
-  }))
-
-  const minerals = room.find(FIND_MINERALS).map((mineral) => ({
-    id: mineral.id,
-    coordinate: { x: mineral.pos.x, y: mineral.pos.y },
-    mineralType: mineral.mineralType,
-  }))
-
-  const keeperLairs = room
-    .find(FIND_HOSTILE_STRUCTURES)
-    .filter((structure) => structure.structureType === STRUCTURE_KEEPER_LAIR)
-    .map((lair) => ({ x: lair.pos.x, y: lair.pos.y }))
-
-  const controller = room.controller
-
-  const controllerIntel = controller
-    ? {
-        id: controller.id,
-        coordinate: { x: controller.pos.x, y: controller.pos.y },
-        owner: controller.owner ? { username: controller.owner.username, level: controller.level } : undefined,
-        reservation: controller.reservation
-          ? { username: controller.reservation.username, endTick: Game.time + controller.reservation.ticksToEnd }
-          : undefined,
-      }
-    : undefined
-
-  return {
-    roomName: room.name,
-    lastSeen: Game.time,
-    sources,
-    minerals,
-    controller: controllerIntel,
-    keeperLairs,
-  }
+export interface IntelMemory {
+  roomNames: string[]
+  dynamic: PackedRoomDynamicIntel[]
 }
 
-export interface RoomIntel {
-  readonly roomName: string
+export type PackedRoomDynamicIntel =
+  | [lastSeen: number]
+  | [
+      lastSeen: number,
+      state: 1, // owned
+      username: string,
+      rcl: number,
+    ]
+  | [
+      lastSeen: number,
+      state: 2, // reserved
+      username: string,
+      endTick: number,
+    ]
+
+export interface RoomDynamicIntel {
   readonly lastSeen: number
 
-  readonly sources: readonly SourceIntel[]
-  readonly minerals: readonly MineralIntel[]
-  readonly keeperLairs: readonly RoomCoordinate[]
+  readonly controller?: {
+    readonly owner?: {
+      readonly username: string
+      readonly level: number
+    }
 
-  readonly controller?: ControllerIntel
+    readonly reservation?: {
+      readonly username: string
+      readonly endTick: number
+    }
+  }
 }
 
-export interface SourceIntel {
-  readonly id: Id<Source>
-  readonly coordinate: RoomCoordinate
-}
+function unpackDynamicIntel(intel: PackedRoomDynamicIntel): RoomDynamicIntel {
+  const lastSeen = intel[0]
 
-export interface MineralIntel {
-  readonly id: Id<Mineral>
-  readonly coordinate: RoomCoordinate
-  readonly mineralType: MineralConstant
-}
+  const index = intel[1]
 
-export interface ControllerIntel {
-  readonly id: Id<StructureController>
-  readonly coordinate: RoomCoordinate
-
-  readonly owner?: {
-    readonly username: string
-    readonly level: number
+  if (!index) {
+    return { lastSeen }
   }
 
-  readonly reservation?: {
-    readonly username: string
-    readonly endTick: number
+  const username = intel[2]!
+
+  if (index === 1) {
+    const level = intel[3]!
+
+    return {
+      lastSeen,
+      controller: {
+        owner: {
+          username,
+          level,
+        },
+      },
+    }
+  } else if (index === 2) {
+    const endTick = intel[3]!
+    return {
+      lastSeen,
+      controller: {
+        reservation: {
+          username,
+          endTick,
+        },
+      },
+    }
   }
+
+  throw new Error(`Room intel has index ${index}`)
+}
+
+function packDynamicIntel(intel: RoomDynamicIntel): PackedRoomDynamicIntel {
+  const controller = intel.controller
+
+  if (controller?.owner) {
+    return [intel.lastSeen, 1, controller.owner.username, controller.owner.level]
+  }
+
+  if (controller?.reservation) {
+    return [intel.lastSeen, 2, controller.reservation.username, controller.reservation.endTick]
+  }
+
+  return [intel.lastSeen]
 }
