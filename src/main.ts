@@ -7,9 +7,17 @@ import { createTickContext } from "./kernel/tickContext"
 import { segmentManager } from "./persistence/segmentManager"
 import { runtimeRegistry } from "./runtime/runtimeRegistry"
 import "./visuals/roomVisual"
+import { intelStore } from "./world/intel/intelStore"
 
 export function loop(): void {
   segmentManager.pretick()
+  intelStore.pretick()
+
+  if (intelStore.isReady()) {
+    for (const room of Object.values(Game.rooms)) {
+      intelStore.observe(room)
+    }
+  }
 
   const context = createTickContext()
 
