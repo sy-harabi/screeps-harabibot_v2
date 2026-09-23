@@ -1,16 +1,51 @@
 import { runtimeRegistry } from "../runtime/runtimeRegistry"
-import { getAdjacentRooms } from "../world/map/roomTopology"
+import { intelStore } from "../world/intel/intelStore"
+import { getAdjacentRooms, getRoomType } from "../world/map/roomTopology"
 
-interface ExploreMap {
-  readonly depthByRoom: ReadonlyMap<string, number>
-  readonly roomsByDepth: readonly (readonly string[])[]
-}
+type ExploreRoomsByDepth = readonly (readonly string[])[]
 
 const MAX_EXPLORE_DEPTH = 17
 
 const EXPLORE_HORIZONS = [1, 3, 5, 9, 13, 17] as const
 
-const exploreMaps = runtimeRegistry.createCache<string, ExploreMap>("scouting.exploreMaps", {
+export function getExploreCandidates(colonyName: string): readonly string[] {
+  if (!intelStore.isReady()) {
+    return []
+  }
+
+  const exploreRoomsByDepth = getExploreRoomsByDepth(colonyName)
+  const candidates: string[] = []
+
+  let horizonIndex = 0
+
+  for (let depth = 1; depth <= MAX_EXPLORE_DEPTH; depth++) {
+    for (const roomName of exploreRoomsByDepth[depth]) {
+      if (getRoomType(roomName) === "highway") {
+        continue
+      }
+
+      if (intelStore.has(roomName)) {
+        continue
+      }
+
+      candidates.push(roomName)
+    }
+
+    if (depth !== EXPLORE_HORIZONS[horizonIndex]) {
+      continue
+    }
+
+    if (candidates.length > 0) {
+      return candidates
+    }
+
+    horizonIndex++
+  }
+
+  return []
+}
+
+const exploreRoomsByColony = runtimeRegistry.createCache<string, ExploreRoomsByDepth>("scouting.exploreMaps", {
   cleanupInterval: 500,
   cleanup: (maps) => {
     for (const colonyName of maps.keys()) {
@@ -21,18 +56,18 @@ const exploreMaps = runtimeRegistry.createCache<string, ExploreMap>("scouting.ex
   },
 })
 
-export function getExploreMap(colonyName: string): ExploreMap {
-  let map = exploreMaps.get(colonyName)
+export function getExploreRoomsByDepth(colonyName: string): ExploreRoomsByDepth {
+  let map = exploreRoomsByColony.get(colonyName)
 
   if (map === undefined) {
-    map = createExploreMap(colonyName)
-    exploreMaps.set(colonyName, map)
+    map = createExploreRoomsByDepth(colonyName)
+    exploreRoomsByColony.set(colonyName, map)
   }
 
   return map
 }
 
-function createExploreMap(colonyName: string): ExploreMap {
+function createExploreRoomsByDepth(colonyName: string): ExploreRoomsByDepth {
   const depthByRoom = new Map<string, number>()
   const roomsByDepth: string[][] = Array.from({ length: MAX_EXPLORE_DEPTH + 1 }, () => [])
 
@@ -63,5 +98,5 @@ function createExploreMap(colonyName: string): ExploreMap {
     }
   }
 
-  return { depthByRoom, roomsByDepth }
+  return roomsByDepth
 }

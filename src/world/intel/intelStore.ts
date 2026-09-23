@@ -1,17 +1,17 @@
-import {
-  createRoomDynamicIntel,
-  createRoomStaticIntel,
-  mergeRoomIntel,
-  type RoomIntel,
-} from "./roomIntel"
+import { createRoomDynamicIntel, createRoomStaticIntel, mergeRoomIntel, type RoomIntel } from "./roomIntel"
 import { roomDynamicIntelMemory } from "./roomDynamicIntelMemory"
 import { roomStaticIntelStore } from "./roomStaticIntelStore"
 
 export const intelStore = {
   pretick,
   isReady,
+  has,
   get,
   observe,
+}
+
+function has(roomName: string): boolean {
+  return isReady() && roomDynamicIntelMemory.has(roomName)
 }
 
 function pretick(): void {

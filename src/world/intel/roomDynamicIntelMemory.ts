@@ -6,8 +6,13 @@ export interface IntelMemory {
 }
 
 export const roomDynamicIntelMemory = {
+  has,
   get,
   set,
+}
+
+function has(roomName: string): boolean {
+  return Memory.intel?.dynamic[roomName] !== undefined
 }
 
 function getMemory(): IntelMemory {
