@@ -1,8 +1,3 @@
-export interface IntelMemory {
-  roomNames: string[]
-  dynamic: PackedRoomDynamicIntel[]
-}
-
 export type PackedRoomDynamicIntel =
   | [lastSeen: number]
   | [
@@ -34,18 +29,18 @@ export interface RoomDynamicIntel {
   }
 }
 
-function unpackDynamicIntel(intel: PackedRoomDynamicIntel): RoomDynamicIntel {
+export function unpackDynamicIntel(intel: PackedRoomDynamicIntel): RoomDynamicIntel {
   const lastSeen = intel[0]
 
-  const index = intel[1]
+  const state = intel[1]
 
-  if (!index) {
+  if (state === undefined) {
     return { lastSeen }
   }
 
   const username = intel[2]!
 
-  if (index === 1) {
+  if (state === 1) {
     const level = intel[3]!
 
     return {
@@ -57,7 +52,7 @@ function unpackDynamicIntel(intel: PackedRoomDynamicIntel): RoomDynamicIntel {
         },
       },
     }
-  } else if (index === 2) {
+  } else if (state === 2) {
     const endTick = intel[3]!
     return {
       lastSeen,
@@ -70,10 +65,10 @@ function unpackDynamicIntel(intel: PackedRoomDynamicIntel): RoomDynamicIntel {
     }
   }
 
-  throw new Error(`Room intel has index ${index}`)
+  throw new Error(`Room intel has state ${state}`)
 }
 
-function packDynamicIntel(intel: RoomDynamicIntel): PackedRoomDynamicIntel {
+export function packDynamicIntel(intel: RoomDynamicIntel): PackedRoomDynamicIntel {
   const controller = intel.controller
 
   if (controller?.owner) {
