@@ -12,6 +12,11 @@ export function createRoomIntel(room: Room): RoomIntel {
     mineralType: mineral.mineralType,
   }))
 
+  const keeperLairs = room
+    .find(FIND_HOSTILE_STRUCTURES)
+    .filter((structure) => structure.structureType === STRUCTURE_KEEPER_LAIR)
+    .map((lair) => ({ x: lair.pos.x, y: lair.pos.y }))
+
   const controller = room.controller
 
   const controllerIntel = controller
@@ -20,15 +25,10 @@ export function createRoomIntel(room: Room): RoomIntel {
         coordinate: { x: controller.pos.x, y: controller.pos.y },
         owner: controller.owner ? { username: controller.owner.username, level: controller.level } : undefined,
         reservation: controller.reservation
-          ? { username: controller.reservation.username, ticksToEnd: controller.reservation.ticksToEnd }
+          ? { username: controller.reservation.username, endTick: Game.time + controller.reservation.ticksToEnd }
           : undefined,
       }
     : undefined
-
-  const keeperLairs = room
-    .find(FIND_HOSTILE_STRUCTURES)
-    .filter((structure) => structure.structureType === STRUCTURE_KEEPER_LAIR)
-    .map((lair) => ({ x: lair.pos.x, y: lair.pos.y }))
 
   return {
     roomName: room.name,
@@ -46,8 +46,9 @@ export interface RoomIntel {
 
   readonly sources: readonly SourceIntel[]
   readonly minerals: readonly MineralIntel[]
-  readonly controller?: ControllerIntel
   readonly keeperLairs: readonly RoomCoordinate[]
+
+  readonly controller?: ControllerIntel
 }
 
 export interface SourceIntel {
@@ -72,6 +73,6 @@ export interface ControllerIntel {
 
   readonly reservation?: {
     readonly username: string
-    readonly ticksToEnd: number
+    readonly endTick: number
   }
 }
