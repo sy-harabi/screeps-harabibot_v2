@@ -14,8 +14,15 @@ export type BasePlanReadResult = { status: "loading" } | { status: "missing" } |
 const basePlanCache = runtimeRegistry.createCache<string, BasePlan>("basePlans")
 
 export const basePlanStore = {
+  pretick,
   get,
   set,
+}
+
+function pretick(rooms: Iterable<Room>): void {
+  for (const room of rooms) {
+    segmentManager.getSegment<BasePlanSegment>(getBasePlanSegmentId(room.name))
+  }
 }
 
 function set(plan: BasePlan): void {
