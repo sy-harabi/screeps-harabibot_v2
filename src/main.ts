@@ -1,7 +1,9 @@
+import { basePlanStore } from "./capabilities/basePlanning/basePlanStore"
 import { getBaseRoomCostMatrix } from "./capabilities/movement/roomCostMatrix"
 import { run as runTraffic } from "./capabilities/movement/traffic"
 import { allocateSpawns } from "./capabilities/spawning/spawnAllocator"
 import { runColonies } from "./colony/colonyManager"
+import { sourceDataStore } from "./colony/harvest/sourceDataStore"
 import "./console/consoleApi"
 import { createTickContext } from "./kernel/tickContext"
 import { segmentManager } from "./persistence/segmentManager"
@@ -11,6 +13,11 @@ import { intelStore } from "./world/intel/intelStore"
 
 export function loop(): void {
   segmentManager.pretick()
+
+  const context = createTickContext()
+
+  basePlanStore.pretick(context.ownedRooms.values())
+  sourceDataStore.pretick(context.ownedRooms.values())
   intelStore.pretick()
 
   if (intelStore.isReady()) {
@@ -18,8 +25,6 @@ export function loop(): void {
       intelStore.observe(room)
     }
   }
-
-  const context = createTickContext()
 
   runColonies(context)
 
