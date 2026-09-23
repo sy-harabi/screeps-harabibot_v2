@@ -18,9 +18,18 @@ export type SourceDataReadResult =
 const sourceDataCache = runtimeRegistry.createCache<Id<Source>, SourceData>("sourceData")
 
 export const sourceDataStore = {
+  pretick,
   get,
   set,
   delete: deleteSourceData,
+}
+
+function pretick(rooms: Iterable<Room>): void {
+  for (const room of rooms) {
+    for (const source of room.find(FIND_SOURCES)) {
+      segmentManager.getSegment<SourceDataSegment>(getSourceDataSegmentId(source.id))
+    }
+  }
 }
 
 function get(sourceId: Id<Source>): SourceDataReadResult {
