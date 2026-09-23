@@ -8,6 +8,7 @@ import "./console/consoleApi"
 import { createTickContext } from "./kernel/tickContext"
 import { segmentManager } from "./persistence/segmentManager"
 import { runtimeRegistry } from "./runtime/runtimeRegistry"
+import { runScouting } from "./scouting/scouting"
 import "./visuals/roomVisual"
 import { intelStore } from "./world/intel/intelStore"
 
@@ -25,6 +26,8 @@ export function loop(): void {
       intelStore.observe(room)
     }
   }
+
+  runScouting(context)
 
   runColonies(context)
 

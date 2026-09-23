@@ -76,7 +76,7 @@ function createExploreRoomsByDepth(colonyName: string): ExploreRoomsByDepth {
 
   depthByRoom.set(colonyName, 0)
 
-  while (queue.length > 0) {
+  while (index < queue.length) {
     const current = queue[index]
     index++
     const depth = depthByRoom.get(current)!
