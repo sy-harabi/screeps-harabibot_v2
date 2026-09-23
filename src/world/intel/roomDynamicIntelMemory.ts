@@ -1,7 +1,12 @@
 import { packDynamicIntel, PackedRoomDynamicIntel, RoomDynamicIntel, unpackDynamicIntel } from "./roomIntel"
 
-interface IntelMemory {
+export interface IntelMemory {
   dynamic: Record<string, PackedRoomDynamicIntel>
+}
+
+export const roomDynamicIntelMemory = {
+  get,
+  set,
 }
 
 function getMemory(): IntelMemory {
