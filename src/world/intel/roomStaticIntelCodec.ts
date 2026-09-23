@@ -5,12 +5,13 @@ import type { ControllerStaticIntel, MineralIntel, RoomStaticIntel, SourceIntel 
 
 const MAX_ROOM_OBJECT_COUNT = 4
 
-const ID_PART_COUNT = 6
-const ID_PART_DEPTH = 16
+const LEGACY_ID_LENGTH = 24
+const MAX_ID_LENGTH = 31
+const ID_PART_HEX_LENGTH = 4
 
 const headerCodec = new Codec({
   array: true,
-  depth: [3, 3, 3, 1],
+  depth: [3, 3, 3, 1, 5],
 })
 
 export type PackedRoomStaticIntel = string
@@ -22,6 +23,7 @@ export function packRoomStaticIntel(
   const sourceCount = intel.sources.length
   const mineralCount = intel.minerals.length
   const keeperLairCount = intel.keeperLairs.length
+  const idLength = getRoomIdLength(intel)
 
   assertCount("source", sourceCount)
   assertCount("mineral", mineralCount)
@@ -32,18 +34,19 @@ export function packRoomStaticIntel(
     mineralCount,
     keeperLairCount,
     intel.controller === undefined ? 0 : 1,
+    idLength,
   ])
 
   const values: number[] = []
   const depths: number[] = []
 
   for (const source of intel.sources) {
-    pushId(values, depths, source.id)
+    pushId(values, depths, source.id, idLength)
     pushCoordinate(values, depths, source.coordinate)
   }
 
   for (const mineral of intel.minerals) {
-    pushId(values, depths, mineral.id)
+    pushId(values, depths, mineral.id, idLength)
     pushCoordinate(values, depths, mineral.coordinate)
 
     const mineralTypeIndex = getMineralTypeIndex(mineral.mineralType)
@@ -57,7 +60,7 @@ export function packRoomStaticIntel(
   }
 
   if (intel.controller !== undefined) {
-    pushId(values, depths, intel.controller.id)
+    pushId(values, depths, intel.controller.id, idLength)
     pushCoordinate(values, depths, intel.controller.coordinate)
   }
 
@@ -91,14 +94,18 @@ export function unpackRoomStaticIntel(
   const mineralCount = header[1]
   const keeperLairCount = header[2]
   const hasController = header[3] === 1
+  const encodedIdLength = header[4]
+  const idCount = sourceCount + mineralCount + (hasController ? 1 : 0)
+  const idLength = encodedIdLength === 0 && idCount > 0 ? LEGACY_ID_LENGTH : encodedIdLength
 
   assertCount("source", sourceCount)
   assertCount("mineral", mineralCount)
   assertCount("keeper lair", keeperLairCount)
 
   function pushIdDepths(depths: number[]): void {
-    for (let i = 0; i < ID_PART_COUNT; i++) {
-      depths.push(ID_PART_DEPTH)
+    for (let remaining = idLength; remaining > 0; remaining -= ID_PART_HEX_LENGTH) {
+      const partLength = Math.min(ID_PART_HEX_LENGTH, remaining)
+      depths.push(partLength * 4)
     }
   }
 
@@ -136,8 +143,9 @@ export function unpackRoomStaticIntel(
   function readId<T extends _HasId>(): Id<T> {
     let id = ""
 
-    for (let i = 0; i < ID_PART_COUNT; i++) {
-      id += values[cursor++].toString(16).padStart(4, "0")
+    for (let remaining = idLength; remaining > 0; remaining -= ID_PART_HEX_LENGTH) {
+      const partLength = Math.min(ID_PART_HEX_LENGTH, remaining)
+      id += values[cursor++].toString(16).padStart(partLength, "0")
     }
 
     return id as Id<T>
@@ -202,11 +210,15 @@ export function unpackRoomStaticIntel(
   }
 }
 
-function pushId(values: number[], depths: number[], id: string): void {
-  values.push(...packId(id))
+function pushId(values: number[], depths: number[], id: string, idLength: number): void {
+  if (id.length !== idLength) {
+    throw new Error(`Screeps object id length changed within room static intel: ${id}`)
+  }
 
-  for (let i = 0; i < ID_PART_COUNT; i++) {
-    depths.push(ID_PART_DEPTH)
+  for (let i = 0; i < id.length; i += ID_PART_HEX_LENGTH) {
+    const part = id.slice(i, i + ID_PART_HEX_LENGTH)
+    values.push(parseInt(part, 16))
+    depths.push(part.length * 4)
   }
 }
 
@@ -221,16 +233,32 @@ function assertCount(name: string, count: number): void {
   }
 }
 
-function packId(id: string): number[] {
-  if (!/^[0-9a-f]{24}$/.test(id)) {
+function getRoomIdLength(intel: RoomStaticIntel): number {
+  let idLength = 0
+
+  for (const source of intel.sources) {
+    idLength = mergeIdLength(idLength, source.id)
+  }
+
+  for (const mineral of intel.minerals) {
+    idLength = mergeIdLength(idLength, mineral.id)
+  }
+
+  if (intel.controller !== undefined) {
+    idLength = mergeIdLength(idLength, intel.controller.id)
+  }
+
+  return idLength
+}
+
+function mergeIdLength(currentLength: number, id: string): number {
+  if (!/^[0-9a-f]+$/.test(id) || id.length > MAX_ID_LENGTH) {
     throw new Error(`Invalid Screeps object id: ${id}`)
   }
 
-  const result: number[] = []
-
-  for (let i = 0; i < 24; i += 4) {
-    result.push(parseInt(id.slice(i, i + 4), 16))
+  if (currentLength !== 0 && id.length !== currentLength) {
+    throw new Error(`Screeps object ids have inconsistent lengths within room static intel: ${currentLength} and ${id.length}`)
   }
 
-  return result
+  return id.length
 }
