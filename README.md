@@ -4,7 +4,7 @@ HarabiBot v2 is an in-progress TypeScript rewrite of HarabiBot for [Screeps](htt
 
 The rewrite is not a line-by-line port. It is being rebuilt around explicit data flow, ordered colony execution, reusable capabilities, and clearer state ownership. The design direction and collaboration rules are documented in [docs/rewrite-context.md](./docs/rewrite-context.md).
 
-> **Status:** active development. The current vertical slice covers owned-source harvesting, shared hauling and logistics, and income-driven upgrading, but this is not yet a complete autonomous bot.
+> **Status:** active development. The current vertical slice covers owned-room economy plus persistent room intel and the initial Explore scouting foundation, but this is not yet a complete autonomous bot.
 
 ## Current implementation
 
@@ -20,12 +20,14 @@ Implemented so far:
 - Dedicated movement and traffic capabilities.
 - A runtime base planner with in-game `RoomVisual` output.
 - Base-plan persistence through `RawMemory` segments.
+- Persistent room intel with static segment-backed data, dynamic Memory-backed observations, and visible-room refresh.
+- Colony-relative Explore topology/candidate generation with cached depth-17 BFS and per-scout target selection.
 - Map/planner primitives including distance transform, Dijkstra maps, flood fill, terrain regions, and min-cut.
 - Console options for enabling and disabling base-plan visuals.
 
 The base planner currently covers the core layout, controller/upgrader area, resource endpoints and road tree, labs, structure slots, towers, outer ramparts, rampart access roads, and repair roads. Existing manually placed spawns are respected by the planner.
 
-Still under construction are construction execution, scouting, remotes, combat, empire resource coordination/market logic, and other late-game systems. A persistent mission framework is intentionally deferred until the first real cross-room mission requires it.
+Still under construction are completion of scout spawning/movement, Watch and Resource scouting, remotes, combat, empire resource coordination/market logic, and other late-game systems. A persistent mission framework is intentionally deferred until the first real cross-room mission requires it.
 
 ## Runtime flow
 
@@ -35,6 +37,10 @@ Each tick currently runs in this order:
 segmentManager.pretick()
         |
 create TickContext
+        |
+preload BasePlan -> SourceData -> RoomIntel segments
+        |
+refresh visible room intel when intel is ready
         |
 run colonies
         |
@@ -85,6 +91,8 @@ src/capabilities/basePlanning/      Runtime base planner
 src/capabilities/spawning/          Spawn requests, queue, priority, allocator
 src/capabilities/movement/          Movement, path state, and traffic
 src/world/map/                      Map algorithms and room-grid utilities
+src/world/intel/                    Persistent observed room intel
+src/scouting/                       Autonomous scouting policy and scout execution
 src/persistence/                    RawMemory segment lifecycle
 src/runtime/                        Runtime-only registries/caches
 src/options/                        Bot option definitions
