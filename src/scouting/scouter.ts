@@ -1,3 +1,4 @@
+import { moveCreep } from "../capabilities/movement/movement"
 import { findRoute } from "../capabilities/movement/navigator"
 import { runtimeRegistry } from "../runtime/runtimeRegistry"
 import { intelStore } from "../world/intel/intelStore"
@@ -5,6 +6,33 @@ import { getExploreCandidates } from "./explore"
 
 interface ScouterRuntime {
   targetRoomName?: string
+}
+
+export const SCOUT_ROLE = "scout"
+
+const MAX_TARGET_ROUTE_HOPS = 34
+
+export function runScouter(creep: Creep, colonyName: string): void {
+  if (!intelStore.isReady()) {
+    return
+  }
+
+  const targetRoomName = getExploreTarget(creep, colonyName)
+
+  if (targetRoomName === undefined) {
+    return
+  }
+
+  moveCreep(
+    creep,
+    {
+      pos: new RoomPosition(25, 25, targetRoomName),
+      range: 25,
+    },
+    {
+      maxRoomHops: MAX_TARGET_ROUTE_HOPS,
+    },
+  )
 }
 
 const scouterRuntimes = runtimeRegistry.createCache<string, ScouterRuntime>("scouting.scouts", {
@@ -41,7 +69,7 @@ function getExploreTarget(creep: Creep, colonyName: string): string | undefined 
   }
 
   const route = findRoute(creep.room.name, candidates, {
-    maxRoomHops: 34,
+    maxRoomHops: MAX_TARGET_ROUTE_HOPS,
   })
 
   if (route === undefined) {

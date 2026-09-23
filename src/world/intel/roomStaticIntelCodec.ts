@@ -234,4 +234,3 @@ function packId(id: string): number[] {
 
   return result
 }
-
