@@ -1,7 +1,7 @@
 import { Codec } from "../../vendor/utf15"
-import { RoomCoordinate } from "../map/roomCoordinate"
+import type { RoomCoordinate } from "../map/roomCoordinate"
 import { fromRoomIndex, toRoomIndex } from "../map/roomGrid"
-import { ControllerStaticIntel, MineralIntel, RoomStaticIntel, SourceIntel } from "./roomIntel"
+import type { ControllerStaticIntel, MineralIntel, RoomStaticIntel, SourceIntel } from "./roomIntel"
 
 const MAX_ROOM_OBJECT_COUNT = 4
 
@@ -235,10 +235,3 @@ function packId(id: string): number[] {
   return result
 }
 
-function unpackId(parts: readonly number[]): string {
-  if (parts.length !== ID_PART_COUNT) {
-    throw new Error(`Invalid packed object id length: ${parts.length}`)
-  }
-
-  return parts.map((part) => part.toString(16).padStart(4, "0")).join("")
-}
