@@ -1,4 +1,5 @@
-import { packDynamicIntel, PackedRoomDynamicIntel, RoomDynamicIntel, unpackDynamicIntel } from "./roomIntel"
+import { packDynamicIntel, unpackDynamicIntel } from "./roomIntel"
+import type { PackedRoomDynamicIntel, RoomDynamicIntel } from "./roomIntel"
 
 export interface IntelMemory {
   dynamic: Record<string, PackedRoomDynamicIntel>
