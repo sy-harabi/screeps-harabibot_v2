@@ -1,3 +1,5 @@
+import { intelStore } from "../../world/intel/intelStore"
+import { getRoomType } from "../../world/map/roomTopology"
 import { getMovementRuntime, type MovementRuntime } from "./movementRuntime"
 import { findPath } from "./navigator"
 import { clearMoveRequest, registerMove } from "./traffic"
@@ -266,6 +268,11 @@ function reconcilePath(
     return "repath"
   }
 
+  if (avoidSourceKeepers && shouldRepathForSourceKeeperIntel(creep, runtime)) {
+    resetStuck(runtime)
+    return "repath"
+  }
+
   if (nextIndex < path.length && creep.pos.isEqualTo(path[nextIndex])) {
     runtime.nextPathIndex = nextIndex + 1
     resetStuck(runtime)
@@ -303,6 +310,26 @@ function reconcilePath(
 
   resetStuck(runtime)
   return "repath"
+}
+
+function shouldRepathForSourceKeeperIntel(creep: Creep, runtime: MovementRuntime): boolean {
+  if (getRoomType(creep.pos.roomName) !== "keeper") {
+    return false
+  }
+
+  const pathCreatedAt = runtime.pathCreatedAt
+
+  if (pathCreatedAt === undefined) {
+    return false
+  }
+
+  const intel = intelStore.get(creep.room.name)
+
+  if (intel === undefined) {
+    return false
+  }
+
+  return pathCreatedAt < intel.staticCreatedAt
 }
 
 function pathMatchesGoals(path: readonly RoomPosition[], goals: readonly MoveGoal[]): boolean {

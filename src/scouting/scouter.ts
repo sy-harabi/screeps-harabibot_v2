@@ -31,6 +31,7 @@ export function runScouter(creep: Creep, colonyName: string): void {
     },
     {
       maxRoomHops: MAX_TARGET_ROUTE_HOPS,
+      avoidSourceKeepers: true,
     },
   )
 }
