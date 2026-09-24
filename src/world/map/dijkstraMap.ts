@@ -28,10 +28,6 @@ export function dijkstraMap(
       continue
     }
 
-    if (terrain.get(x, y) === TERRAIN_MASK_WALL) {
-      continue
-    }
-
     if (canVisit && !canVisit(x, y)) {
       continue
     }
