@@ -1,7 +1,7 @@
 import { moveCreep, moveCreepByPath } from "../../capabilities/movement/movement"
 import type { LogisticsState } from "../logistics/logistics"
 import { registerEnergySupplier } from "../logistics/logistics"
-import type { SourceState } from "./harvest"
+import { getSourceContainer, type SourceState } from "./harvest"
 import { sourceDataStore } from "./sourceDataStore"
 
 export const HAULER_ROLE = "hauler"
@@ -219,18 +219,6 @@ function startDelivering(hauler: Creep, sourceState: SourceState): void {
   if (hauler.room.name !== sourceState.data.colonyName) {
     moveCreepByPath(hauler, sourceState.data.path, { reverse: true })
   }
-}
-
-function getSourceContainer(sourceState: SourceState): StructureContainer | undefined {
-  const pos = sourceState.data.path[sourceState.data.path.length - 1]
-
-  if (!pos || !Game.rooms[pos.roomName]) {
-    return
-  }
-
-  return pos
-    .lookFor(LOOK_STRUCTURES)
-    .find((structure): structure is StructureContainer => structure.structureType === STRUCTURE_CONTAINER)
 }
 
 function getDroppedEnergy(source: Source): Resource<ResourceConstant> | undefined {

@@ -161,6 +161,18 @@ export function runHarvest(
   return { income, maxIncome, spawnUsage }
 }
 
+export function getSourceContainer(sourceState: SourceState): StructureContainer | undefined {
+  const pos = sourceState.data.path[sourceState.data.path.length - 1]
+
+  if (!pos || !Game.rooms[pos.roomName]) {
+    return
+  }
+
+  return pos
+    .lookFor(LOOK_STRUCTURES)
+    .find((structure): structure is StructureContainer => structure.structureType === STRUCTURE_CONTAINER)
+}
+
 function getMinerReplacementLeadTime(miner: Creep, path: readonly RoomPosition[]): number {
   let workCount = 0
   let moveCount = 0
