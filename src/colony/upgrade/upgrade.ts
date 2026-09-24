@@ -8,6 +8,7 @@ import type { RoomCoordinate } from "../../world/map/roomCoordinate"
 import { toRoomIndex } from "../../world/map/roomGrid"
 import { getStructuresByType } from "../../world/roomStructures"
 import { type ConstructionState } from "../build/construction"
+import { ENERGY_RESERVE_BY_RCL, type ColonyEnergyState } from "../colonyManager"
 import { ENERGY_REQUEST_PRIORITY, requestEnergy, type LogisticsState } from "../logistics/logistics"
 import { createUpgraderBody, UPGRADER_ROLE } from "./upgrader"
 
@@ -40,6 +41,7 @@ export function runUpgrade(
   logistics: LogisticsState,
   income: number,
   construction: ConstructionState,
+  energy: ColonyEnergyState,
 ): void {
   const colonyName = room.name
   const controller = room.controller
@@ -85,7 +87,7 @@ export function runUpgrade(
 
   fillAreaWithCreeps(colonyName, fillArea, spawnedUpgraders)
 
-  const targetWork = getTargetUpgradeWork(room, income)
+  const targetWork = getTargetUpgradeWork(room, income, energy)
 
   if (!construction.active && effectiveWork < targetWork && effectiveUpgraders < layout.area.length) {
     requestSpawn(
@@ -109,6 +111,30 @@ export function runUpgrade(
 
   registerUpgradeEnergyRequests(logistics, energyDepot, layout, upgraderByPosition)
   runUpgraders(room, spawnedUpgraders, layout, energyDepot, upgraderByPosition, construction)
+}
+
+function getTargetUpgradeWork(room: Room, income: number, energy: ColonyEnergyState): number {
+  const level = room.controller?.level
+
+  if (level === undefined) {
+    return 0
+  }
+
+  let targetWork = income
+
+  if (room.storage !== undefined) {
+    const reserve = ENERGY_RESERVE_BY_RCL[level]
+
+    if (reserve !== undefined) {
+      const storedEnergy = energy.total
+
+      targetWork += (storedEnergy - reserve) / 1500
+    }
+  }
+
+  const limit = level === 8 ? CONTROLLER_MAX_UPGRADE_PER_TICK : Infinity
+
+  return Math.max(0, Math.min(Math.floor(targetWork), limit))
 }
 
 function registerUpgradeEnergyRequests(
@@ -238,18 +264,6 @@ function getUpgradeEnergyDepot(
   return room
     .lookForAt(LOOK_RESOURCES, basePlan.storage.x, basePlan.storage.y)
     .find((resource) => resource.resourceType === RESOURCE_ENERGY)
-}
-
-function getTargetUpgradeWork(room: Room, income: number): number {
-  const level = room.controller?.level
-
-  if (level === undefined) {
-    return 0
-  }
-
-  const limit = level === 8 ? CONTROLLER_MAX_UPGRADE_PER_TICK : Infinity
-
-  return Math.min(Math.floor(income), limit)
 }
 
 function getUpgradeLayout(basePlan: BasePlan, rcl: number): UpgradeLayout {
