@@ -203,7 +203,7 @@ export function unpackRoomStaticIntel(
   }
 
   return {
-    staticCreatedAt: Game.time,
+    staticAvailableAt: Game.time,
 
     sources,
     minerals,
