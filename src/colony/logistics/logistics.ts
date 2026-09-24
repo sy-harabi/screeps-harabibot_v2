@@ -20,6 +20,7 @@ export interface EnergyRequest {
 
 export const ENERGY_REQUEST_PRIORITY = {
   spawn: 1,
+  tower: 2,
   build: 10,
   upgrade: 20,
   storage: 100,

@@ -7,6 +7,7 @@ import { runBuild } from "./build/build"
 import { runConstruction } from "./build/construction"
 import { runHarvest } from "./harvest/harvest"
 import { createLogisticsState, runLogistics } from "./logistics/logistics"
+import { runTowers } from "./tower/tower"
 import { runUpgrade } from "./upgrade/upgrade"
 
 export function runColonies(context: TickContext): void {
@@ -31,6 +32,8 @@ function runColony(room: Room, context: TickContext): void {
   const harvest = runHarvest(room, basePlan, context, logistics)
 
   const construction = runConstruction(room, basePlan)
+
+  runTowers(room, logistics)
 
   runBuild(room, context, logistics, harvest.income, construction)
 
