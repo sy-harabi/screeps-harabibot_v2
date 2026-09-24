@@ -16,20 +16,6 @@ export function runColonies(context: TickContext): void {
   }
 }
 
-export interface ColonyEnergyState {
-  readonly storage: number
-  readonly terminal: number
-  readonly total: number
-}
-
-export const ENERGY_RESERVE_BY_RCL: Partial<Record<number, number>> = {
-  4: 20_000,
-  5: 30_000,
-  6: 60_000,
-  7: 100_000,
-  8: 200_000,
-}
-
 function runColony(room: Room, context: TickContext): void {
   const basePlan = ensureBasePlan(room)
 
@@ -43,31 +29,17 @@ function runColony(room: Room, context: TickContext): void {
 
   const logistics = createLogisticsState()
 
-  const energy = getColonyEnergyState(room)
-
   const harvest = runHarvest(room, basePlan, context, logistics)
 
   const construction = runConstruction(room, basePlan)
 
   runBuild(room, context, logistics, harvest.income, construction)
 
-  runUpgrade(room, basePlan, context, logistics, harvest.income, construction, energy)
+  runUpgrade(room, basePlan, context, logistics, harvest.income, construction)
 
   runTowers(room, logistics)
 
   runLogistics(room, logistics)
-}
-
-function getColonyEnergyState(room: Room): ColonyEnergyState {
-  const storage = room.storage?.store.getUsedCapacity(RESOURCE_ENERGY) ?? 0
-
-  const terminal = room.terminal?.store.getUsedCapacity(RESOURCE_ENERGY) ?? 0
-
-  return {
-    storage,
-    terminal,
-    total: storage + terminal,
-  }
 }
 
 function ensureBasePlan(room: Room): BasePlan | undefined {
