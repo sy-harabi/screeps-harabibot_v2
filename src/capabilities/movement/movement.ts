@@ -329,7 +329,7 @@ function shouldRepathForSourceKeeperIntel(creep: Creep, runtime: MovementRuntime
     return false
   }
 
-  return pathCreatedAt < intel.staticCreatedAt
+  return pathCreatedAt < intel.staticAvailableAt
 }
 
 function pathMatchesGoals(path: readonly RoomPosition[], goals: readonly MoveGoal[]): boolean {
