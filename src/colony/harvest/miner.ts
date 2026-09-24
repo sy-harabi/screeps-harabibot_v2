@@ -2,6 +2,7 @@ import { moveCreep, moveCreepByPath } from "../../capabilities/movement/movement
 import { estimatePathTravelTicks } from "../../capabilities/movement/travelTime"
 import { runtimeRegistry } from "../../runtime/runtimeRegistry"
 import type { SourceState } from "./harvest"
+import { getSourceContainer } from "./sourceData"
 
 interface MinerRuntime {
   miningPosition?: RoomPosition
@@ -79,13 +80,38 @@ function runMiner(miner: Creep, sourceState: SourceState): RunMinerResult {
     return "moving"
   }
 
-  const result = miner.harvest(source)
-
   if (!miner.pos.isEqualTo(miningPos)) {
     moveCreep(miner, { pos: miningPos, range: 0 })
+    return "moving"
   }
 
-  return result === ERR_NOT_IN_RANGE ? "moving" : "harvesting"
+  const container = getSourceContainer(sourceState.data)
+
+  if (
+    container !== undefined &&
+    container.hits < container.hitsMax &&
+    miner.store.getUsedCapacity(RESOURCE_ENERGY) >= miner.getActiveBodyparts(WORK) * REPAIR_COST &&
+    canSpendTickOnRepair(source, miner)
+  ) {
+    miner.repair(container)
+  } else {
+    miner.harvest(source)
+  }
+
+  return "harvesting"
+}
+
+function canSpendTickOnRepair(source: Source, miner: Creep): boolean {
+  const harvestPower = miner.getActiveBodyparts(WORK) * HARVEST_POWER
+  const ticksToRegeneration = source.ticksToRegeneration
+
+  if (ticksToRegeneration === undefined) {
+    return false
+  }
+
+  const harvestTicksNeeded = Math.ceil(source.energy / harvestPower)
+
+  return harvestTicksNeeded < ticksToRegeneration
 }
 
 function getMiningPosition(miner: Creep, sourceState: SourceState): RoomPosition | undefined {
@@ -175,7 +201,7 @@ export function createMinerBody(
       continue
     }
 
-    const bodySize = workCount + moveCount
+    const bodySize = workCount + moveCount + carryCount
     const spawnTime = bodySize * CREEP_SPAWN_TIME
     const productiveLifetime = CREEP_LIFE_TIME - travelTicks
 

@@ -141,7 +141,7 @@ export function runHarvest(
           order: sourceState.data.path.length,
           rolesByPriority: ROLES_BY_PRIORITY,
         },
-        () => createMinerBody(room, sourceState.data.path, targetWork, hasHarvestIncome),
+        () => createMinerBody(room, sourceState.data.path, targetWork, hasHarvestIncome, { carry: repairContainer }),
         MINER_ROLE,
         { memory: { sourceId } },
       )
