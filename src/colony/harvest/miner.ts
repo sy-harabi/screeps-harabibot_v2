@@ -140,6 +140,9 @@ export function createMinerBody(
   path: readonly RoomPosition[],
   targetWork: number,
   useEnergyCapacity: boolean,
+  options: {
+    carry?: boolean
+  } = {},
 ): readonly BodyPartConstant[] | undefined {
   const budget = useEnergyCapacity
     ? room.energyCapacityAvailable
@@ -149,11 +152,16 @@ export function createMinerBody(
     return undefined
   }
 
-  const workCount = Math.min(targetWork, Math.floor((budget - BODYPART_COST[MOVE]) / BODYPART_COST[WORK]))
+  const carryCount = options.carry ? 1 : 0
 
-  const maxMoveByEnergy = Math.floor((budget - workCount * BODYPART_COST[WORK]) / BODYPART_COST[MOVE])
+  const fixedCost = BODYPART_COST[MOVE] + carryCount * BODYPART_COST[CARRY]
 
-  const maxMoveBySize = MAX_CREEP_SIZE - workCount
+  const workCount = Math.min(targetWork, Math.floor((budget - fixedCost) / BODYPART_COST[WORK]))
+
+  const maxMoveByEnergy = Math.floor(
+    (budget - workCount * BODYPART_COST[WORK] - carryCount * BODYPART_COST[CARRY]) / BODYPART_COST[MOVE],
+  )
+  const maxMoveBySize = MAX_CREEP_SIZE - workCount - carryCount
 
   const maxMoveCount = Math.min(workCount * 5, maxMoveByEnergy, maxMoveBySize)
 
@@ -178,5 +186,9 @@ export function createMinerBody(
       bestMoveCount = moveCount
     }
   }
-  return [...Array<BodyPartConstant>(workCount).fill(WORK), ...Array<BodyPartConstant>(bestMoveCount).fill(MOVE)]
+  return [
+    ...Array<BodyPartConstant>(workCount).fill(WORK),
+    ...Array<BodyPartConstant>(carryCount).fill(CARRY),
+    ...Array<BodyPartConstant>(bestMoveCount).fill(MOVE),
+  ]
 }

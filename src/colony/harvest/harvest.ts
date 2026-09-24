@@ -7,9 +7,11 @@ import type { LogisticsState } from "../logistics/logistics"
 import { createHaulerBody, HAULER_ROLE, runHaulers } from "./hauler"
 import { getHarvestRuntime } from "./harvestRuntime"
 import { createMinerBody, MINER_ROLE, runMiners } from "./miner"
-import { createSourceData, type SourceData } from "./sourceData"
+import { createSourceData, getSourceContainer, type SourceData } from "./sourceData"
 import { sourceDataStore } from "./sourceDataStore"
 import { getSourceEconomy } from "./sourceEconomy"
+
+const SOURCE_CONTAINER_REPAIR_THRESHOLD = 150_000
 
 export interface SourceState {
   readonly data: SourceData
@@ -124,7 +126,11 @@ export function runHarvest(
       minerRatio <= haulerRatio &&
       sourceState.numMiners < sourceState.data.miningPositions.length
     ) {
-      const targetWork = Math.ceil(sourceState.requiredHarvestPower / HARVEST_POWER)
+      const container = getSourceContainer(sourceState.data)
+      const repairContainer =
+        hasHarvestIncome && container !== undefined && container.hits < SOURCE_CONTAINER_REPAIR_THRESHOLD
+
+      const targetWork = Math.ceil(sourceState.requiredHarvestPower / HARVEST_POWER) + (repairContainer ? 1 : 0)
 
       requestSpawn(
         {
