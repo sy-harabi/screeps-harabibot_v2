@@ -114,7 +114,7 @@ export function runUpgrade(
         order: 0,
         rolesByPriority: [UPGRADER_ROLE],
       },
-      () => createUpgraderBody(room, targetWork),
+      () => createUpgraderSpawnBody(room, targetWork, effectiveWork),
       UPGRADER_ROLE,
     )
   }
@@ -123,6 +123,32 @@ export function runUpgrade(
 
   registerUpgradeEnergyRequests(logistics, energyDepot, layout, upgraderByPosition)
   runUpgraders(room, spawnedUpgraders, layout, energyDepot, upgraderByPosition, construction)
+}
+
+function createUpgraderSpawnBody(
+  room: Room,
+  targetWork: number,
+  effectiveWork: number,
+): readonly BodyPartConstant[] | undefined {
+  const body = createUpgraderBody(room, targetWork)
+
+  if (body === undefined) {
+    return
+  }
+
+  let bodyWork = 0
+
+  for (const part of body) {
+    if (part === WORK) {
+      bodyWork++
+    }
+  }
+
+  if ((targetWork - effectiveWork) * 2 < bodyWork) {
+    return
+  }
+
+  return body
 }
 
 function getTargetUpgradeWork(room: Room, income: number, energy: ColonyEnergyState): number {
