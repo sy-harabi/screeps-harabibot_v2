@@ -21,13 +21,13 @@ Implemented so far:
 - A runtime base planner with in-game `RoomVisual` output.
 - Base-plan persistence through `RawMemory` segments.
 - Persistent room intel with static segment-backed data, dynamic Memory-backed observations, and visible-room refresh.
-- Colony-relative Explore topology/candidate generation with cached depth-17 BFS and per-scout target selection.
+- Colony-relative Explore topology/candidate generation with cached depth-17 BFS, autonomous scout execution, and Source Keeper-aware movement.
 - Map/planner primitives including distance transform, Dijkstra maps, flood fill, terrain regions, and min-cut.
 - Console options for enabling and disabling base-plan visuals.
 
 The base planner currently covers the core layout, controller/upgrader area, resource endpoints and road tree, labs, structure slots, towers, outer ramparts, rampart access roads, and repair roads. Existing manually placed spawns are respected by the planner.
 
-Still under construction are completion of scout spawning/movement, Watch and Resource scouting, remotes, combat, empire resource coordination/market logic, and other late-game systems. A persistent mission framework is intentionally deferred until the first real cross-room mission requires it.
+Still under construction are Watch and Resource scouting, remotes, combat, empire resource coordination/market logic, and other late-game systems. A persistent mission framework is intentionally deferred until the first real cross-room mission requires it.
 
 ## Runtime flow
 
