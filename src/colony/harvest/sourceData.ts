@@ -46,6 +46,18 @@ export function createSourceData(
   }
 }
 
+export function getSourceContainer(data: SourceData): StructureContainer | undefined {
+  const pos = data.path[data.path.length - 1]
+
+  if (!pos || !Game.rooms[pos.roomName]) {
+    return
+  }
+
+  return pos
+    .lookFor(LOOK_STRUCTURES)
+    .find((structure): structure is StructureContainer => structure.structureType === STRUCTURE_CONTAINER)
+}
+
 function getMiningPositions(
   roomName: string,
   coordinate: RoomCoordinate,

@@ -1,7 +1,8 @@
 import { moveCreep, moveCreepByPath } from "../../capabilities/movement/movement"
 import type { LogisticsState } from "../logistics/logistics"
 import { registerEnergySupplier } from "../logistics/logistics"
-import { getSourceContainer, type SourceState } from "./harvest"
+import { type SourceState } from "./harvest"
+import { getSourceContainer } from "./sourceData"
 import { sourceDataStore } from "./sourceDataStore"
 
 export const HAULER_ROLE = "hauler"
@@ -186,7 +187,7 @@ function runFetch(hauler: Creep, sourceState: SourceState): void {
     return
   }
 
-  const container = getSourceContainer(sourceState)
+  const container = getSourceContainer(sourceState.data)
 
   if (container) {
     if (!hauler.pos.isNearTo(container)) {
@@ -312,7 +313,7 @@ function getAvailableEnergy(source: Source, sourceState: SourceState): number {
     }
   }
 
-  const container = getSourceContainer(sourceState)
+  const container = getSourceContainer(sourceState.data)
 
   if (container) {
     energy += container.store.getUsedCapacity(RESOURCE_ENERGY)
