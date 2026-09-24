@@ -33,11 +33,11 @@ function runColony(room: Room, context: TickContext): void {
 
   const construction = runConstruction(room, basePlan)
 
-  runTowers(room, logistics)
-
   runBuild(room, context, logistics, harvest.income, construction)
 
   runUpgrade(room, basePlan, context, logistics, harvest.income, construction)
+
+  runTowers(room, logistics)
 
   runLogistics(room, logistics)
 }
