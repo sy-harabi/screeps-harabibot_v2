@@ -2,6 +2,7 @@ import { PriorityQueue } from "../../utils/priorityQueue"
 import { getAdjacentRooms, getRoomManhattanDistance, isRoomReachable } from "../../world/map/roomTopology"
 import type { MoveGoal } from "./movement"
 import { getBaseRoomCostMatrix } from "./roomCostMatrix"
+import { getSourceKeeperCostMatrix } from "./sourceKeeperCosts"
 
 interface FindRouteOptions {
   maxRoomHops?: number
@@ -25,6 +26,9 @@ interface FindPathOptions {
 
   // PathFinder options
   maxRooms?: number
+
+  // custom options
+  avoidSourceKeepers?: boolean
 }
 
 const DEFAULT_MAX_ROOM_HOPS = 16
@@ -153,6 +157,7 @@ export function findPath(
     route = findRoute(origin.roomName, destinationRoomNames, options)
 
     if (route === undefined) {
+      console.log(`cannot find route from ${origin.roomName} to ${destinationRoomNames}`)
       return
     }
 
@@ -166,18 +171,17 @@ export function findPath(
     maxRooms: allowedRooms?.size ?? options.maxRooms,
     plainCost: 2,
     swampCost: 10,
+    maxOps: (allowedRooms?.size ?? 1) * 2000,
     roomCallback: (roomName: string) => {
       if (allowedRooms && !allowedRooms.has(roomName)) {
         return false
       }
 
-      return getBaseRoomCostMatrix(roomName) ?? true
+      const costs = options.avoidSourceKeepers ? getSourceKeeperCostMatrix(roomName) : getBaseRoomCostMatrix(roomName)
+
+      return costs ?? true
     },
   })
-
-  if (result.incomplete) {
-    return
-  }
 
   return result.path
 }

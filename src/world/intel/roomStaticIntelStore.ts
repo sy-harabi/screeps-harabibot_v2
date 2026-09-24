@@ -2,11 +2,7 @@ import { ROOM_INTEL_SEGMENT_IDS } from "../../persistence/segmentIds"
 import { segmentManager } from "../../persistence/segmentManager"
 import { runtimeRegistry } from "../../runtime/runtimeRegistry"
 import type { RoomStaticIntel } from "./roomIntel"
-import {
-  packRoomStaticIntel,
-  unpackRoomStaticIntel,
-  type PackedRoomStaticIntel,
-} from "./roomStaticIntelCodec"
+import { packRoomStaticIntel, unpackRoomStaticIntel, type PackedRoomStaticIntel } from "./roomStaticIntelCodec"
 
 interface RoomStaticIntelSegment {
   version: 1
@@ -97,10 +93,7 @@ function getLoadedSegment(segmentId: number): RoomStaticIntelSegment {
   return normalizeSegment(segmentId, result.value)
 }
 
-function normalizeSegment(
-  segmentId: number,
-  value: Partial<RoomStaticIntelSegment>,
-): RoomStaticIntelSegment {
+function normalizeSegment(segmentId: number, value: Partial<RoomStaticIntelSegment>): RoomStaticIntelSegment {
   if (value.version === undefined) {
     return {
       version: 1,

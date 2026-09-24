@@ -15,6 +15,9 @@ interface MoveOptions {
   // PathFinder options
   maxRooms?: number
 
+  // custom options
+  avoidSourceKeepers?: boolean
+
   // move options
   priority?: number
 }
@@ -51,7 +54,7 @@ export function moveCreep(creep: Creep, goals: MoveGoal | readonly MoveGoal[], o
   }
 
   const runtime = getMovementRuntime(creep.name)
-  const reconcileResult = reconcilePath(creep, runtime, normalizedGoals)
+  const reconcileResult = reconcilePath(creep, runtime, normalizedGoals, options)
 
   runtime.lastObservedPosition = creep.pos
 
@@ -68,7 +71,7 @@ export function moveCreep(creep: Creep, goals: MoveGoal | readonly MoveGoal[], o
       return "failed"
     }
 
-    setPath(runtime, path)
+    setPath(runtime, path, options)
   }
 
   const nextPos = getNextMovePosition(creep)
@@ -237,7 +240,12 @@ export function getNextMovePosition(creep: Creep): RoomPosition | undefined {
   return path[nextIndex]
 }
 
-function reconcilePath(creep: Creep, runtime: MovementRuntime, normalizedGoals: MoveGoal[]): PathReconcileResult {
+function reconcilePath(
+  creep: Creep,
+  runtime: MovementRuntime,
+  normalizedGoals: MoveGoal[],
+  options: MoveOptions,
+): PathReconcileResult {
   const path = runtime.cachedPath
   const nextIndex = runtime.nextPathIndex
 
@@ -247,6 +255,13 @@ function reconcilePath(creep: Creep, runtime: MovementRuntime, normalizedGoals: 
   }
 
   if (!pathMatchesGoals(path, normalizedGoals)) {
+    resetStuck(runtime)
+    return "repath"
+  }
+
+  const avoidSourceKeepers = options.avoidSourceKeepers === true
+
+  if (runtime.avoidSourceKeepers !== avoidSourceKeepers) {
     resetStuck(runtime)
     return "repath"
   }
@@ -306,9 +321,11 @@ function pathMatchesGoals(path: readonly RoomPosition[], goals: readonly MoveGoa
   return false
 }
 
-function setPath(runtime: MovementRuntime, path: readonly RoomPosition[]): void {
+function setPath(runtime: MovementRuntime, path: readonly RoomPosition[], options: MoveOptions): void {
   runtime.cachedPath = path
+  runtime.pathCreatedAt = Game.time
   runtime.nextPathIndex = 0
+  runtime.avoidSourceKeepers = options.avoidSourceKeepers === true
 }
 
 function clearPath(runtime: MovementRuntime): void {

@@ -38,6 +38,10 @@ export function fillAreaWithCreeps(
       continue
     }
 
+    if (creep.fatigue) {
+      continue
+    }
+
     let adjacent = false
 
     for (const offset of NEIGHBOR_OFFSETS) {

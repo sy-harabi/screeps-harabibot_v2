@@ -1,6 +1,8 @@
 import type { RoomCoordinate } from "../map/roomCoordinate"
 
 export interface RoomIntel {
+  readonly staticCreatedAt: number
+
   readonly roomName: string
   readonly lastSeen: number
 
@@ -24,6 +26,8 @@ export interface ControllerIntel extends ControllerStaticIntel {
 }
 
 export interface RoomStaticIntel {
+  readonly staticCreatedAt: number
+
   readonly sources: readonly SourceIntel[]
   readonly minerals: readonly MineralIntel[]
   readonly controller?: ControllerStaticIntel
@@ -54,6 +58,8 @@ export function mergeRoomIntel(
   return {
     roomName,
     lastSeen: dynamicIntel.lastSeen,
+
+    staticCreatedAt: staticIntel.staticCreatedAt,
     sources: staticIntel.sources,
     minerals: staticIntel.minerals,
     keeperLairs: staticIntel.keeperLairs,
@@ -124,6 +130,8 @@ export function createRoomStaticIntel(room: Room): RoomStaticIntel {
     }))
 
   return {
+    staticCreatedAt: Game.time,
+
     sources,
     minerals,
     controller: room.controller

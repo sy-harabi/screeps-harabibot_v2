@@ -203,6 +203,8 @@ export function unpackRoomStaticIntel(
   }
 
   return {
+    staticCreatedAt: Game.time,
+
     sources,
     minerals,
     controller,
@@ -257,7 +259,9 @@ function mergeIdLength(currentLength: number, id: string): number {
   }
 
   if (currentLength !== 0 && id.length !== currentLength) {
-    throw new Error(`Screeps object ids have inconsistent lengths within room static intel: ${currentLength} and ${id.length}`)
+    throw new Error(
+      `Screeps object ids have inconsistent lengths within room static intel: ${currentLength} and ${id.length}`,
+    )
   }
 
   return id.length

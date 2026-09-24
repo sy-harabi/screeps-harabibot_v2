@@ -2,6 +2,7 @@ import { runtimeRegistry } from "../../runtime/runtimeRegistry"
 
 export interface MovementRuntime {
   cachedPath?: readonly RoomPosition[]
+  pathCreatedAt?: number
   nextPathIndex?: number
   lastObservedPosition?: RoomPosition
   stuckTicks?: number
@@ -9,6 +10,7 @@ export interface MovementRuntime {
   stuckRepathAttempted?: boolean
 
   knownPathIndex?: number
+  avoidSourceKeepers?: boolean
 }
 
 const movementRuntimes = runtimeRegistry.createCache<string, MovementRuntime>("movement.creeps", {
