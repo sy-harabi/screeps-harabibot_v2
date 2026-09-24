@@ -2,13 +2,17 @@ import type { BasePlan } from "../../capabilities/basePlanning/basePlan"
 import { fillAreaWithCreeps } from "../../capabilities/movement/fillAreaWithCreeps"
 import { setWorkingArea } from "../../capabilities/movement/traffic"
 import { requestSpawn } from "../../capabilities/spawning/spawnQueue"
-import { getColonyCreeps, type TickContext } from "../../kernel/tickContext"
+import {
+  getColonyCreeps,
+  getColonyEnergyState,
+  type ColonyEnergyState,
+  type TickContext,
+} from "../../kernel/tickContext"
 import { runtimeRegistry } from "../../runtime/runtimeRegistry"
 import type { RoomCoordinate } from "../../world/map/roomCoordinate"
 import { toRoomIndex } from "../../world/map/roomGrid"
 import { getStructuresByType } from "../../world/roomStructures"
 import { type ConstructionState } from "../build/construction"
-import { ENERGY_RESERVE_BY_RCL, type ColonyEnergyState } from "../colonyManager"
 import { ENERGY_REQUEST_PRIORITY, requestEnergy, type LogisticsState } from "../logistics/logistics"
 import { createUpgraderBody, UPGRADER_ROLE } from "./upgrader"
 
@@ -21,6 +25,14 @@ interface UpgradeLayout {
   readonly area: readonly RoomCoordinate[]
   readonly rootPositions: ReadonlySet<number>
   readonly nextByPosition: ReadonlyMap<number, number>
+}
+
+const ENERGY_RESERVE_BY_RCL: Partial<Record<number, number>> = {
+  4: 20_000,
+  5: 30_000,
+  6: 60_000,
+  7: 100_000,
+  8: 200_000,
 }
 
 const upgradeRuntimes = runtimeRegistry.createCache<string, UpgradeRuntime>("upgrade.colonies", {
@@ -41,7 +53,6 @@ export function runUpgrade(
   logistics: LogisticsState,
   income: number,
   construction: ConstructionState,
-  energy: ColonyEnergyState,
 ): void {
   const colonyName = room.name
   const controller = room.controller
@@ -87,6 +98,7 @@ export function runUpgrade(
 
   fillAreaWithCreeps(colonyName, fillArea, spawnedUpgraders)
 
+  const energy = getColonyEnergyState(context, colonyName)
   const targetWork = getTargetUpgradeWork(room, income, energy)
 
   if (!construction.active && effectiveWork < targetWork && effectiveUpgraders < layout.area.length) {
