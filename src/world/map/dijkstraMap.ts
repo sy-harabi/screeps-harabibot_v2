@@ -4,8 +4,8 @@ import { fromRoomIndex, isInsideRoom, NEIGHBOR_OFFSETS, ROOM_AREA, toRoomIndex }
 
 /**
  * Builds minimum-cost distances from multiple starts.
- * `getCost` must return a non-negative cost for entering a tile.
- * Walls and tiles rejected by `canVisit` are unreachable.
+ * Start coordinates may be on wall terrain.
+ * Traversed tiles must be walkable and satisfy `canVisit`.
  * Unreachable tiles have distance -1.
  */
 export function dijkstraMap(
