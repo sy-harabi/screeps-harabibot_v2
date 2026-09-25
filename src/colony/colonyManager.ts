@@ -7,18 +7,18 @@ import { runBuild } from "./build/build"
 import { runConstruction } from "./build/construction"
 import { runHarvest } from "./harvest/harvest"
 import { ensureOwnedSources } from "./harvest/ownedSources"
-import { refreshRemoteSources } from "./harvest/remoteMining"
+import { initializeColonyRemotes } from "./harvest/remoteMining"
 import { createLogisticsState, runLogistics } from "./logistics/logistics"
 import { runTowers } from "./tower/tower"
 import { runUpgrade } from "./upgrade/upgrade"
 
-export function runColonies(context: TickContext, newlyObservedRooms: readonly string[]): void {
+export function runColonies(context: TickContext): void {
   for (const room of context.ownedRooms.values()) {
-    runColony(room, context, newlyObservedRooms)
+    runColony(room, context)
   }
 }
 
-function runColony(room: Room, context: TickContext, newlyObservedRooms: readonly string[]): void {
+function runColony(room: Room, context: TickContext): void {
   const basePlan = ensureBasePlan(room)
 
   if (!basePlan) {
@@ -32,7 +32,7 @@ function runColony(room: Room, context: TickContext, newlyObservedRooms: readonl
   const logistics = createLogisticsState()
 
   ensureOwnedSources(room, basePlan)
-  refreshRemoteSources(room, basePlan, newlyObservedRooms)
+  initializeColonyRemotes(room, basePlan)
 
   const harvest = runHarvest(room, context, logistics)
 
