@@ -21,7 +21,7 @@ export type PackedSourceData = readonly [
   sourceId: Id<Source>,
   roomName: string,
   miningPositions: readonly number[],
-  ownedPath?: PackedPath,
+  ownedPath?: PackedPath | null,
 ]
 
 export function createSourceData(
@@ -60,12 +60,13 @@ export function createHarvestSourceData(
 }
 
 export function packSourceData(sourceData: SourceData): PackedSourceData {
-  return [
+  const packed = [
     sourceData.sourceId,
     sourceData.roomName,
     sourceData.miningPositions.map((pos) => toRoomIndex(pos.x, pos.y)),
-    sourceData.ownedPath === undefined ? undefined : packPath(sourceData.ownedPath),
-  ]
+  ] as const
+
+  return sourceData.ownedPath === undefined ? packed : [...packed, packPath(sourceData.ownedPath)]
 }
 
 export function unpackSourceData(packed: PackedSourceData): SourceData {
@@ -78,7 +79,7 @@ export function unpackSourceData(packed: PackedSourceData): SourceData {
       const coordinate = fromRoomIndex(index)
       return new RoomPosition(coordinate.x, coordinate.y, roomName)
     }),
-    ownedPath: packed[3] === undefined ? undefined : unpackPath(packed[3]),
+    ownedPath: packed[3] == null ? undefined : unpackPath(packed[3]),
   }
 }
 

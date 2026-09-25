@@ -106,6 +106,8 @@ export function runHarvest(room: Room, context: TickContext, logistics: Logistic
       continue
     }
 
+    const priorityType = sourceState.data.roomName === colonyName ? "ownedSource" : "remoteSource"
+
     sourceState.carryCapacity = Math.min(sourceState.requiredCarryCapacity, carryCapacityLeft)
     carryCapacityLeft -= sourceState.carryCapacity
 
@@ -134,7 +136,7 @@ export function runHarvest(room: Room, context: TickContext, logistics: Logistic
           requesterId,
           spawnRoomName: colonyName,
           assignment,
-          priorityType: "ownedSource",
+          priorityType,
           order: sourceState.data.path.length,
           rolesByPriority: ROLES_BY_PRIORITY,
         },
@@ -148,7 +150,7 @@ export function runHarvest(room: Room, context: TickContext, logistics: Logistic
           requesterId,
           spawnRoomName: colonyName,
           assignment,
-          priorityType: "ownedSource",
+          priorityType,
           order: sourceState.data.path.length,
           rolesByPriority: ROLES_BY_PRIORITY,
         },

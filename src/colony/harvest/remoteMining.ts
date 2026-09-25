@@ -19,9 +19,13 @@ import { sourceDataStore } from "./sourceDataStore"
 
 const obstacleObjectTypes = new Set<string>(OBSTACLE_OBJECT_TYPES)
 
-interface RemoteCandidate {
-  readonly data: RemoteRoomData
+interface RemoteCandidateScore {
+  readonly roomHops: number
   readonly totalDistance: number
+}
+
+interface RemoteCandidate extends RemoteCandidateScore {
+  readonly data: RemoteRoomData
 }
 
 interface ColonyRouteCandidate {
@@ -96,12 +100,18 @@ export function initializeColonyRemotes(room: Room, basePlan: BasePlan, context:
         continue
       }
 
-      if (
-        existing !== undefined &&
-        context.ownedRooms.has(existing.colonyName) &&
-        getRemoteTotalDistance(existing) <= candidate.totalDistance
-      ) {
-        continue
+      if (existing !== undefined && context.ownedRooms.has(existing.colonyName)) {
+        const existingRoute = findRemoteRoute(existing.colonyName, remoteRoomName)
+
+        if (
+          existingRoute !== undefined &&
+          compareRemoteCandidateScores(candidate, {
+            roomHops: existingRoute.length - 1,
+            totalDistance: getRemoteTotalDistance(existing),
+          }) >= 0
+        ) {
+          continue
+        }
       }
 
       replaceRemote(existing, candidate.data)
@@ -168,7 +178,6 @@ function isRemoteAssignmentValid(data: RemoteRoomData, intel: RoomIntel, context
 function assignRemoteRoom(intel: RoomIntel, context: TickContext): void {
   const routeCandidates: ColonyRouteCandidate[] = []
   const roomsByDepth = getRoomsByDepth(intel.roomName, MAX_REMOTE_DEPTH)
-  let minRouteDistance = Infinity
 
   for (let depth = 1; depth <= MAX_REMOTE_DEPTH; depth++) {
     for (const roomName of roomsByDepth[depth]) {
@@ -190,33 +199,30 @@ function assignRemoteRoom(intel: RoomIntel, context: TickContext): void {
         continue
       }
 
-      const routeDistance = route.length - 1
-
-      if (routeDistance < minRouteDistance) {
-        minRouteDistance = routeDistance
-        routeCandidates.length = 0
-      }
-
-      if (routeDistance === minRouteDistance) {
-        routeCandidates.push({
-          room,
-          basePlan: basePlanResult.value,
-          route,
-        })
-      }
+      routeCandidates.push({
+        room,
+        basePlan: basePlanResult.value,
+        route,
+      })
     }
   }
+
+  routeCandidates.sort((left, right) => left.route.length - right.route.length)
 
   let best: RemoteCandidate | undefined
 
   for (const candidate of routeCandidates) {
+    if (best !== undefined && candidate.route.length - 1 > best.roomHops) {
+      break
+    }
+
     const remoteCandidate = createRemoteCandidate(candidate.room, candidate.basePlan, intel, candidate.route)
 
     if (remoteCandidate === undefined) {
       continue
     }
 
-    if (best === undefined || remoteCandidate.totalDistance < best.totalDistance) {
+    if (best === undefined || compareRemoteCandidateScores(remoteCandidate, best) < 0) {
       best = remoteCandidate
     }
   }
@@ -227,6 +233,10 @@ function assignRemoteRoom(intel: RoomIntel, context: TickContext): void {
 
   remoteRoomDataStore.set(best.data)
   invalidateHarvestRuntime(best.data.colonyName)
+}
+
+function compareRemoteCandidateScores(left: RemoteCandidateScore, right: RemoteCandidateScore): number {
+  return left.roomHops - right.roomHops || left.totalDistance - right.totalDistance
 }
 
 function createRemoteCandidate(
@@ -254,6 +264,7 @@ function createRemoteCandidate(
 
   return {
     data: createRemoteRoomData(intel.roomName, room.name, sources),
+    roomHops: route.length - 1,
     totalDistance,
   }
 }
