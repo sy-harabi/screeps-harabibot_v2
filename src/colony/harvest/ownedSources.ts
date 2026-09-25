@@ -1,5 +1,6 @@
 import type { BasePlan } from "../../capabilities/basePlanning/basePlan"
 import type { RoomCoordinate } from "../../world/map/roomCoordinate"
+import { invalidateHarvestRuntime } from "./harvestRuntime"
 import { createSourceData } from "./sourceData"
 import { sourceDataStore } from "./sourceDataStore"
 
@@ -8,16 +9,22 @@ export function ensureOwnedSources(room: Room, basePlan: BasePlan): void {
     return
   }
 
+  let added = false
+
   for (const source of room.find(FIND_SOURCES)) {
-    ensureOwnedSource(source, basePlan)
+    added = ensureOwnedSource(source, basePlan) || added
+  }
+
+  if (added) {
+    invalidateHarvestRuntime(room.name)
   }
 }
 
-function ensureOwnedSource(source: Source, basePlan: BasePlan): void {
+function ensureOwnedSource(source: Source, basePlan: BasePlan): boolean {
   const result = sourceDataStore.get(source.id)
 
   if (result.status !== "missing") {
-    return
+    return false
   }
 
   const container = basePlan.structures.find(
@@ -28,13 +35,13 @@ function ensureOwnedSource(source: Source, basePlan: BasePlan): void {
   )
 
   if (!container) {
-    return
+    return false
   }
 
   const path = findSourcePath(basePlan, container.coordinate)
 
   if (!path) {
-    return
+    return false
   }
 
   sourceDataStore.set(
@@ -49,6 +56,8 @@ function ensureOwnedSource(source: Source, basePlan: BasePlan): void {
       path,
     ),
   )
+
+  return true
 }
 
 function findSourcePath(basePlan: BasePlan, target: RoomCoordinate): RoomPosition[] | undefined {
