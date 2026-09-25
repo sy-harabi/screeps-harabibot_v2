@@ -1,10 +1,9 @@
 import { type BasePlan } from "../../capabilities/basePlanning/basePlan"
 import { findRoute } from "../../capabilities/movement/navigator"
 import { getBaseRoomCostMatrix } from "../../capabilities/movement/roomCostMatrix"
-import { runtimeRegistry } from "../../runtime/runtimeRegistry"
 import { getExploreRoomsByDepth } from "../../scouting/explore"
 import { intelStore } from "../../world/intel/intelStore"
-import { type SourceIntel, type RoomIntel } from "../../world/intel/roomIntel"
+import { type RoomIntel, type SourceIntel } from "../../world/intel/roomIntel"
 import { getRoomType } from "../../world/map/roomTopology"
 import { invalidateHarvestRuntime } from "./harvestRuntime"
 import { createSourceData, type SourceData } from "./sourceData"
@@ -22,32 +21,51 @@ interface RemoteCandidate {
   readonly totalDistance: number
 }
 
-const REMOTE_CHECK_INTERVAL = 1500
 const MAX_REMOTE_DEPTH = 4
 const MAX_REMOTE_DISTANCE = 200
 
-const nextCheckByColony = runtimeRegistry.createCache<string, number>("harvest.remoteChecks")
+const initializedColonies = new Set<string>()
 
-export function refreshRemoteSources(room: Room, basePlan: BasePlan): void {
+export function refreshRemoteSources(
+  room: Room,
+  basePlan: BasePlan,
+  newlyObservedRooms: readonly string[],
+): void {
   if (!sourceDataStore.isReady() || !intelStore.isReady()) {
     return
   }
 
-  const nextCheckTick = nextCheckByColony.get(room.name) ?? 0
+  const roomsByDepth = getExploreRoomsByDepth(room.name)
 
-  if (Game.time < nextCheckTick) {
+  if (!initializedColonies.has(room.name)) {
+    initializedColonies.add(room.name)
+
+    for (let depth = 1; depth <= MAX_REMOTE_DEPTH; depth++) {
+      for (const roomName of roomsByDepth[depth]) {
+        checkRemoteRoom(room, basePlan, roomName)
+      }
+    }
+
     return
   }
 
-  nextCheckByColony.set(room.name, Game.time + REMOTE_CHECK_INTERVAL)
+  for (const roomName of newlyObservedRooms) {
+    if (!isWithinRemoteDepth(roomsByDepth, roomName)) {
+      continue
+    }
 
-  const roomsByDepth = getExploreRoomsByDepth(room.name)
+    checkRemoteRoom(room, basePlan, roomName)
+  }
+}
 
+function isWithinRemoteDepth(roomsByDepth: readonly (readonly string[])[], roomName: string): boolean {
   for (let depth = 1; depth <= MAX_REMOTE_DEPTH; depth++) {
-    for (const roomName of roomsByDepth[depth]) {
-      checkRemoteRoom(room, basePlan, roomName)
+    if (roomsByDepth[depth].includes(roomName)) {
+      return true
     }
   }
+
+  return false
 }
 
 function checkRemoteRoom(room: Room, basePlan: BasePlan, remoteRoomName: string): void {
@@ -118,7 +136,6 @@ function getExistingRemote(intel: RoomIntel): ExistingRemote | undefined {
     if (colonyName === undefined) {
       colonyName = data.colonyName
     } else if (data.colonyName !== colonyName) {
-      // inconsistent old data
       return
     }
 
@@ -190,7 +207,6 @@ function findRemoteSourcePath(
         }
 
         const base = getBaseRoomCostMatrix(roomName)
-
         const costs = base?.clone() ?? new PathFinder.CostMatrix()
 
         if (roomName === room.name) {
@@ -238,9 +254,5 @@ function canRouteRemoteThrough(roomName: string, fromRoomName: string): boolean 
 
   const intel = intelStore.get(roomName)
 
-  if (!intel?.controller?.owner) {
-    return true
-  }
-
-  return false
+  return !intel?.controller?.owner
 }
