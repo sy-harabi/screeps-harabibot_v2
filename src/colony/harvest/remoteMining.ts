@@ -1,6 +1,8 @@
 import { type BasePlan } from "../../capabilities/basePlanning/basePlan"
+import { basePlanStore } from "../../capabilities/basePlanning/basePlanStore"
 import { findRoute } from "../../capabilities/movement/navigator"
 import { getBaseRoomCostMatrix } from "../../capabilities/movement/roomCostMatrix"
+import { type TickContext } from "../../kernel/tickContext"
 import { getExploreRoomsByDepth } from "../../scouting/explore"
 import { intelStore } from "../../world/intel/intelStore"
 import { type RoomIntel, type SourceIntel } from "../../world/intel/roomIntel"
@@ -26,35 +28,41 @@ const MAX_REMOTE_DISTANCE = 200
 
 const initializedColonies = new Set<string>()
 
-export function refreshRemoteSources(
-  room: Room,
-  basePlan: BasePlan,
-  newlyObservedRooms: readonly string[],
-): void {
+export function initializeRemoteRoom(remoteRoomName: string, context: TickContext): void {
   if (!sourceDataStore.isReady() || !intelStore.isReady()) {
     return
   }
 
-  const roomsByDepth = getExploreRoomsByDepth(room.name)
+  for (const room of context.ownedRooms.values()) {
+    const roomsByDepth = getExploreRoomsByDepth(room.name)
 
-  if (!initializedColonies.has(room.name)) {
-    initializedColonies.add(room.name)
-
-    for (let depth = 1; depth <= MAX_REMOTE_DEPTH; depth++) {
-      for (const roomName of roomsByDepth[depth]) {
-        checkRemoteRoom(room, basePlan, roomName)
-      }
-    }
-
-    return
-  }
-
-  for (const roomName of newlyObservedRooms) {
-    if (!isWithinRemoteDepth(roomsByDepth, roomName)) {
+    if (!isWithinRemoteDepth(roomsByDepth, remoteRoomName)) {
       continue
     }
 
-    checkRemoteRoom(room, basePlan, roomName)
+    const basePlanResult = basePlanStore.get(room.name)
+
+    if (basePlanResult.status !== "ready") {
+      continue
+    }
+
+    checkRemoteRoom(room, basePlanResult.value, remoteRoomName)
+  }
+}
+
+export function initializeColonyRemotes(room: Room, basePlan: BasePlan): void {
+  if (!sourceDataStore.isReady() || !intelStore.isReady() || initializedColonies.has(room.name)) {
+    return
+  }
+
+  initializedColonies.add(room.name)
+
+  const roomsByDepth = getExploreRoomsByDepth(room.name)
+
+  for (let depth = 1; depth <= MAX_REMOTE_DEPTH; depth++) {
+    for (const roomName of roomsByDepth[depth]) {
+      checkRemoteRoom(room, basePlan, roomName)
+    }
   }
 }
 
