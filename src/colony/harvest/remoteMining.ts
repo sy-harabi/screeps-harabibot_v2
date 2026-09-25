@@ -3,10 +3,9 @@ import { basePlanStore } from "../../capabilities/basePlanning/basePlanStore"
 import { findRoute } from "../../capabilities/movement/navigator"
 import { getBaseRoomCostMatrix } from "../../capabilities/movement/roomCostMatrix"
 import { type TickContext } from "../../kernel/tickContext"
-import { getExploreRoomsByDepth } from "../../scouting/explore"
 import { intelStore } from "../../world/intel/intelStore"
 import { type RoomIntel, type SourceIntel } from "../../world/intel/roomIntel"
-import { getRoomType } from "../../world/map/roomTopology"
+import { getRoomsByDepth, getRoomType } from "../../world/map/roomTopology"
 import { invalidateHarvestRuntime } from "./harvestRuntime"
 import { createSourceData, type SourceData } from "./sourceData"
 import { sourceDataStore } from "./sourceDataStore"
@@ -33,20 +32,24 @@ export function initializeRemoteRoom(remoteRoomName: string, context: TickContex
     return
   }
 
-  for (const room of context.ownedRooms.values()) {
-    const roomsByDepth = getExploreRoomsByDepth(room.name)
+  const roomsByDepth = getRoomsByDepth(remoteRoomName, MAX_REMOTE_DEPTH)
 
-    if (!isWithinRemoteDepth(roomsByDepth, remoteRoomName)) {
-      continue
+  for (let depth = 1; depth <= MAX_REMOTE_DEPTH; depth++) {
+    for (const roomName of roomsByDepth[depth]) {
+      const room = context.ownedRooms.get(roomName)
+
+      if (room === undefined) {
+        continue
+      }
+
+      const basePlanResult = basePlanStore.get(roomName)
+
+      if (basePlanResult.status !== "ready") {
+        continue
+      }
+
+      checkRemoteRoom(room, basePlanResult.value, remoteRoomName)
     }
-
-    const basePlanResult = basePlanStore.get(room.name)
-
-    if (basePlanResult.status !== "ready") {
-      continue
-    }
-
-    checkRemoteRoom(room, basePlanResult.value, remoteRoomName)
   }
 }
 
@@ -57,23 +60,13 @@ export function initializeColonyRemotes(room: Room, basePlan: BasePlan): void {
 
   initializedColonies.add(room.name)
 
-  const roomsByDepth = getExploreRoomsByDepth(room.name)
+  const roomsByDepth = getRoomsByDepth(room.name, MAX_REMOTE_DEPTH)
 
   for (let depth = 1; depth <= MAX_REMOTE_DEPTH; depth++) {
     for (const roomName of roomsByDepth[depth]) {
       checkRemoteRoom(room, basePlan, roomName)
     }
   }
-}
-
-function isWithinRemoteDepth(roomsByDepth: readonly (readonly string[])[], roomName: string): boolean {
-  for (let depth = 1; depth <= MAX_REMOTE_DEPTH; depth++) {
-    if (roomsByDepth[depth].includes(roomName)) {
-      return true
-    }
-  }
-
-  return false
 }
 
 function checkRemoteRoom(room: Room, basePlan: BasePlan, remoteRoomName: string): void {
