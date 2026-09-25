@@ -11,13 +11,13 @@ import { createLogisticsState, runLogistics } from "./logistics/logistics"
 import { runTowers } from "./tower/tower"
 import { runUpgrade } from "./upgrade/upgrade"
 
-export function runColonies(context: TickContext): void {
+export function runColonies(context: TickContext, newlyObservedRooms: readonly string[]): void {
   for (const room of context.ownedRooms.values()) {
-    runColony(room, context)
+    runColony(room, context, newlyObservedRooms)
   }
 }
 
-function runColony(room: Room, context: TickContext): void {
+function runColony(room: Room, context: TickContext, newlyObservedRooms: readonly string[]): void {
   const basePlan = ensureBasePlan(room)
 
   if (!basePlan) {
@@ -30,7 +30,7 @@ function runColony(room: Room, context: TickContext): void {
 
   const logistics = createLogisticsState()
 
-  refreshRemoteSources(room, basePlan)
+  refreshRemoteSources(room, basePlan, newlyObservedRooms)
 
   const harvest = runHarvest(room, basePlan, context, logistics)
 
