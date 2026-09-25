@@ -1,13 +1,11 @@
-import type { BasePlan } from "../../capabilities/basePlanning/basePlan"
 import { estimatePathTravelTicks } from "../../capabilities/movement/travelTime"
 import { requestSpawn } from "../../capabilities/spawning/spawnQueue"
 import { getColonyCreeps, type TickContext } from "../../kernel/tickContext"
-import type { RoomCoordinate } from "../../world/map/roomCoordinate"
 import type { LogisticsState } from "../logistics/logistics"
 import { createHaulerBody, HAULER_ROLE, runHaulers } from "./hauler"
 import { getHarvestRuntime } from "./harvestRuntime"
 import { createMinerBody, MINER_ROLE, runMiners } from "./miner"
-import { createSourceData, getSourceContainer, type SourceData } from "./sourceData"
+import { getSourceContainer, type SourceData } from "./sourceData"
 import { sourceDataStore } from "./sourceDataStore"
 import { getSourceEconomy } from "./sourceEconomy"
 
@@ -35,12 +33,7 @@ export interface HarvestResult {
 
 const ROLES_BY_PRIORITY = [MINER_ROLE, HAULER_ROLE]
 
-export function runHarvest(
-  room: Room,
-  basePlan: BasePlan,
-  context: TickContext,
-  logistics: LogisticsState,
-): HarvestResult {
+export function runHarvest(room: Room, context: TickContext, logistics: LogisticsState): HarvestResult {
   if (!sourceDataStore.isReady()) {
     return {
       income: 0,
@@ -50,12 +43,7 @@ export function runHarvest(
   }
 
   const colonyName = room.name
-  const sourceDataById = ensureColonySourceData(room, basePlan)
-
-  if (sourceDataById === undefined) {
-    return { income: 0, maxIncome: 0, spawnUsage: 0 }
-  }
-
+  const sourceDataById = sourceDataStore.getByColony(colonyName)
   const sourceOrder = getSourceOrder(colonyName, sourceDataById)
   const sourceStateById = new Map<Id<Source>, SourceState>()
   const miners = getColonyCreeps(context, colonyName, MINER_ROLE)
@@ -226,19 +214,6 @@ function ensureSourceState(
   return sourceState
 }
 
-function ensureColonySourceData(
-  room: Room,
-  basePlan: BasePlan,
-): ReadonlyMap<Id<Source>, SourceData> | undefined {
-  for (const source of room.find(FIND_SOURCES)) {
-    if (ensureOwnedSourceData(source, basePlan) === undefined) {
-      return
-    }
-  }
-
-  return sourceDataStore.getByColony(room.name)
-}
-
 function getSourceOrder(colonyName: string, sourceDataById: ReadonlyMap<Id<Source>, SourceData>): Id<Source>[] {
   const runtime = getHarvestRuntime(colonyName)
 
@@ -247,88 +222,19 @@ function getSourceOrder(colonyName: string, sourceDataById: ReadonlyMap<Id<Sourc
   }
 
   const sourceOrder = [...sourceDataById.values()]
-    .sort((left, right) => left.path.length - right.path.length)
+    .sort((left, right) => {
+      const leftOwned = left.roomName === left.colonyName
+      const rightOwned = right.roomName === right.colonyName
+
+      if (leftOwned !== rightOwned) {
+        return leftOwned ? -1 : 1
+      }
+
+      return left.path.length - right.path.length
+    })
     .map((sourceData) => sourceData.sourceId)
 
   runtime.sourceOrder = sourceOrder
 
   return sourceOrder
-}
-
-function ensureOwnedSourceData(source: Source, basePlan: BasePlan): SourceData | undefined {
-  const result = sourceDataStore.get(source.id)
-
-  if (result.status === "ready") {
-    return result.value
-  }
-
-  if (result.status === "loading") {
-    return
-  }
-
-  const container = basePlan.structures.find(
-    (structure) =>
-      structure.structureType === STRUCTURE_CONTAINER &&
-      structure.tag?.kind === "source" &&
-      structure.tag?.id === source.id,
-  )
-
-  if (!container) {
-    return
-  }
-
-  const path = findSourcePath(basePlan, container.coordinate)
-
-  if (!path) {
-    return
-  }
-
-  const sourceData = createSourceData(
-    source.id,
-    source.room.name,
-    {
-      x: source.pos.x,
-      y: source.pos.y,
-    },
-    basePlan.roomName,
-    path,
-  )
-
-  sourceDataStore.set(sourceData)
-
-  return sourceData
-}
-
-function findSourcePath(basePlan: BasePlan, target: RoomCoordinate): RoomPosition[] | undefined {
-  const result = PathFinder.search(
-    new RoomPosition(basePlan.storage.x, basePlan.storage.y, basePlan.roomName),
-    {
-      pos: new RoomPosition(target.x, target.y, basePlan.roomName),
-      range: 0,
-    },
-    {
-      plainCost: 255,
-      swampCost: 255,
-      maxRooms: 1,
-      roomCallback: () => {
-        const costs = new PathFinder.CostMatrix()
-
-        for (const structure of basePlan.structures) {
-          if (structure.structureType === STRUCTURE_ROAD) {
-            costs.set(structure.coordinate.x, structure.coordinate.y, 1)
-          }
-        }
-
-        costs.set(target.x, target.y, 1)
-
-        return costs
-      },
-    },
-  )
-
-  if (result.incomplete) {
-    return
-  }
-
-  return result.path
 }
