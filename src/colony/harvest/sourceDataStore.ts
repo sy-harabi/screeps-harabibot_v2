@@ -17,6 +17,10 @@ export type SourceDataReadResult =
 
 const sourceDataCache = runtimeRegistry.createCache<Id<Source>, SourceData>("sourceData")
 
+const sourceDataByColony = new Map<string, Map<Id<Source>, SourceData>>()
+
+const EMPTY_SOURCE_MAP = new Map<Id<Source>, SourceData>()
+
 export const sourceDataStore = {
   pretick,
   isReady,
@@ -32,15 +36,43 @@ function pretick(): void {
     return
   }
 
-  ready = true
+  const segments: SourceDataSegment[] = []
 
   for (const segmentId of SOURCE_DATA_SEGMENT_IDS) {
     const result = segmentManager.getSegment<SourceDataSegment>(segmentId)
 
     if (result.status === "loading") {
-      ready = false
+      return
+    }
+
+    segments.push(result.value)
+  }
+
+  for (const segment of segments) {
+    for (const packed of Object.values(getPackedSourceDataMap(segment))) {
+      const sourceData = unpackSourceData(packed)
+
+      sourceDataCache.set(sourceData.sourceId, sourceData)
+      addToColonyIndex(sourceData)
     }
   }
+
+  ready = true
+}
+
+function getByColony(colonyName: string): ReadonlyMap<Id<Source>, SourceData> {
+  return sourceDataByColony.get(colonyName) ?? EMPTY_SOURCE_MAP
+}
+
+function addToColonyIndex(sourceData: SourceData): void {
+  let sources = sourceDataByColony.get(sourceData.colonyName)
+
+  if (sources === undefined) {
+    sources = new Map()
+    sourceDataByColony.set(sourceData.colonyName, sources)
+  }
+
+  sources.set(sourceData.sourceId, sourceData)
 }
 
 function isReady(): boolean {
@@ -67,11 +99,15 @@ function get(sourceId: Id<Source>): SourceDataReadResult {
     return { status: "missing" }
   }
 
-  const sourceData = createSourceData(packed[0], packed[1], fromRoomIndex(packed[2]), packed[3], unpackPath(packed[4]))
+  const sourceData = unpackSourceData(packed)
 
   sourceDataCache.set(sourceId, sourceData)
 
   return { status: "ready", value: sourceData }
+}
+
+function unpackSourceData(packed: PackedSourceData): SourceData {
+  return createSourceData(packed[0], packed[1], fromRoomIndex(packed[2]), packed[3], unpackPath(packed[4]))
 }
 
 function set(sourceData: SourceData): void {
