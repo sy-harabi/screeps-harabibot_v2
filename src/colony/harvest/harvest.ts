@@ -50,7 +50,7 @@ export function runHarvest(
   }
 
   const colonyName = room.name
-  const sourceDataById = ensureSourceDataById(room, basePlan)
+  const sourceDataById = ensureColonySourceData(room, basePlan)
 
   if (sourceDataById === undefined) {
     return { income: 0, maxIncome: 0, spawnUsage: 0 }
@@ -193,7 +193,7 @@ function getMinerReplacementLeadTime(miner: Creep, path: readonly RoomPosition[]
 }
 
 function ensureSourceState(
-  sourceDataById: Map<Id<Source>, SourceData>,
+  sourceDataById: ReadonlyMap<Id<Source>, SourceData>,
   sourceStateById: Map<Id<Source>, SourceState>,
   sourceId: Id<Source>,
 ): SourceState | undefined {
@@ -226,36 +226,20 @@ function ensureSourceState(
   return sourceState
 }
 
-function ensureSourceDataById(room: Room, basePlan: BasePlan): Map<Id<Source>, SourceData> | undefined {
-  const runtime = getHarvestRuntime(room.name)
-
-  if (runtime.sourceDataById !== undefined) {
-    return runtime.sourceDataById
-  }
-
-  const sourceDataById = new Map<Id<Source>, SourceData>()
-  let sourceReady = true
-
+function ensureColonySourceData(
+  room: Room,
+  basePlan: BasePlan,
+): ReadonlyMap<Id<Source>, SourceData> | undefined {
   for (const source of room.find(FIND_SOURCES)) {
-    const sourceData = ensureOwnedSourceData(source, basePlan)
-
-    if (sourceData === undefined) {
-      sourceReady = false
-      continue
+    if (ensureOwnedSourceData(source, basePlan) === undefined) {
+      return
     }
-
-    sourceDataById.set(source.id, sourceData)
   }
 
-  if (!sourceReady) {
-    return
-  }
-
-  runtime.sourceDataById = sourceDataById
-  return sourceDataById
+  return sourceDataStore.getByColony(room.name)
 }
 
-function getSourceOrder(colonyName: string, sourceDataById: Map<Id<Source>, SourceData>): Id<Source>[] {
+function getSourceOrder(colonyName: string, sourceDataById: ReadonlyMap<Id<Source>, SourceData>): Id<Source>[] {
   const runtime = getHarvestRuntime(colonyName)
 
   if (runtime.sourceOrder !== undefined) {
