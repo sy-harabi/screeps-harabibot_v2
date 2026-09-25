@@ -1,11 +1,8 @@
 import { runtimeRegistry } from "../../runtime/runtimeRegistry"
-import type { SourceData } from "./sourceData"
 import type { SourceEconomy } from "./sourceEconomy"
 
 export interface HarvestRuntime {
-  sourceDataById?: Map<Id<Source>, SourceData>
   sourceOrder?: Id<Source>[]
-
   sourceEconomyById?: Map<Id<Source>, SourceEconomy>
 }
 
@@ -29,4 +26,8 @@ export function getHarvestRuntime(colonyName: string): HarvestRuntime {
   }
 
   return runtime
+}
+
+export function invalidateHarvestRuntime(colonyName: string): void {
+  harvestRuntimes.delete(colonyName)
 }
