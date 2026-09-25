@@ -5,14 +5,15 @@ import type { LogisticsState } from "../logistics/logistics"
 import { createHaulerBody, HAULER_ROLE, runHaulers } from "./hauler"
 import { getHarvestRuntime } from "./harvestRuntime"
 import { createMinerBody, MINER_ROLE, runMiners } from "./miner"
-import { getSourceContainer, type SourceData } from "./sourceData"
+import { remoteRoomDataStore } from "./remoteRoomDataStore"
+import { createHarvestSourceData, getSourceContainer, type HarvestSourceData } from "./sourceData"
 import { sourceDataStore } from "./sourceDataStore"
 import { getSourceEconomy } from "./sourceEconomy"
 
 const SOURCE_CONTAINER_REPAIR_THRESHOLD = 150_000
 
 export interface SourceState {
-  readonly data: SourceData
+  readonly data: HarvestSourceData
 
   harvestPower: number
   harvestingPower: number
@@ -34,7 +35,7 @@ export interface HarvestResult {
 const ROLES_BY_PRIORITY = [MINER_ROLE, HAULER_ROLE]
 
 export function runHarvest(room: Room, context: TickContext, logistics: LogisticsState): HarvestResult {
-  if (!sourceDataStore.isReady()) {
+  if (!sourceDataStore.isReady() || !remoteRoomDataStore.isReady()) {
     return {
       income: 0,
       maxIncome: 0,
@@ -43,7 +44,7 @@ export function runHarvest(room: Room, context: TickContext, logistics: Logistic
   }
 
   const colonyName = room.name
-  const sourceDataById = sourceDataStore.getByColony(colonyName)
+  const sourceDataById = getHarvestSourceDataById(colonyName)
   const sourceOrder = getSourceOrder(colonyName, sourceDataById)
   const sourceStateById = new Map<Id<Source>, SourceState>()
   const miners = getColonyCreeps(context, colonyName, MINER_ROLE)
@@ -163,6 +164,41 @@ export function runHarvest(room: Room, context: TickContext, logistics: Logistic
   return { income, maxIncome, spawnUsage }
 }
 
+function getHarvestSourceDataById(colonyName: string): Map<Id<Source>, HarvestSourceData> {
+  const result = new Map<Id<Source>, HarvestSourceData>()
+
+  for (const sourceData of sourceDataStore.getByRoom(colonyName).values()) {
+    if (sourceData.ownedPath === undefined) {
+      continue
+    }
+
+    result.set(sourceData.sourceId, createHarvestSourceData(sourceData, colonyName, sourceData.ownedPath))
+  }
+
+  for (const remoteName of remoteRoomDataStore.getByColony(colonyName)) {
+    const remote = remoteRoomDataStore.get(remoteName)
+
+    if (remote === undefined) {
+      continue
+    }
+
+    for (const remoteSource of remote.sources) {
+      const sourceDataResult = sourceDataStore.get(remoteSource.sourceId)
+
+      if (sourceDataResult.status !== "ready") {
+        continue
+      }
+
+      result.set(
+        remoteSource.sourceId,
+        createHarvestSourceData(sourceDataResult.value, colonyName, remoteSource.path),
+      )
+    }
+  }
+
+  return result
+}
+
 function getMinerReplacementLeadTime(miner: Creep, path: readonly RoomPosition[]): number {
   let workCount = 0
   let moveCount = 0
@@ -181,7 +217,7 @@ function getMinerReplacementLeadTime(miner: Creep, path: readonly RoomPosition[]
 }
 
 function ensureSourceState(
-  sourceDataById: ReadonlyMap<Id<Source>, SourceData>,
+  sourceDataById: ReadonlyMap<Id<Source>, HarvestSourceData>,
   sourceStateById: Map<Id<Source>, SourceState>,
   sourceId: Id<Source>,
 ): SourceState | undefined {
@@ -214,7 +250,10 @@ function ensureSourceState(
   return sourceState
 }
 
-function getSourceOrder(colonyName: string, sourceDataById: ReadonlyMap<Id<Source>, SourceData>): Id<Source>[] {
+function getSourceOrder(
+  colonyName: string,
+  sourceDataById: ReadonlyMap<Id<Source>, HarvestSourceData>,
+): Id<Source>[] {
   const runtime = getHarvestRuntime(colonyName)
 
   if (runtime.sourceOrder !== undefined) {
@@ -223,8 +262,8 @@ function getSourceOrder(colonyName: string, sourceDataById: ReadonlyMap<Id<Sourc
 
   const sourceOrder = [...sourceDataById.values()]
     .sort((left, right) => {
-      const leftOwned = left.roomName === left.colonyName
-      const rightOwned = right.roomName === right.colonyName
+      const leftOwned = left.roomName === colonyName
+      const rightOwned = right.roomName === colonyName
 
       if (leftOwned !== rightOwned) {
         return leftOwned ? -1 : 1

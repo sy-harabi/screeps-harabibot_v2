@@ -32,7 +32,10 @@ function runColony(room: Room, context: TickContext): void {
   const logistics = createLogisticsState()
 
   ensureOwnedSources(room, basePlan)
-  initializeColonyRemotes(room, basePlan)
+
+  if (room.memory.needsRemoteInitialization && initializeColonyRemotes(room, basePlan, context)) {
+    delete room.memory.needsRemoteInitialization
+  }
 
   const harvest = runHarvest(room, context, logistics)
 

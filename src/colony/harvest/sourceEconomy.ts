@@ -1,7 +1,7 @@
 import { estimatePathTravelTicks } from "../../capabilities/movement/travelTime"
 import { getHarvestRuntime } from "./harvestRuntime"
 import { createMinerBody } from "./miner"
-import type { SourceData } from "./sourceData"
+import type { HarvestSourceData } from "./sourceData"
 
 export interface SourceEconomy {
   readonly key: number
@@ -9,7 +9,7 @@ export interface SourceEconomy {
   readonly spawnUsage: number
 }
 
-export function getSourceEconomy(room: Room, sourceData: SourceData): SourceEconomy {
+export function getSourceEconomy(room: Room, sourceData: HarvestSourceData): SourceEconomy {
   const runtime = getHarvestRuntime(room.name)
 
   runtime.sourceEconomyById ??= new Map()
@@ -28,7 +28,7 @@ export function getSourceEconomy(room: Room, sourceData: SourceData): SourceEcon
   return sourceEconomy
 }
 
-function calculateSourceEconomy(room: Room, sourceData: SourceData): SourceEconomy {
+function calculateSourceEconomy(room: Room, sourceData: HarvestSourceData): SourceEconomy {
   const key = room.energyCapacityAvailable
 
   const grossIncome = SOURCE_ENERGY_CAPACITY / ENERGY_REGEN_TIME

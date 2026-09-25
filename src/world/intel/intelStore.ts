@@ -2,6 +2,18 @@ import { createRoomDynamicIntel, createRoomStaticIntel, mergeRoomIntel, type Roo
 import { roomDynamicIntelMemory } from "./roomDynamicIntelMemory"
 import { roomStaticIntelStore } from "./roomStaticIntelStore"
 
+export interface RoomObservationResult {
+  readonly isNew: boolean
+  readonly ownerChanged: boolean
+  readonly becameOwned: boolean
+}
+
+const NOT_OBSERVED: RoomObservationResult = {
+  isNew: false,
+  ownerChanged: false,
+  becameOwned: false,
+}
+
 export const intelStore = {
   pretick,
   isReady,
@@ -42,19 +54,29 @@ function get(roomName: string): RoomIntel | undefined {
   return mergeRoomIntel(roomName, staticIntel, dynamicIntel)
 }
 
-function observe(room: Room): boolean {
+function observe(room: Room): RoomObservationResult {
   if (!isReady()) {
-    return false
+    return NOT_OBSERVED
   }
 
   const staticIntel = roomStaticIntelStore.get(room.name)
+  const previousDynamicIntel = roomDynamicIntelMemory.get(room.name)
+  const dynamicIntel = createRoomDynamicIntel(room)
   const isNew = staticIntel === undefined
+  const previousOwner = previousDynamicIntel?.controller?.owner?.username
+  const owner = dynamicIntel.controller?.owner?.username
+  const ownerChanged = previousOwner !== owner
+  const becameOwned = room.controller?.my === true && ownerChanged
 
-  roomDynamicIntelMemory.set(room.name, createRoomDynamicIntel(room))
+  roomDynamicIntelMemory.set(room.name, dynamicIntel)
 
   if (staticIntel === undefined) {
     roomStaticIntelStore.set(room.name, createRoomStaticIntel(room))
   }
 
-  return isNew
+  return {
+    isNew,
+    ownerChanged,
+    becameOwned,
+  }
 }

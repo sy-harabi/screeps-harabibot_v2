@@ -7,32 +7,168 @@ import { intelStore } from "../../world/intel/intelStore"
 import { type RoomIntel, type SourceIntel } from "../../world/intel/roomIntel"
 import { getRoomsByDepth, getRoomType } from "../../world/map/roomTopology"
 import { invalidateHarvestRuntime } from "./harvestRuntime"
-import { createSourceData, type SourceData } from "./sourceData"
+import {
+  createRemoteRoomData,
+  getRemoteTotalDistance,
+  type RemoteRoomData,
+  type RemoteSourceData,
+} from "./remoteRoomData"
+import { remoteRoomDataStore } from "./remoteRoomDataStore"
+import { createSourceData } from "./sourceData"
 import { sourceDataStore } from "./sourceDataStore"
 
 const obstacleObjectTypes = new Set<string>(OBSTACLE_OBJECT_TYPES)
 
-interface ExistingRemote {
-  readonly colonyName: string
+interface RemoteCandidate {
+  readonly data: RemoteRoomData
   readonly totalDistance: number
 }
 
-interface RemoteCandidate {
-  readonly sources: readonly SourceData[]
-  readonly totalDistance: number
+interface ColonyRouteCandidate {
+  readonly room: Room
+  readonly basePlan: BasePlan
+  readonly route: readonly string[]
 }
 
 const MAX_REMOTE_DEPTH = 4
 const MAX_REMOTE_DISTANCE = 200
+const REMOTE_CHECK_INTERVAL = 1000
 
-const initializedColonies = new Set<string>()
-
-export function initializeRemoteRoom(remoteRoomName: string, context: TickContext): void {
-  if (!sourceDataStore.isReady() || !intelStore.isReady()) {
+export function updateRemoteRoomFromIntel(roomName: string, context: TickContext, force = false): void {
+  if (!sourceDataStore.isReady() || !remoteRoomDataStore.isReady() || !intelStore.isReady()) {
     return
   }
 
-  const roomsByDepth = getRoomsByDepth(remoteRoomName, MAX_REMOTE_DEPTH)
+  Memory.rooms ??= {}
+  const memory = (Memory.rooms[roomName] ??= {})
+
+  if (
+    !force &&
+    memory.lastRemoteCheckTick !== undefined &&
+    Game.time < memory.lastRemoteCheckTick + REMOTE_CHECK_INTERVAL
+  ) {
+    return
+  }
+
+  if (!checkRemoteRoom(roomName, context)) {
+    return
+  }
+
+  memory.lastRemoteCheckTick = Game.time
+}
+
+export function initializeColonyRemotes(room: Room, basePlan: BasePlan, context: TickContext): boolean {
+  if (!sourceDataStore.isReady() || !remoteRoomDataStore.isReady() || !intelStore.isReady()) {
+    return false
+  }
+
+  const roomsByDepth = getRoomsByDepth(room.name, MAX_REMOTE_DEPTH)
+
+  for (let depth = 1; depth <= MAX_REMOTE_DEPTH; depth++) {
+    for (const remoteRoomName of roomsByDepth[depth]) {
+      if (getRoomType(remoteRoomName) !== "normal") {
+        continue
+      }
+
+      const intel = intelStore.get(remoteRoomName)
+
+      if (!isRemoteCandidateIntel(intel)) {
+        continue
+      }
+
+      ensureSourceData(intel)
+
+      const existing = remoteRoomDataStore.get(remoteRoomName)
+
+      if (existing?.colonyName === room.name) {
+        continue
+      }
+
+      const route = findRemoteRoute(room.name, remoteRoomName)
+
+      if (route === undefined) {
+        continue
+      }
+
+      const candidate = createRemoteCandidate(room, basePlan, intel, route)
+
+      if (candidate === undefined) {
+        continue
+      }
+
+      if (
+        existing !== undefined &&
+        context.ownedRooms.has(existing.colonyName) &&
+        getRemoteTotalDistance(existing) <= candidate.totalDistance
+      ) {
+        continue
+      }
+
+      replaceRemote(existing, candidate.data)
+    }
+  }
+
+  return true
+}
+
+function checkRemoteRoom(roomName: string, context: TickContext): boolean {
+  const intel = intelStore.get(roomName)
+
+  if (intel === undefined) {
+    return false
+  }
+
+  const existing = remoteRoomDataStore.get(roomName)
+
+  if (getRoomType(roomName) !== "normal" || !isRemoteCandidateIntel(intel)) {
+    if (existing !== undefined) {
+      removeRemote(existing)
+    }
+
+    return true
+  }
+
+  ensureSourceData(intel)
+
+  if (existing !== undefined && isRemoteAssignmentValid(existing, intel, context)) {
+    return true
+  }
+
+  if (existing !== undefined) {
+    removeRemote(existing)
+  }
+
+  assignRemoteRoom(intel, context)
+
+  return true
+}
+
+function isRemoteCandidateIntel(
+  intel: RoomIntel | undefined,
+): intel is RoomIntel & { controller: NonNullable<RoomIntel["controller"]> } {
+  return intel?.controller !== undefined && intel.sources.length > 0 && intel.controller.owner === undefined
+}
+
+function isRemoteAssignmentValid(data: RemoteRoomData, intel: RoomIntel, context: TickContext): boolean {
+  if (!context.ownedRooms.has(data.colonyName) || data.sources.length !== intel.sources.length) {
+    return false
+  }
+
+  const assignedSourceIds = new Set(data.sources.map((source) => source.sourceId))
+
+  for (const source of intel.sources) {
+    if (!assignedSourceIds.has(source.id)) {
+      return false
+    }
+  }
+
+  return true
+}
+
+function assignRemoteRoom(intel: RoomIntel, context: TickContext): void {
+  const routeCandidates: ColonyRouteCandidate[] = []
+  const roomsByDepth = getRoomsByDepth(intel.roomName, MAX_REMOTE_DEPTH)
+  let minRouteDistance = Infinity
 
   for (let depth = 1; depth <= MAX_REMOTE_DEPTH; depth++) {
     for (const roomName of roomsByDepth[depth]) {
@@ -48,129 +184,115 @@ export function initializeRemoteRoom(remoteRoomName: string, context: TickContex
         continue
       }
 
-      checkRemoteRoom(room, basePlanResult.value, remoteRoomName)
-    }
-  }
-}
+      const route = findRemoteRoute(roomName, intel.roomName)
 
-export function initializeColonyRemotes(room: Room, basePlan: BasePlan): void {
-  if (!sourceDataStore.isReady() || !intelStore.isReady() || initializedColonies.has(room.name)) {
-    return
-  }
-
-  initializedColonies.add(room.name)
-
-  const roomsByDepth = getRoomsByDepth(room.name, MAX_REMOTE_DEPTH)
-
-  for (let depth = 1; depth <= MAX_REMOTE_DEPTH; depth++) {
-    for (const roomName of roomsByDepth[depth]) {
-      checkRemoteRoom(room, basePlan, roomName)
-    }
-  }
-}
-
-function checkRemoteRoom(room: Room, basePlan: BasePlan, remoteRoomName: string): void {
-  if (getRoomType(remoteRoomName) !== "normal") {
-    return
-  }
-
-  const intel = intelStore.get(remoteRoomName)
-
-  if (!intel?.controller || intel.sources.length === 0) {
-    return
-  }
-
-  if (intel.controller.owner !== undefined) {
-    return
-  }
-
-  tryTakeRemote(room, basePlan, intel)
-}
-
-function tryTakeRemote(room: Room, basePlan: BasePlan, intel: RoomIntel): void {
-  const existing = getExistingRemote(intel)
-
-  if (existing?.colonyName === room.name) {
-    return
-  }
-
-  const candidate = createRemoteCandidate(room, basePlan, intel)
-
-  if (!candidate) {
-    return
-  }
-
-  if (existing !== undefined && existing.totalDistance <= candidate.totalDistance) {
-    return
-  }
-
-  for (const sourceData of candidate.sources) {
-    sourceDataStore.set(sourceData)
-  }
-
-  const oldColonyName = existing?.colonyName
-
-  if (oldColonyName !== undefined) {
-    invalidateHarvestRuntime(oldColonyName)
-  }
-
-  invalidateHarvestRuntime(room.name)
-}
-
-function getExistingRemote(intel: RoomIntel): ExistingRemote | undefined {
-  let colonyName: string | undefined
-  let totalDistance = 0
-
-  for (const source of intel.sources) {
-    const result = sourceDataStore.get(source.id)
-
-    if (result.status !== "ready") {
-      return
-    }
-
-    const data = result.value
-
-    if (data.roomName !== intel.roomName) {
-      return
-    }
-
-    if (colonyName === undefined) {
-      colonyName = data.colonyName
-    } else if (data.colonyName !== colonyName) {
-      return
-    }
-
-    totalDistance += data.path.length
-  }
-
-  return colonyName === undefined
-    ? undefined
-    : {
-        colonyName,
-        totalDistance,
+      if (route === undefined) {
+        continue
       }
+
+      const routeDistance = route.length - 1
+
+      if (routeDistance < minRouteDistance) {
+        minRouteDistance = routeDistance
+        routeCandidates.length = 0
+      }
+
+      if (routeDistance === minRouteDistance) {
+        routeCandidates.push({
+          room,
+          basePlan: basePlanResult.value,
+          route,
+        })
+      }
+    }
+  }
+
+  let best: RemoteCandidate | undefined
+
+  for (const candidate of routeCandidates) {
+    const remoteCandidate = createRemoteCandidate(candidate.room, candidate.basePlan, intel, candidate.route)
+
+    if (remoteCandidate === undefined) {
+      continue
+    }
+
+    if (best === undefined || remoteCandidate.totalDistance < best.totalDistance) {
+      best = remoteCandidate
+    }
+  }
+
+  if (best === undefined) {
+    return
+  }
+
+  remoteRoomDataStore.set(best.data)
+  invalidateHarvestRuntime(best.data.colonyName)
 }
 
-function createRemoteCandidate(room: Room, basePlan: BasePlan, intel: RoomIntel): RemoteCandidate | undefined {
-  const sources: SourceData[] = []
+function createRemoteCandidate(
+  room: Room,
+  basePlan: BasePlan,
+  intel: RoomIntel,
+  route: readonly string[],
+): RemoteCandidate | undefined {
+  const sources: RemoteSourceData[] = []
   let totalDistance = 0
 
   for (const source of intel.sources) {
-    const path = findRemoteSourcePath(room, basePlan, intel.roomName, source)
+    const path = findRemoteSourcePath(room, basePlan, intel.roomName, source, route)
 
     if (path === undefined || path.length > MAX_REMOTE_DISTANCE) {
       return
     }
 
-    sources.push(createSourceData(source.id, intel.roomName, source.coordinate, room.name, path))
-
+    sources.push({
+      sourceId: source.id,
+      path,
+    })
     totalDistance += path.length
   }
 
   return {
-    sources,
+    data: createRemoteRoomData(intel.roomName, room.name, sources),
     totalDistance,
   }
+}
+
+function ensureSourceData(intel: RoomIntel): void {
+  for (const source of intel.sources) {
+    const result = sourceDataStore.get(source.id)
+
+    if (result.status === "ready" && result.value.roomName === intel.roomName) {
+      continue
+    }
+
+    if (result.status === "loading") {
+      continue
+    }
+
+    sourceDataStore.set(createSourceData(source.id, intel.roomName, source.coordinate))
+  }
+}
+
+function replaceRemote(existing: RemoteRoomData | undefined, next: RemoteRoomData): void {
+  if (existing !== undefined && existing.colonyName !== next.colonyName) {
+    invalidateHarvestRuntime(existing.colonyName)
+  }
+
+  remoteRoomDataStore.set(next)
+  invalidateHarvestRuntime(next.colonyName)
+}
+
+function removeRemote(data: RemoteRoomData): void {
+  remoteRoomDataStore.delete(data.roomName)
+  invalidateHarvestRuntime(data.colonyName)
+}
+
+function findRemoteRoute(fromRoomName: string, remoteRoomName: string): readonly string[] | undefined {
+  return findRoute(fromRoomName, remoteRoomName, {
+    maxRoomHops: MAX_REMOTE_DEPTH,
+    shouldExpand: (roomName) => canRouteRemoteThrough(roomName, fromRoomName),
+  })
 }
 
 function findRemoteSourcePath(
@@ -178,16 +300,8 @@ function findRemoteSourcePath(
   basePlan: BasePlan,
   remoteRoomName: string,
   source: SourceIntel,
+  route: readonly string[],
 ): readonly RoomPosition[] | undefined {
-  const route = findRoute(room.name, remoteRoomName, {
-    maxRoomHops: MAX_REMOTE_DEPTH,
-    shouldExpand: (roomName) => canRouteRemoteThrough(roomName, room.name),
-  })
-
-  if (!route) {
-    return
-  }
-
   const allowedRooms = new Set(route)
 
   const result = PathFinder.search(

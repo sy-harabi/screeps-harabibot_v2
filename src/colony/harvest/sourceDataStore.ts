@@ -1,29 +1,25 @@
-import { unpackPath } from "../../capabilities/movement/packedPath"
-import { SOURCE_DATA_SEGMENT_IDS } from "../../persistence/segmentIds"
+import { HARVEST_DATA_SEGMENT_IDS } from "../../persistence/segmentIds"
 import { segmentManager } from "../../persistence/segmentManager"
 import { runtimeRegistry } from "../../runtime/runtimeRegistry"
-import { fromRoomIndex } from "../../world/map/roomGrid"
-import { createSourceData, packSourceData, type PackedSourceData, type SourceData } from "./sourceData"
-
-interface SourceDataSegment {
-  version: 1
-  sources: Record<string, PackedSourceData>
-}
+import { getHarvestDataSegmentId, normalizeHarvestDataSegment, type HarvestDataSegment } from "./harvestDataSegment"
+import { packSourceData, unpackSourceData, type SourceData } from "./sourceData"
 
 export type SourceDataDeleteResult = "loading" | "deleted"
 
 export type SourceDataReadResult =
-  { status: "loading" } | { status: "missing" } | { status: "ready"; value: SourceData }
+  | { status: "loading" }
+  | { status: "missing" }
+  | { status: "ready"; value: SourceData }
 
 const sourceDataById = runtimeRegistry.createCache<Id<Source>, SourceData>("sourceData")
-const sourceDataByColony = new Map<string, Map<Id<Source>, SourceData>>()
+const sourceDataByRoom = new Map<string, Map<Id<Source>, SourceData>>()
 const EMPTY_SOURCE_MAP = new Map<Id<Source>, SourceData>()
 
 export const sourceDataStore = {
   pretick,
   isReady,
   get,
-  getByColony,
+  getByRoom,
   set,
   delete: deleteSourceData,
 }
@@ -35,32 +31,33 @@ function pretick(): void {
     return
   }
 
-  const segments: SourceDataSegment[] = []
+  const segments: HarvestDataSegment[] = []
   let allReady = true
 
-  for (const segmentId of SOURCE_DATA_SEGMENT_IDS) {
-    const result = segmentManager.getSegment<SourceDataSegment>(segmentId)
+  for (const segmentId of HARVEST_DATA_SEGMENT_IDS) {
+    const result = segmentManager.getSegment<Partial<HarvestDataSegment>>(segmentId)
 
     if (result.status === "loading") {
       allReady = false
       continue
     }
 
-    segments.push(result.value)
+    segments.push(normalizeHarvestDataSegment(result.value))
   }
 
   if (!allReady) {
     return
   }
 
-  sourceDataByColony.clear()
+  sourceDataById.clear()
+  sourceDataByRoom.clear()
 
   for (const segment of segments) {
-    for (const packed of Object.values(getPackedSourceDataMap(segment))) {
+    for (const packed of Object.values(segment.sources)) {
       const sourceData = unpackSourceData(packed)
 
       sourceDataById.set(sourceData.sourceId, sourceData)
-      addToColonyIndex(sourceData)
+      addToRoomIndex(sourceData)
     }
   }
 
@@ -78,14 +75,14 @@ function get(sourceId: Id<Source>): SourceDataReadResult {
     return { status: "ready", value: sourceData }
   }
 
-  const segmentId = getSourceDataSegmentId(sourceId)
-  const segmentResult = segmentManager.getSegment<SourceDataSegment>(segmentId)
+  const segmentId = getHarvestDataSegmentId(sourceId)
+  const segmentResult = segmentManager.getSegment<Partial<HarvestDataSegment>>(segmentId)
 
   if (segmentResult.status === "loading") {
     return { status: "loading" }
   }
 
-  const packed = getPackedSourceDataMap(segmentResult.value)[sourceId]
+  const packed = normalizeHarvestDataSegment(segmentResult.value).sources[sourceId]
 
   if (packed === undefined) {
     return { status: "missing" }
@@ -94,57 +91,54 @@ function get(sourceId: Id<Source>): SourceDataReadResult {
   const unpacked = unpackSourceData(packed)
 
   sourceDataById.set(sourceId, unpacked)
+  addToRoomIndex(unpacked)
 
   return { status: "ready", value: unpacked }
 }
 
-function getByColony(colonyName: string): ReadonlyMap<Id<Source>, SourceData> {
-  return sourceDataByColony.get(colonyName) ?? EMPTY_SOURCE_MAP
+function getByRoom(roomName: string): ReadonlyMap<Id<Source>, SourceData> {
+  return sourceDataByRoom.get(roomName) ?? EMPTY_SOURCE_MAP
 }
 
 function set(sourceData: SourceData): void {
-  const segmentId = getSourceDataSegmentId(sourceData.sourceId)
-  const result = segmentManager.getSegment<SourceDataSegment>(segmentId)
+  const segmentId = getHarvestDataSegmentId(sourceData.sourceId)
+  const result = segmentManager.getSegment<Partial<HarvestDataSegment>>(segmentId)
 
   if (result.status === "loading") {
     throw new Error(`Cannot save source data before segment ${segmentId} is loaded`)
   }
 
-  const sources = getPackedSourceDataMap(result.value)
-  const previousPacked = sources[sourceData.sourceId]
+  const segment = normalizeHarvestDataSegment(result.value)
+  const previousPacked = segment.sources[sourceData.sourceId]
   const previous =
     sourceDataById.get(sourceData.sourceId) ??
     (previousPacked === undefined ? undefined : unpackSourceData(previousPacked))
 
-  if (previous !== undefined && previous.colonyName !== sourceData.colonyName) {
-    removeFromColonyIndex(previous)
+  if (previous !== undefined && previous.roomName !== sourceData.roomName) {
+    removeFromRoomIndex(previous)
   }
 
-  sources[sourceData.sourceId] = packSourceData(sourceData)
+  segment.sources[sourceData.sourceId] = packSourceData(sourceData)
 
-  segmentManager.setSegment(segmentId, {
-    version: 1,
-    sources,
-  })
-
+  segmentManager.setSegment(segmentId, segment)
   sourceDataById.set(sourceData.sourceId, sourceData)
-  addToColonyIndex(sourceData)
+  addToRoomIndex(sourceData)
 }
 
 function deleteSourceData(sourceId: Id<Source>): SourceDataDeleteResult {
-  const segmentId = getSourceDataSegmentId(sourceId)
-  const segmentResult = segmentManager.getSegment<SourceDataSegment>(segmentId)
+  const segmentId = getHarvestDataSegmentId(sourceId)
+  const segmentResult = segmentManager.getSegment<Partial<HarvestDataSegment>>(segmentId)
 
   if (segmentResult.status === "loading") {
     return "loading"
   }
 
-  const sources = getPackedSourceDataMap(segmentResult.value)
-  const packed = sources[sourceId]
+  const segment = normalizeHarvestDataSegment(segmentResult.value)
+  const packed = segment.sources[sourceId]
   const sourceData = sourceDataById.get(sourceId) ?? (packed === undefined ? undefined : unpackSourceData(packed))
 
   if (sourceData !== undefined) {
-    removeFromColonyIndex(sourceData)
+    removeFromRoomIndex(sourceData)
   }
 
   sourceDataById.delete(sourceId)
@@ -153,29 +147,25 @@ function deleteSourceData(sourceId: Id<Source>): SourceDataDeleteResult {
     return "deleted"
   }
 
-  delete sources[sourceId]
-
-  segmentManager.setSegment(segmentId, {
-    version: 1,
-    sources,
-  })
+  delete segment.sources[sourceId]
+  segmentManager.setSegment(segmentId, segment)
 
   return "deleted"
 }
 
-function addToColonyIndex(sourceData: SourceData): void {
-  let sources = sourceDataByColony.get(sourceData.colonyName)
+function addToRoomIndex(sourceData: SourceData): void {
+  let sources = sourceDataByRoom.get(sourceData.roomName)
 
   if (sources === undefined) {
     sources = new Map()
-    sourceDataByColony.set(sourceData.colonyName, sources)
+    sourceDataByRoom.set(sourceData.roomName, sources)
   }
 
   sources.set(sourceData.sourceId, sourceData)
 }
 
-function removeFromColonyIndex(sourceData: SourceData): void {
-  const sources = sourceDataByColony.get(sourceData.colonyName)
+function removeFromRoomIndex(sourceData: SourceData): void {
+  const sources = sourceDataByRoom.get(sourceData.roomName)
 
   if (sources === undefined) {
     return
@@ -184,24 +174,6 @@ function removeFromColonyIndex(sourceData: SourceData): void {
   sources.delete(sourceData.sourceId)
 
   if (sources.size === 0) {
-    sourceDataByColony.delete(sourceData.colonyName)
+    sourceDataByRoom.delete(sourceData.roomName)
   }
-}
-
-function unpackSourceData(packed: PackedSourceData): SourceData {
-  return createSourceData(packed[0], packed[1], fromRoomIndex(packed[2]), packed[3], unpackPath(packed[4]))
-}
-
-function getPackedSourceDataMap(segment: Partial<SourceDataSegment>): Record<string, PackedSourceData> {
-  return segment.version === 1 && segment.sources ? segment.sources : {}
-}
-
-function getSourceDataSegmentId(sourceId: Id<Source>): number {
-  let hash = 0
-
-  for (let i = 0; i < sourceId.length; i++) {
-    hash = (hash * 31 + sourceId.charCodeAt(i)) >>> 0
-  }
-
-  return SOURCE_DATA_SEGMENT_IDS[hash % SOURCE_DATA_SEGMENT_IDS.length]
 }
