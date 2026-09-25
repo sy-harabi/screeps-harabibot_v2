@@ -115,8 +115,13 @@ function canSpendTickOnRepair(source: Source, miner: Creep): boolean {
 }
 
 function getMiningPosition(miner: Creep, sourceState: SourceState): RoomPosition | undefined {
+  const primaryPos = sourceState.data.path[sourceState.data.path.length - 1]
+
+  if (primaryPos === undefined) {
+    return
+  }
+
   const runtime = getMinerRuntime(miner.name)
-  const primaryPos = sourceState.data.miningPositions[0]
 
   if (runtime.miningPosition !== undefined) {
     const primaryOccupied = primaryPos.lookFor(LOOK_CREEPS).some((creep) => creep.name !== miner.name)
@@ -139,7 +144,7 @@ function getMiningPosition(miner: Creep, sourceState: SourceState): RoomPosition
     return primaryPos
   }
 
-  const fallback = findFallbackMiningPosition(miner, sourceState)
+  const fallback = findFallbackMiningPosition(miner, sourceState, primaryPos)
 
   if (fallback !== undefined) {
     runtime.miningPosition = fallback
@@ -148,9 +153,16 @@ function getMiningPosition(miner: Creep, sourceState: SourceState): RoomPosition
   return fallback
 }
 
-function findFallbackMiningPosition(miner: Creep, sourceState: SourceState): RoomPosition | undefined {
-  for (let i = 1; i < sourceState.data.miningPositions.length; i++) {
-    const pos = sourceState.data.miningPositions[i]
+function findFallbackMiningPosition(
+  miner: Creep,
+  sourceState: SourceState,
+  primaryPos: RoomPosition,
+): RoomPosition | undefined {
+  for (const pos of sourceState.data.miningPositions) {
+    if (pos.isEqualTo(primaryPos)) {
+      continue
+    }
+
     const occupied = pos.lookFor(LOOK_CREEPS).some((creep) => creep.name !== miner.name)
 
     if (!occupied) {

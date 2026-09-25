@@ -55,7 +55,7 @@ export function createHarvestSourceData(
     roomName: sourceData.roomName,
     colonyName,
     path,
-    miningPositions: prioritizePathEnd(sourceData.miningPositions, path),
+    miningPositions: sourceData.miningPositions,
   }
 }
 
@@ -107,25 +107,4 @@ function getMiningPositions(roomName: string, coordinate: RoomCoordinate): RoomP
   })
 
   return result
-}
-
-function prioritizePathEnd(
-  miningPositions: readonly RoomPosition[],
-  path: readonly RoomPosition[],
-): readonly RoomPosition[] {
-  const pathEnd = path[path.length - 1]
-
-  if (pathEnd === undefined) {
-    return miningPositions
-  }
-
-  const index = miningPositions.findIndex(
-    (pos) => pos.roomName === pathEnd.roomName && pos.x === pathEnd.x && pos.y === pathEnd.y,
-  )
-
-  if (index <= 0) {
-    return miningPositions
-  }
-
-  return [miningPositions[index], ...miningPositions.slice(0, index), ...miningPositions.slice(index + 1)]
 }
