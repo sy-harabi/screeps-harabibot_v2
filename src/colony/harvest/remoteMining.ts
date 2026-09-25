@@ -6,6 +6,7 @@ import { getExploreRoomsByDepth } from "../../scouting/explore"
 import { intelStore } from "../../world/intel/intelStore"
 import { type SourceIntel, type RoomIntel } from "../../world/intel/roomIntel"
 import { getRoomType } from "../../world/map/roomTopology"
+import { invalidateHarvestRuntime } from "./harvestRuntime"
 import { createSourceData, type SourceData } from "./sourceData"
 import { sourceDataStore } from "./sourceDataStore"
 
@@ -87,6 +88,14 @@ function tryTakeRemote(room: Room, basePlan: BasePlan, intel: RoomIntel): void {
   for (const sourceData of candidate.sources) {
     sourceDataStore.set(sourceData)
   }
+
+  const oldColonyName = existing?.colonyName
+
+  if (oldColonyName !== undefined) {
+    invalidateHarvestRuntime(oldColonyName)
+  }
+
+  invalidateHarvestRuntime(room.name)
 }
 
 function getExistingRemote(intel: RoomIntel): ExistingRemote | undefined {
@@ -154,7 +163,7 @@ function findRemoteSourcePath(
 ): readonly RoomPosition[] | undefined {
   const route = findRoute(room.name, remoteRoomName, {
     maxRoomHops: MAX_REMOTE_DEPTH,
-    shouldExpand: (roomName) => canRouteRemoteThrough(roomName),
+    shouldExpand: (roomName) => canRouteRemoteThrough(roomName, room.name),
   })
 
   if (!route) {
@@ -216,7 +225,11 @@ function applyBasePlanCosts(costs: CostMatrix, basePlan: BasePlan): void {
   }
 }
 
-function canRouteRemoteThrough(roomName: string): boolean {
+function canRouteRemoteThrough(roomName: string, fromRoomName: string): boolean {
+  if (roomName === fromRoomName) {
+    return true
+  }
+
   const type = getRoomType(roomName)
 
   if (type === "keeper" || type === "center") {
