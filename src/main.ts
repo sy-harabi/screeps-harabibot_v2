@@ -22,15 +22,19 @@ export function loop(): void {
   sourceDataStore.pretick()
   intelStore.pretick()
 
+  const newlyObservedRooms: string[] = []
+
   if (intelStore.isReady()) {
     for (const room of Object.values(Game.rooms)) {
-      intelStore.observe(room)
+      if (intelStore.observe(room)) {
+        newlyObservedRooms.push(room.name)
+      }
     }
   }
 
   runScouting(context)
 
-  runColonies(context)
+  runColonies(context, newlyObservedRooms)
 
   allocateSpawns()
 
