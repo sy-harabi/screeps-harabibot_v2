@@ -42,14 +42,18 @@ function get(roomName: string): RoomIntel | undefined {
   return mergeRoomIntel(roomName, staticIntel, dynamicIntel)
 }
 
-function observe(room: Room): void {
+function observe(room: Room): boolean {
   if (!isReady()) {
-    return
+    return false
   }
+
+  const isNew = !roomDynamicIntelMemory.has(room.name)
 
   roomDynamicIntelMemory.set(room.name, createRoomDynamicIntel(room))
 
   if (roomStaticIntelStore.get(room.name) === undefined) {
     roomStaticIntelStore.set(room.name, createRoomStaticIntel(room))
   }
+
+  return isNew
 }
