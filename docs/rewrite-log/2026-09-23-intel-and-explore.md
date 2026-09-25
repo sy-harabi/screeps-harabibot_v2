@@ -58,7 +58,7 @@ Static intel is sharded across segment IDs 16-23 and packed with the already-ven
 
 Source, mineral, and keeper-lair counts use the invariant range 0-4. IDs and coordinates are packed. Each static-intel shard owns an append-only mineral-type table used by packed room records.
 
-Dynamic intel is stored as compact tuples in `Memory.intel.dynamic`, indexed directly by room name.
+Dynamic intel is stored as compact tuples in each room's `RoomMemory.intel`.
 
 ### Prefer simple global-reset behavior
 
