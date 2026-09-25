@@ -113,7 +113,8 @@ function set(sourceData: SourceData): void {
   const sources = getPackedSourceDataMap(result.value)
   const previousPacked = sources[sourceData.sourceId]
   const previous =
-    sourceDataById.get(sourceData.sourceId) ?? (previousPacked === undefined ? undefined : unpackSourceData(previousPacked))
+    sourceDataById.get(sourceData.sourceId) ??
+    (previousPacked === undefined ? undefined : unpackSourceData(previousPacked))
 
   if (previous !== undefined && previous.colonyName !== sourceData.colonyName) {
     removeFromColonyIndex(previous)
