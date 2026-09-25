@@ -9,6 +9,7 @@ export interface RemoteRoomData {
   readonly roomName: string
   readonly colonyName: string
   readonly sources: readonly RemoteSourceData[]
+  readonly intermediateRoomNames: readonly string[]
 }
 
 export type PackedRemoteRoomData = readonly [
@@ -21,10 +22,21 @@ export function createRemoteRoomData(
   colonyName: string,
   sources: readonly RemoteSourceData[],
 ): RemoteRoomData {
+  const intermediateRoomNames = new Set<string>()
+
+  for (const source of sources) {
+    for (const pos of source.path) {
+      if (pos.roomName !== colonyName && pos.roomName !== roomName) {
+        intermediateRoomNames.add(pos.roomName)
+      }
+    }
+  }
+
   return {
     roomName,
     colonyName,
     sources,
+    intermediateRoomNames: [...intermediateRoomNames],
   }
 }
 
@@ -33,14 +45,14 @@ export function packRemoteRoomData(data: RemoteRoomData): PackedRemoteRoomData {
 }
 
 export function unpackRemoteRoomData(roomName: string, packed: PackedRemoteRoomData): RemoteRoomData {
-  return {
+  return createRemoteRoomData(
     roomName,
-    colonyName: packed[0],
-    sources: packed[1].map(([sourceId, path]) => ({
+    packed[0],
+    packed[1].map(([sourceId, path]) => ({
       sourceId,
       path: unpackPath(path),
     })),
-  }
+  )
 }
 
 export function getRemoteTotalDistance(data: RemoteRoomData): number {

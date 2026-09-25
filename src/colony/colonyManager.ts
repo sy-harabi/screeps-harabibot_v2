@@ -7,7 +7,7 @@ import { runBuild } from "./build/build"
 import { runConstruction } from "./build/construction"
 import { runHarvest } from "./harvest/harvest"
 import { ensureOwnedSources } from "./harvest/ownedSources"
-import { initializeColonyRemotes } from "./harvest/remoteMining"
+import { initializeColonyRemotes, refreshColonyRemoteRoutes } from "./harvest/remoteMining"
 import { createLogisticsState, runLogistics } from "./logistics/logistics"
 import { runTowers } from "./tower/tower"
 import { runUpgrade } from "./upgrade/upgrade"
@@ -36,6 +36,8 @@ function runColony(room: Room, context: TickContext): void {
   if (room.memory.needsRemoteInitialization && initializeColonyRemotes(room, basePlan, context)) {
     delete room.memory.needsRemoteInitialization
   }
+
+  refreshColonyRemoteRoutes(room, basePlan)
 
   const harvest = runHarvest(room, context, logistics)
 

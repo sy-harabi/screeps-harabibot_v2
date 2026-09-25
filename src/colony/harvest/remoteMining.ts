@@ -5,7 +5,7 @@ import { getBaseRoomCostMatrix } from "../../capabilities/movement/roomCostMatri
 import { type TickContext } from "../../kernel/tickContext"
 import { intelStore } from "../../world/intel/intelStore"
 import { type RoomIntel, type SourceIntel } from "../../world/intel/roomIntel"
-import { getRoomsByDepth, getRoomType } from "../../world/map/roomTopology"
+import { getRoomsByDepth, getRoomType, isRoomReachable } from "../../world/map/roomTopology"
 import { invalidateHarvestRuntime } from "./harvestRuntime"
 import {
   createRemoteRoomData,
@@ -114,11 +114,59 @@ export function initializeColonyRemotes(room: Room, basePlan: BasePlan, context:
         }
       }
 
-      replaceRemote(existing, candidate.data)
+      setRemoteAssignment(candidate.data)
     }
   }
 
   return true
+}
+
+export function refreshColonyRemoteRoutes(room: Room, basePlan: BasePlan): void {
+  if (!remoteRoomDataStore.isReady() || !intelStore.isReady()) {
+    return
+  }
+
+  const passableByRoom = new Map<string, boolean>()
+
+  for (const remoteRoomName of remoteRoomDataStore.getByColony(room.name)) {
+    const remote = remoteRoomDataStore.get(remoteRoomName)
+
+    if (remote === undefined) {
+      continue
+    }
+
+    const hasBlockedIntermediate = remote.intermediateRoomNames.some((roomName) => {
+      let passable = passableByRoom.get(roomName)
+
+      if (passable === undefined) {
+        passable = isRoomReachable(roomName, room.name) && canRouteRemoteThrough(roomName, room.name)
+        passableByRoom.set(roomName, passable)
+      }
+
+      return !passable
+    })
+
+    if (!hasBlockedIntermediate) {
+      continue
+    }
+
+    const intel = intelStore.get(remoteRoomName)
+
+    if (!isRemoteCandidateIntel(intel)) {
+      removeRemote(remote)
+      continue
+    }
+
+    const route = findRemoteRoute(room.name, remoteRoomName)
+    const candidate = route === undefined ? undefined : createRemoteCandidate(room, basePlan, intel, route)
+
+    if (candidate === undefined) {
+      removeRemote(remote)
+      continue
+    }
+
+    setRemoteAssignment(candidate.data)
+  }
 }
 
 function checkRemoteRoom(roomName: string, context: TickContext): boolean {
@@ -231,8 +279,7 @@ function assignRemoteRoom(intel: RoomIntel, context: TickContext): void {
     return
   }
 
-  remoteRoomDataStore.set(best.data)
-  invalidateHarvestRuntime(best.data.colonyName)
+  setRemoteAssignment(best.data)
 }
 
 function compareRemoteCandidateScores(left: RemoteCandidateScore, right: RemoteCandidateScore): number {
@@ -285,12 +332,15 @@ function ensureSourceData(intel: RoomIntel): void {
   }
 }
 
-function replaceRemote(existing: RemoteRoomData | undefined, next: RemoteRoomData): void {
+function setRemoteAssignment(next: RemoteRoomData): void {
+  const existing = remoteRoomDataStore.get(next.roomName)
+
+  remoteRoomDataStore.set(next)
+
   if (existing !== undefined && existing.colonyName !== next.colonyName) {
     invalidateHarvestRuntime(existing.colonyName)
   }
 
-  remoteRoomDataStore.set(next)
   invalidateHarvestRuntime(next.colonyName)
 }
 
