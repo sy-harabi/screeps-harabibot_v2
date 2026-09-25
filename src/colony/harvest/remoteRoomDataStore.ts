@@ -128,9 +128,7 @@ function deleteRemoteRoomData(roomName: string): void {
 
   const segment = normalizeHarvestDataSegment(result.value)
   const packed = segment.remotes[roomName]
-  const data =
-    remoteRoomDataByName.get(roomName) ??
-    (packed === undefined ? undefined : unpackRemoteRoomData(roomName, packed))
+  const data = remoteRoomDataByName.get(roomName) ?? (packed === undefined ? undefined : unpackRemoteRoomData(roomName, packed))
 
   if (data !== undefined) {
     removeFromColonyIndex(data)

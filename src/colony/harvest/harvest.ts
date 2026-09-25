@@ -247,10 +247,7 @@ function ensureSourceState(
   return sourceState
 }
 
-function getSourceOrder(
-  colonyName: string,
-  sourceDataById: ReadonlyMap<Id<Source>, HarvestSourceData>,
-): Id<Source>[] {
+function getSourceOrder(colonyName: string, sourceDataById: ReadonlyMap<Id<Source>, HarvestSourceData>): Id<Source>[] {
   const runtime = getHarvestRuntime(colonyName)
 
   if (runtime.sourceOrder !== undefined) {
