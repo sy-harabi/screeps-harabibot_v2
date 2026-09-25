@@ -16,15 +16,14 @@ export type SourceDataReadResult =
   { status: "loading" } | { status: "missing" } | { status: "ready"; value: SourceData }
 
 const sourceDataCache = runtimeRegistry.createCache<Id<Source>, SourceData>("sourceData")
-
 const sourceDataByColony = new Map<string, Map<Id<Source>, SourceData>>()
-
 const EMPTY_SOURCE_MAP = new Map<Id<Source>, SourceData>()
 
 export const sourceDataStore = {
   pretick,
   isReady,
   get,
+  getByColony,
   set,
   delete: deleteSourceData,
 }
@@ -37,16 +36,24 @@ function pretick(): void {
   }
 
   const segments: SourceDataSegment[] = []
+  let allReady = true
 
   for (const segmentId of SOURCE_DATA_SEGMENT_IDS) {
     const result = segmentManager.getSegment<SourceDataSegment>(segmentId)
 
     if (result.status === "loading") {
-      return
+      allReady = false
+      continue
     }
 
     segments.push(result.value)
   }
+
+  if (!allReady) {
+    return
+  }
+
+  sourceDataByColony.clear()
 
   for (const segment of segments) {
     for (const packed of Object.values(getPackedSourceDataMap(segment))) {
@@ -60,24 +67,10 @@ function pretick(): void {
   ready = true
 }
 
-function getByColony(colonyName: string): ReadonlyMap<Id<Source>, SourceData> {
-  return sourceDataByColony.get(colonyName) ?? EMPTY_SOURCE_MAP
-}
-
-function addToColonyIndex(sourceData: SourceData): void {
-  let sources = sourceDataByColony.get(sourceData.colonyName)
-
-  if (sources === undefined) {
-    sources = new Map()
-    sourceDataByColony.set(sourceData.colonyName, sources)
-  }
-
-  sources.set(sourceData.sourceId, sourceData)
-}
-
 function isReady(): boolean {
   return ready
 }
+
 function get(sourceId: Id<Source>): SourceDataReadResult {
   const cached = sourceDataCache.get(sourceId)
 
@@ -86,7 +79,6 @@ function get(sourceId: Id<Source>): SourceDataReadResult {
   }
 
   const segmentId = getSourceDataSegmentId(sourceId)
-
   const segmentResult = segmentManager.getSegment<SourceDataSegment>(segmentId)
 
   if (segmentResult.status === "loading") {
@@ -106,35 +98,40 @@ function get(sourceId: Id<Source>): SourceDataReadResult {
   return { status: "ready", value: sourceData }
 }
 
-function unpackSourceData(packed: PackedSourceData): SourceData {
-  return createSourceData(packed[0], packed[1], fromRoomIndex(packed[2]), packed[3], unpackPath(packed[4]))
+function getByColony(colonyName: string): ReadonlyMap<Id<Source>, SourceData> {
+  return sourceDataByColony.get(colonyName) ?? EMPTY_SOURCE_MAP
 }
 
 function set(sourceData: SourceData): void {
   const segmentId = getSourceDataSegmentId(sourceData.sourceId)
-
   const result = segmentManager.getSegment<SourceDataSegment>(segmentId)
 
   if (result.status === "loading") {
     throw new Error(`Cannot save source data before segment ${segmentId} is loaded`)
   }
 
-  const segment =
-    result.value.version === 1 && result.value.sources
-      ? result.value
-      : {
-          version: 1 as const,
-          sources: {},
-        }
+  const sources = getPackedSourceDataMap(result.value)
+  const previousPacked = sources[sourceData.sourceId]
+  const previous =
+    sourceDataCache.get(sourceData.sourceId) ?? (previousPacked === undefined ? undefined : unpackSourceData(previousPacked))
 
-  segment.sources[sourceData.sourceId] = packSourceData(sourceData)
-  segmentManager.setSegment(segmentId, segment)
+  if (previous !== undefined && previous.colonyName !== sourceData.colonyName) {
+    removeFromColonyIndex(previous)
+  }
+
+  sources[sourceData.sourceId] = packSourceData(sourceData)
+
+  segmentManager.setSegment(segmentId, {
+    version: 1,
+    sources,
+  })
+
   sourceDataCache.set(sourceData.sourceId, sourceData)
+  addToColonyIndex(sourceData)
 }
 
 function deleteSourceData(sourceId: Id<Source>): SourceDataDeleteResult {
   const segmentId = getSourceDataSegmentId(sourceId)
-
   const segmentResult = segmentManager.getSegment<SourceDataSegment>(segmentId)
 
   if (segmentResult.status === "loading") {
@@ -142,9 +139,16 @@ function deleteSourceData(sourceId: Id<Source>): SourceDataDeleteResult {
   }
 
   const sources = getPackedSourceDataMap(segmentResult.value)
+  const packed = sources[sourceId]
+  const sourceData = sourceDataCache.get(sourceId) ?? (packed === undefined ? undefined : unpackSourceData(packed))
+
+  if (sourceData !== undefined) {
+    removeFromColonyIndex(sourceData)
+  }
+
   sourceDataCache.delete(sourceId)
 
-  if (sources[sourceId] === undefined) {
+  if (packed === undefined) {
     return "deleted"
   }
 
@@ -156,6 +160,35 @@ function deleteSourceData(sourceId: Id<Source>): SourceDataDeleteResult {
   })
 
   return "deleted"
+}
+
+function addToColonyIndex(sourceData: SourceData): void {
+  let sources = sourceDataByColony.get(sourceData.colonyName)
+
+  if (sources === undefined) {
+    sources = new Map()
+    sourceDataByColony.set(sourceData.colonyName, sources)
+  }
+
+  sources.set(sourceData.sourceId, sourceData)
+}
+
+function removeFromColonyIndex(sourceData: SourceData): void {
+  const sources = sourceDataByColony.get(sourceData.colonyName)
+
+  if (sources === undefined) {
+    return
+  }
+
+  sources.delete(sourceData.sourceId)
+
+  if (sources.size === 0) {
+    sourceDataByColony.delete(sourceData.colonyName)
+  }
+}
+
+function unpackSourceData(packed: PackedSourceData): SourceData {
+  return createSourceData(packed[0], packed[1], fromRoomIndex(packed[2]), packed[3], unpackPath(packed[4]))
 }
 
 function getPackedSourceDataMap(segment: Partial<SourceDataSegment>): Record<string, PackedSourceData> {
