@@ -15,7 +15,7 @@ export type SourceDataDeleteResult = "loading" | "deleted"
 export type SourceDataReadResult =
   { status: "loading" } | { status: "missing" } | { status: "ready"; value: SourceData }
 
-const sourceDataCache = runtimeRegistry.createCache<Id<Source>, SourceData>("sourceData")
+const sourceDataById = runtimeRegistry.createCache<Id<Source>, SourceData>("sourceData")
 const sourceDataByColony = new Map<string, Map<Id<Source>, SourceData>>()
 const EMPTY_SOURCE_MAP = new Map<Id<Source>, SourceData>()
 
@@ -59,7 +59,7 @@ function pretick(): void {
     for (const packed of Object.values(getPackedSourceDataMap(segment))) {
       const sourceData = unpackSourceData(packed)
 
-      sourceDataCache.set(sourceData.sourceId, sourceData)
+      sourceDataById.set(sourceData.sourceId, sourceData)
       addToColonyIndex(sourceData)
     }
   }
@@ -72,10 +72,10 @@ function isReady(): boolean {
 }
 
 function get(sourceId: Id<Source>): SourceDataReadResult {
-  const cached = sourceDataCache.get(sourceId)
+  const sourceData = sourceDataById.get(sourceId)
 
-  if (cached !== undefined) {
-    return { status: "ready", value: cached }
+  if (sourceData !== undefined) {
+    return { status: "ready", value: sourceData }
   }
 
   const segmentId = getSourceDataSegmentId(sourceId)
@@ -91,11 +91,11 @@ function get(sourceId: Id<Source>): SourceDataReadResult {
     return { status: "missing" }
   }
 
-  const sourceData = unpackSourceData(packed)
+  const unpacked = unpackSourceData(packed)
 
-  sourceDataCache.set(sourceId, sourceData)
+  sourceDataById.set(sourceId, unpacked)
 
-  return { status: "ready", value: sourceData }
+  return { status: "ready", value: unpacked }
 }
 
 function getByColony(colonyName: string): ReadonlyMap<Id<Source>, SourceData> {
@@ -113,7 +113,7 @@ function set(sourceData: SourceData): void {
   const sources = getPackedSourceDataMap(result.value)
   const previousPacked = sources[sourceData.sourceId]
   const previous =
-    sourceDataCache.get(sourceData.sourceId) ?? (previousPacked === undefined ? undefined : unpackSourceData(previousPacked))
+    sourceDataById.get(sourceData.sourceId) ?? (previousPacked === undefined ? undefined : unpackSourceData(previousPacked))
 
   if (previous !== undefined && previous.colonyName !== sourceData.colonyName) {
     removeFromColonyIndex(previous)
@@ -126,7 +126,7 @@ function set(sourceData: SourceData): void {
     sources,
   })
 
-  sourceDataCache.set(sourceData.sourceId, sourceData)
+  sourceDataById.set(sourceData.sourceId, sourceData)
   addToColonyIndex(sourceData)
 }
 
@@ -140,13 +140,13 @@ function deleteSourceData(sourceId: Id<Source>): SourceDataDeleteResult {
 
   const sources = getPackedSourceDataMap(segmentResult.value)
   const packed = sources[sourceId]
-  const sourceData = sourceDataCache.get(sourceId) ?? (packed === undefined ? undefined : unpackSourceData(packed))
+  const sourceData = sourceDataById.get(sourceId) ?? (packed === undefined ? undefined : unpackSourceData(packed))
 
   if (sourceData !== undefined) {
     removeFromColonyIndex(sourceData)
   }
 
-  sourceDataCache.delete(sourceId)
+  sourceDataById.delete(sourceId)
 
   if (packed === undefined) {
     return "deleted"
