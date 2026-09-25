@@ -6,6 +6,7 @@ import type { TickContext } from "../kernel/tickContext"
 import { runBuild } from "./build/build"
 import { runConstruction } from "./build/construction"
 import { runHarvest } from "./harvest/harvest"
+import { ensureOwnedSources } from "./harvest/ownedSources"
 import { refreshRemoteSources } from "./harvest/remoteMining"
 import { createLogisticsState, runLogistics } from "./logistics/logistics"
 import { runTowers } from "./tower/tower"
@@ -30,9 +31,10 @@ function runColony(room: Room, context: TickContext, newlyObservedRooms: readonl
 
   const logistics = createLogisticsState()
 
+  ensureOwnedSources(room, basePlan)
   refreshRemoteSources(room, basePlan, newlyObservedRooms)
 
-  const harvest = runHarvest(room, basePlan, context, logistics)
+  const harvest = runHarvest(room, context, logistics)
 
   const construction = runConstruction(room, basePlan)
 
