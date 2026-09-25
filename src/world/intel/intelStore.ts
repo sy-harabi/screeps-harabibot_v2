@@ -47,11 +47,12 @@ function observe(room: Room): boolean {
     return false
   }
 
-  const isNew = !roomDynamicIntelMemory.has(room.name)
+  const staticIntel = roomStaticIntelStore.get(room.name)
+  const isNew = staticIntel === undefined
 
   roomDynamicIntelMemory.set(room.name, createRoomDynamicIntel(room))
 
-  if (roomStaticIntelStore.get(room.name) === undefined) {
+  if (staticIntel === undefined) {
     roomStaticIntelStore.set(room.name, createRoomStaticIntel(room))
   }
 
