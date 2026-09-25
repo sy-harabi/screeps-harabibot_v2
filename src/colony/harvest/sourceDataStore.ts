@@ -19,19 +19,33 @@ const sourceDataCache = runtimeRegistry.createCache<Id<Source>, SourceData>("sou
 
 export const sourceDataStore = {
   pretick,
+  isReady,
   get,
   set,
   delete: deleteSourceData,
 }
 
-function pretick(rooms: Iterable<Room>): void {
-  for (const room of rooms) {
-    for (const source of room.find(FIND_SOURCES)) {
-      segmentManager.getSegment<SourceDataSegment>(getSourceDataSegmentId(source.id))
+let ready = false
+
+function pretick(): void {
+  if (ready) {
+    return
+  }
+
+  ready = true
+
+  for (const segmentId of SOURCE_DATA_SEGMENT_IDS) {
+    const result = segmentManager.getSegment<SourceDataSegment>(segmentId)
+
+    if (result.status === "loading") {
+      ready = false
     }
   }
 }
 
+function isReady(): boolean {
+  return ready
+}
 function get(sourceId: Id<Source>): SourceDataReadResult {
   const cached = sourceDataCache.get(sourceId)
 

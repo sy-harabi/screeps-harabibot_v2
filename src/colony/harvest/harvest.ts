@@ -41,6 +41,14 @@ export function runHarvest(
   context: TickContext,
   logistics: LogisticsState,
 ): HarvestResult {
+  if (!sourceDataStore.isReady()) {
+    return {
+      income: 0,
+      maxIncome: 0,
+      spawnUsage: 0,
+    }
+  }
+
   const colonyName = room.name
   const sourceDataById = ensureSourceDataById(room, basePlan)
 

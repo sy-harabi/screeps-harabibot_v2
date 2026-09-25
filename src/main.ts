@@ -19,7 +19,7 @@ export function loop(): void {
   const context = createTickContext()
 
   basePlanStore.pretick(context.ownedRooms.values())
-  sourceDataStore.pretick(context.ownedRooms.values())
+  sourceDataStore.pretick()
   intelStore.pretick()
 
   if (intelStore.isReady()) {
