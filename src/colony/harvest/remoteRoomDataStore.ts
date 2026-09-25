@@ -2,11 +2,7 @@ import { HARVEST_DATA_SEGMENT_IDS } from "../../persistence/segmentIds"
 import { segmentManager } from "../../persistence/segmentManager"
 import { runtimeRegistry } from "../../runtime/runtimeRegistry"
 import { getHarvestDataSegmentId, normalizeHarvestDataSegment, type HarvestDataSegment } from "./harvestDataSegment"
-import {
-  packRemoteRoomData,
-  unpackRemoteRoomData,
-  type RemoteRoomData,
-} from "./remoteRoomData"
+import { packRemoteRoomData, unpackRemoteRoomData, type RemoteRoomData } from "./remoteRoomData"
 
 const remoteRoomDataByName = runtimeRegistry.createCache<string, RemoteRoomData>("harvest.remoteRooms")
 const remotesByColony = new Map<string, Set<string>>()

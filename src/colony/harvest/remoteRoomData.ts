@@ -29,10 +29,7 @@ export function createRemoteRoomData(
 }
 
 export function packRemoteRoomData(data: RemoteRoomData): PackedRemoteRoomData {
-  return [
-    data.colonyName,
-    data.sources.map((source) => [source.sourceId, packPath(source.path)] as const),
-  ]
+  return [data.colonyName, data.sources.map((source) => [source.sourceId, packPath(source.path)] as const)]
 }
 
 export function unpackRemoteRoomData(roomName: string, packed: PackedRemoteRoomData): RemoteRoomData {

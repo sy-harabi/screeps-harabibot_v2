@@ -189,10 +189,7 @@ function getHarvestSourceDataById(colonyName: string): Map<Id<Source>, HarvestSo
         continue
       }
 
-      result.set(
-        remoteSource.sourceId,
-        createHarvestSourceData(sourceDataResult.value, colonyName, remoteSource.path),
-      )
+      result.set(remoteSource.sourceId, createHarvestSourceData(sourceDataResult.value, colonyName, remoteSource.path))
     }
   }
 

@@ -7,9 +7,7 @@ import { packSourceData, unpackSourceData, type SourceData } from "./sourceData"
 export type SourceDataDeleteResult = "loading" | "deleted"
 
 export type SourceDataReadResult =
-  | { status: "loading" }
-  | { status: "missing" }
-  | { status: "ready"; value: SourceData }
+  { status: "loading" } | { status: "missing" } | { status: "ready"; value: SourceData }
 
 const sourceDataById = runtimeRegistry.createCache<Id<Source>, SourceData>("sourceData")
 const sourceDataByRoom = new Map<string, Map<Id<Source>, SourceData>>()
