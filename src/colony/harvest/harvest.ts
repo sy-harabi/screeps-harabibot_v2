@@ -126,12 +126,7 @@ export function runHarvest(
     const haulerRatio = sourceState.carryCapacity / sourceState.requiredCarryCapacity
 
     const targetMinerWork = getTargetMinerWork(room, sourceState)
-    const sourceEconomy = getSourceEconomy(
-      room,
-      sourceState.data,
-      sourceState.requiredHarvestPower,
-      targetMinerWork,
-    )
+    const sourceEconomy = getSourceEconomy(room, sourceState.data, sourceState.requiredHarvestPower, targetMinerWork)
 
     income += sourceEconomy.maxIncome * Math.min(1, minerRatio, haulerRatio)
     maxIncome += sourceEconomy.maxIncome

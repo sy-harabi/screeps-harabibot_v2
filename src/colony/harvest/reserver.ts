@@ -68,7 +68,11 @@ export function runRemoteReservers(
     const replacementLeadTime = body.length * CREEP_SPAWN_TIME + travelTicks + REPLACEMENT_BUFFER
     const remoteReservers = reserversByRemote.get(remoteRoomName) ?? []
 
-    if (remoteReservers.some((reserver) => (reserver.ticksToLive ?? CREEP_CLAIM_LIFE_TIME) > replacementLeadTime)) {
+    if (
+      remoteReservers.some(
+        (reserver) => (reserver.ticksToLive ?? CREEP_CLAIM_LIFE_TIME) > replacementLeadTime,
+      )
+    ) {
       continue
     }
 
@@ -133,10 +137,7 @@ function isReadyForReservation(
 
     const requiredCarryCapacity = source.path.length * 2 * NEUTRAL_SOURCE_INCOME
 
-    if (
-      sourceState.harvestPower >= NEUTRAL_SOURCE_INCOME &&
-      sourceState.carryCapacity >= requiredCarryCapacity
-    ) {
+    if (sourceState.harvestPower >= NEUTRAL_SOURCE_INCOME && sourceState.carryCapacity >= requiredCarryCapacity) {
       return true
     }
   }
@@ -172,11 +173,7 @@ function runReserver(creep: Creep, colonyName: string): void {
     return
   }
 
-  const controllerPos = new RoomPosition(
-    controllerIntel.coordinate.x,
-    controllerIntel.coordinate.y,
-    remoteRoomName,
-  )
+  const controllerPos = new RoomPosition(controllerIntel.coordinate.x, controllerIntel.coordinate.y, remoteRoomName)
 
   if (!creep.pos.isNearTo(controllerPos)) {
     moveCreep(
