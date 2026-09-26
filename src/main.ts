@@ -3,8 +3,6 @@ import { getBaseRoomCostMatrix } from "./capabilities/movement/roomCostMatrix"
 import { run as runTraffic } from "./capabilities/movement/traffic"
 import { allocateSpawns } from "./capabilities/spawning/spawnAllocator"
 import { runColonies } from "./colony/colonyManager"
-import { updateRemoteRoomFromIntel } from "./colony/harvest/remoteMining"
-import { remoteRoomDataStore } from "./colony/harvest/remoteRoomDataStore"
 import { sourceDataStore } from "./colony/harvest/sourceDataStore"
 import "./console/consoleApi"
 import { createTickContext } from "./kernel/tickContext"
@@ -21,24 +19,19 @@ export function loop(): void {
   const context = createTickContext()
 
   basePlanStore.pretick(context.ownedRooms.values())
-  sourceDataStore.pretick()
-  remoteRoomDataStore.pretick()
+  sourceDataStore.pretick(context.ownedRooms.values())
   intelStore.pretick()
 
   if (intelStore.isReady()) {
     for (const room of Object.values(Game.rooms)) {
-      const observation = intelStore.observe(room)
-
-      if (observation.becameOwned) {
-        room.memory.needsRemoteInitialization = true
-      }
-
-      updateRemoteRoomFromIntel(room.name, context, observation.isNew || observation.ownerChanged)
+      intelStore.observe(room)
     }
   }
 
   runScouting(context)
+
   runColonies(context)
+
   allocateSpawns()
 
   for (const room of Object.values(Game.rooms)) {

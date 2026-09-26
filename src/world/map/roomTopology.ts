@@ -49,44 +49,6 @@ export function getAdjacentRooms(roomName: string): readonly string[] {
   return adjacentRooms
 }
 
-export function getRoomsByDepth(originRoomName: string, maxDepth: number): readonly (readonly string[])[] {
-  const depthByRoom = new Map<string, number>()
-  const roomsByDepth: string[][] = Array.from({ length: maxDepth + 1 }, () => [])
-  const queue = [originRoomName]
-  let index = 0
-
-  depthByRoom.set(originRoomName, 0)
-
-  while (index < queue.length) {
-    const current = queue[index]
-    index++
-
-    const depth = depthByRoom.get(current)!
-
-    if (depth >= maxDepth) {
-      continue
-    }
-
-    for (const adjacent of getAdjacentRooms(current)) {
-      if (depthByRoom.has(adjacent)) {
-        continue
-      }
-
-      if (!isRoomReachable(adjacent, originRoomName)) {
-        continue
-      }
-
-      const adjacentDepth = depth + 1
-
-      depthByRoom.set(adjacent, adjacentDepth)
-      queue.push(adjacent)
-      roomsByDepth[adjacentDepth].push(adjacent)
-    }
-  }
-
-  return roomsByDepth
-}
-
 export function isRoomReachable(roomName: string, referenceRoomName: string): boolean {
   const roomStatus = getRoomStatus(roomName)
 

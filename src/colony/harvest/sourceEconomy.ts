@@ -1,56 +1,44 @@
 import { estimatePathTravelTicks } from "../../capabilities/movement/travelTime"
 import { getHarvestRuntime } from "./harvestRuntime"
 import { createMinerBody } from "./miner"
-import type { HarvestSourceData } from "./sourceData"
+import type { SourceData } from "./sourceData"
 
 export interface SourceEconomy {
-  readonly energyCapacity: number
-  readonly grossIncome: number
-  readonly targetWork: number
+  readonly key: number
   readonly maxIncome: number
   readonly spawnUsage: number
 }
 
-export function getSourceEconomy(
-  room: Room,
-  sourceData: HarvestSourceData,
-  grossIncome: number,
-  targetWork: number,
-): SourceEconomy {
+export function getSourceEconomy(room: Room, sourceData: SourceData): SourceEconomy {
   const runtime = getHarvestRuntime(room.name)
 
   runtime.sourceEconomyById ??= new Map()
 
-  const energyCapacity = room.energyCapacityAvailable
+  const key = room.energyCapacityAvailable
   const cached = runtime.sourceEconomyById.get(sourceData.sourceId)
 
-  if (
-    cached?.energyCapacity === energyCapacity &&
-    cached.grossIncome === grossIncome &&
-    cached.targetWork === targetWork
-  ) {
+  if (cached?.key === key) {
     return cached
   }
 
-  const sourceEconomy = calculateSourceEconomy(room, sourceData, grossIncome, targetWork)
+  const sourceEconomy = calculateSourceEconomy(room, sourceData)
 
   runtime.sourceEconomyById.set(sourceData.sourceId, sourceEconomy)
 
   return sourceEconomy
 }
 
-function calculateSourceEconomy(
-  room: Room,
-  sourceData: HarvestSourceData,
-  grossIncome: number,
-  targetWork: number,
-): SourceEconomy {
-  const energyCapacity = room.energyCapacityAvailable
+function calculateSourceEconomy(room: Room, sourceData: SourceData): SourceEconomy {
+  const key = room.energyCapacityAvailable
+
+  const grossIncome = SOURCE_ENERGY_CAPACITY / ENERGY_REGEN_TIME
+
+  const targetWork = Math.ceil(grossIncome / HARVEST_POWER)
 
   const minerBody = createMinerBody(room, sourceData.path, targetWork, true)
 
   if (!minerBody) {
-    return { energyCapacity, grossIncome, targetWork, maxIncome: 0, spawnUsage: 0 }
+    return { key, maxIncome: 0, spawnUsage: 0 }
   }
   let work = 0
   let move = 0
@@ -83,9 +71,7 @@ function calculateSourceEconomy(
   const haulerCost = (carryParts * (BODYPART_COST[CARRY] + BODYPART_COST[MOVE])) / CREEP_LIFE_TIME
 
   return {
-    energyCapacity,
-    grossIncome,
-    targetWork,
+    key,
     maxIncome: harvestIncome - minerCost - haulerCost,
 
     spawnUsage:

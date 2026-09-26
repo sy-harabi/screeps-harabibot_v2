@@ -1,62 +1,52 @@
+import { packPath, type PackedPath } from "../../capabilities/movement/packedPath"
 import type { RoomCoordinate } from "../../world/map/roomCoordinate"
-import { forEachCoordinateAtRange, fromRoomIndex, toRoomIndex } from "../../world/map/roomGrid"
+import { forEachCoordinateAtRange, toRoomIndex } from "../../world/map/roomGrid"
 
 export interface SourceData {
   readonly sourceId: Id<Source>
   readonly roomName: string
-  readonly miningPositions: readonly RoomPosition[]
-}
-
-export interface HarvestSourceData {
-  readonly sourceId: Id<Source>
-  readonly roomName: string
+  readonly coordinate: RoomCoordinate
   readonly colonyName: string
   readonly path: readonly RoomPosition[]
   readonly miningPositions: readonly RoomPosition[]
 }
 
-export type PackedSourceData = readonly [sourceId: Id<Source>, roomName: string, miningPositions: readonly number[]]
+export type PackedSourceData = readonly [
+  sourceId: Id<Source>,
+  roomName: string,
+  coordinate: number,
+  colonyName: string,
+  path: PackedPath,
+]
 
-export function createSourceData(sourceId: Id<Source>, roomName: string, coordinate: RoomCoordinate): SourceData {
+export function packSourceData(sourceData: SourceData): PackedSourceData {
+  return [
+    sourceData.sourceId,
+    sourceData.roomName,
+    toRoomIndex(sourceData.coordinate.x, sourceData.coordinate.y),
+    sourceData.colonyName,
+    packPath(sourceData.path),
+  ]
+}
+
+export function createSourceData(
+  sourceId: Id<Source>,
+  roomName: string,
+  coordinate: RoomCoordinate,
+  colonyName: string,
+  path: readonly RoomPosition[],
+): SourceData {
   return {
     sourceId,
     roomName,
-    miningPositions: getMiningPositions(roomName, coordinate),
-  }
-}
-
-export function createHarvestSourceData(
-  sourceData: SourceData,
-  colonyName: string,
-  path: readonly RoomPosition[],
-): HarvestSourceData {
-  return {
-    sourceId: sourceData.sourceId,
-    roomName: sourceData.roomName,
+    coordinate,
     colonyName,
     path,
-    miningPositions: sourceData.miningPositions,
+    miningPositions: getMiningPositions(roomName, coordinate, path),
   }
 }
 
-export function packSourceData(sourceData: SourceData): PackedSourceData {
-  return [sourceData.sourceId, sourceData.roomName, sourceData.miningPositions.map((pos) => toRoomIndex(pos.x, pos.y))]
-}
-
-export function unpackSourceData(packed: PackedSourceData): SourceData {
-  const roomName = packed[1]
-
-  return {
-    sourceId: packed[0],
-    roomName,
-    miningPositions: packed[2].map((index) => {
-      const coordinate = fromRoomIndex(index)
-      return new RoomPosition(coordinate.x, coordinate.y, roomName)
-    }),
-  }
-}
-
-export function getSourceContainer(data: HarvestSourceData): StructureContainer | undefined {
+export function getSourceContainer(data: SourceData): StructureContainer | undefined {
   const pos = data.path[data.path.length - 1]
 
   if (!pos || !Game.rooms[pos.roomName]) {
@@ -68,17 +58,26 @@ export function getSourceContainer(data: HarvestSourceData): StructureContainer 
     .find((structure): structure is StructureContainer => structure.structureType === STRUCTURE_CONTAINER)
 }
 
-function getMiningPositions(roomName: string, coordinate: RoomCoordinate): RoomPosition[] {
+function getMiningPositions(
+  roomName: string,
+  coordinate: RoomCoordinate,
+  path: readonly RoomPosition[],
+): RoomPosition[] {
+  const containerPos = path[path.length - 1]
+  const miningPositions = [containerPos]
   const terrain = Game.map.getRoomTerrain(roomName)
-  const result: RoomPosition[] = []
 
   forEachCoordinateAtRange(coordinate, 1, (x, y) => {
+    if (containerPos.x === x && containerPos.y === y) {
+      return
+    }
+
     if (terrain.get(x, y) === TERRAIN_MASK_WALL) {
       return
     }
 
-    result.push(new RoomPosition(x, y, roomName))
+    miningPositions.push(new RoomPosition(x, y, roomName))
   })
 
-  return result
+  return miningPositions
 }

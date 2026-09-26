@@ -3,6 +3,7 @@ import type { LogisticsState } from "../logistics/logistics"
 import { registerEnergySupplier } from "../logistics/logistics"
 import { type SourceState } from "./harvest"
 import { getSourceContainer } from "./sourceData"
+import { sourceDataStore } from "./sourceDataStore"
 
 export const HAULER_ROLE = "hauler"
 
@@ -72,16 +73,27 @@ export function runHaulers(
 
 function moveToColony(colonyName: string, hauler: Creep, sourceStateById: Map<Id<Source>, SourceState>): void {
   const sourceId = hauler.memory.sourceId
+  let path: readonly RoomPosition[] | undefined
 
   if (sourceId) {
     const sourceState = sourceStateById.get(sourceId)
 
     if (sourceState) {
-      const result = moveCreepByPath(hauler, sourceState.data.path, { reverse: true })
+      path = sourceState.data.path
+    } else {
+      const sourceDataResult = sourceDataStore.get(sourceId)
 
-      if (result === "pending") {
-        return
+      if (sourceDataResult.status === "ready" && sourceDataResult.value.colonyName === colonyName) {
+        path = sourceDataResult.value.path
       }
+    }
+  }
+
+  if (path) {
+    const result = moveCreepByPath(hauler, path, { reverse: true })
+
+    if (result === "pending") {
+      return
     }
   }
 
