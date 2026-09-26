@@ -69,9 +69,7 @@ export function runRemoteReservers(
     const remoteReservers = reserversByRemote.get(remoteRoomName) ?? []
 
     if (
-      remoteReservers.some(
-        (reserver) => (reserver.ticksToLive ?? CREEP_CLAIM_LIFE_TIME) > replacementLeadTime,
-      )
+      remoteReservers.some((reserver) => (reserver.ticksToLive ?? CREEP_CLAIM_LIFE_TIME) > replacementLeadTime)
     ) {
       continue
     }
@@ -124,10 +122,7 @@ export function createReserverBody(room: Room): readonly BodyPartConstant[] | un
   ]
 }
 
-function isReadyForReservation(
-  remote: RemoteRoomData,
-  sourceStateById: ReadonlyMap<Id<Source>, SourceState>,
-): boolean {
+function isReadyForReservation(remote: RemoteRoomData, sourceStateById: ReadonlyMap<Id<Source>, SourceState>): boolean {
   for (const source of remote.sources) {
     const sourceState = sourceStateById.get(source.sourceId)
 
