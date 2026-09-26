@@ -60,9 +60,9 @@ runHarvest traverses every source every tick so that shared hauling capacity, su
 
 The traversal must not stop after finding a spawn need. Instead it keeps a tick-local flag such as:
 
-~~~ts
+```ts
 let spawnRequested = false
-~~~
+```
 
 After the first successful harvest spawn request, later sources continue economy calculation but skip spawn-decision logic.
 
@@ -70,9 +70,9 @@ After the first successful harvest spawn request, later sources continue economy
 
 runHarvest keeps a tick-local set:
 
-~~~ts
+```ts
 const checkedRemotes = new Set<string>()
-~~~
+```
 
 The first source encountered for a remote performs that room's reservation logic. Later sources from the same room do not repeat it.
 
@@ -82,17 +82,17 @@ This avoids coupling room-level policy to a particular element of RemoteRoomData
 
 A remote controller is classified as:
 
-~~~ts
+```ts
 type ReservationState = "none" | "ours" | "foreign"
-~~~
+```
 
 The harvesting interpretation is:
 
-~~~text
+```text
 none    -> harvestable at 5 energy/tick
 ours    -> harvestable at 10 energy/tick
 foreign -> not harvestable; sustainable source income is 0
-~~~
+```
 
 A foreign reservation must not consume shared hauling capacity and must not create miner or hauler spawn requests.
 
@@ -104,17 +104,17 @@ Foreign reservation does not remove the remote assignment. It creates reserver d
 
 Remote miner target WORK is:
 
-~~~text
+```text
 colony energy capacity < 650  -> 3 WORK
 colony energy capacity >= 650 -> 5 WORK
-~~~
+```
 
 The source's actual required harvest power remains separate:
 
-~~~text
+```text
 none -> 5 energy/tick
 ours -> 10 energy/tick
-~~~
+```
 
 This prepares the miner for reserved throughput as soon as the colony can spawn a CLAIM + MOVE reserver.
 
@@ -124,11 +124,11 @@ Remote reservation targets total effective CLAIM power 2.
 
 Reserver bodies are:
 
-~~~text
+```text
 energy capacity < 650     -> unavailable
 650 <= capacity < 1300    -> [CLAIM, MOVE]
 energy capacity >= 1300   -> [CLAIM, CLAIM, MOVE, MOVE]
-~~~
+```
 
 At 650-1299 capacity, two one-CLAIM reservers are therefore maintained over multiple ticks. At 1300 or above, one creep can provide the full target.
 
@@ -138,36 +138,36 @@ Controller-adjacent walkable position count may be cached for diagnostics and fu
 
 For each remote, calculate lead time from the body currently spawnable by the colony:
 
-~~~text
+```text
 leadTime = spawn time + controller travel ticks + 20
-~~~
+```
 
 Count only reserver power expected to survive at least that long:
 
-~~~text
+```text
 reservePower = sum(active CLAIM parts of reservers whose TTL >= leadTime)
-~~~
+```
 
 A spawning reserver is treated as alive for this accounting so repeated ticks do not request duplicate power unnecessarily.
 
 For our reservation:
 
-~~~text
+```text
 reservationTicks = reservation end tick - Game.time
-~~~
+```
 
 For no reservation or a foreign reservation:
 
-~~~text
+```text
 reservationTicks = 0
-~~~
+```
 
 A reserver is needed when:
 
-~~~text
+```text
 reservePower < 2
 && reservationTicks - leadTime < 200
-~~~
+```
 
 There is no separate restart and replacement policy. The 20-tick term protects replacement timing; the 200-tick margin starts replacement comfortably before our reservation becomes fragile.
 
@@ -177,13 +177,13 @@ For an unreserved remote, reservation is not started until the first source enco
 
 The progression is:
 
-~~~text
+```text
 nearest remote source miner
 -> nearest remote source hauling at 5 energy/tick
 -> reserver
 -> reserved throughput
 -> further miner/hauler expansion
-~~~
+```
 
 A foreign reservation is different: harvesting is impossible, so reserver demand is checked immediately rather than waiting for miner or hauler readiness.
 
@@ -191,7 +191,7 @@ A foreign reservation is different: harvesting is impossible, so reserver demand
 
 Within the ordered source traversal:
 
-~~~text
+```text
 owned source:
   miner / hauler
 
@@ -205,7 +205,7 @@ remote + no reservation:
 remote + our reservation:
   reserver maintenance
   -> miner / hauler at 10 energy/tick
-~~~
+```
 
 Miner and hauler reinforcement continues to use fulfillment ratios. Reinforce the more limiting side and prefer mining on ties.
 
@@ -217,19 +217,19 @@ The full path to a remote controller is not persisted.
 
 Harvest runtime caches derived controller information per remote room:
 
-~~~ts
+```ts
 interface RemoteControllerRuntime {
   readonly travelTicks: number
   readonly availablePositions: number
 }
-~~~
+```
 
 Controller travel is calculated from colony storage to controller range 1 using:
 
-~~~text
+```text
 plainCost = 1
 swampCost = 5
-~~~
+```
 
 Only PathFinder.search(...).cost is retained. Allowed rooms are derived from the remote's existing source paths rather than introducing another persistent route representation.
 
@@ -243,10 +243,10 @@ A reserver travels to controller range 1.
 
 At the controller:
 
-~~~text
+```text
 foreign reservation -> attackController()
 otherwise            -> reserveController()
-~~~
+```
 
 After a foreign reservation disappears, a surviving reserver naturally begins reserving without a separate state transition.
 
@@ -258,9 +258,9 @@ Reserver cost is not assigned to an individual source because one room-level res
 
 For reservation power 2, long-run reserver energy cost converges to:
 
-~~~text
+```text
 650 / (CREEP_CLAIM_LIFE_TIME - controllerTravelTicks)
-~~~
+```
 
 energy per tick.
 
@@ -268,11 +268,11 @@ The derivation is the same whether power 2 comes from two CLAIM + MOVE creeps or
 
 The corresponding long-run spawn usage is:
 
-~~~text
+```text
 2 * CREEP_SPAWN_TIME
 ---------------------
 CREEP_CLAIM_LIFE_TIME - controllerTravelTicks
-~~~
+```
 
 spawn ticks per game tick.
 
@@ -284,11 +284,11 @@ A reservation lifecycle is active when the room is ours-reserved, foreign-reserv
 
 SourceEconomy continues to describe source-local economics:
 
-~~~text
+```text
 source production
 - miner upkeep
 - hauler upkeep
-~~~
+```
 
 Reservation upkeep is applied once per remote room by harvest orchestration.
 
