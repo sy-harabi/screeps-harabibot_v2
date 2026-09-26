@@ -68,9 +68,7 @@ export function runRemoteReservers(
     const replacementLeadTime = body.length * CREEP_SPAWN_TIME + travelTicks + REPLACEMENT_BUFFER
     const remoteReservers = reserversByRemote.get(remoteRoomName) ?? []
 
-    if (
-      remoteReservers.some((reserver) => (reserver.ticksToLive ?? CREEP_CLAIM_LIFE_TIME) > replacementLeadTime)
-    ) {
+    if (remoteReservers.some((reserver) => (reserver.ticksToLive ?? CREEP_CLAIM_LIFE_TIME) > replacementLeadTime)) {
       continue
     }
 
