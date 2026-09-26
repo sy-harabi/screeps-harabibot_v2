@@ -17,6 +17,7 @@ declare global {
     assignment: CreepAssignment
     role: string
     sourceId?: Id<Source>
+    remoteRoomName?: string
     delivering?: boolean
   }
 }
