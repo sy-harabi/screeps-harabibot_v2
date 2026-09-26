@@ -1,4 +1,3 @@
-import { packPath, unpackPath, type PackedPath } from "../../capabilities/movement/packedPath"
 import type { RoomCoordinate } from "../../world/map/roomCoordinate"
 import { forEachCoordinateAtRange, fromRoomIndex, toRoomIndex } from "../../world/map/roomGrid"
 
@@ -6,7 +5,6 @@ export interface SourceData {
   readonly sourceId: Id<Source>
   readonly roomName: string
   readonly miningPositions: readonly RoomPosition[]
-  readonly ownedPath?: readonly RoomPosition[]
 }
 
 export interface HarvestSourceData {
@@ -21,27 +19,13 @@ export type PackedSourceData = readonly [
   sourceId: Id<Source>,
   roomName: string,
   miningPositions: readonly number[],
-  ownedPath?: PackedPath | null,
 ]
 
-export function createSourceData(
-  sourceId: Id<Source>,
-  roomName: string,
-  coordinate: RoomCoordinate,
-  ownedPath?: readonly RoomPosition[],
-): SourceData {
+export function createSourceData(sourceId: Id<Source>, roomName: string, coordinate: RoomCoordinate): SourceData {
   return {
     sourceId,
     roomName,
     miningPositions: getMiningPositions(roomName, coordinate),
-    ownedPath,
-  }
-}
-
-export function withOwnedPath(sourceData: SourceData, ownedPath: readonly RoomPosition[]): SourceData {
-  return {
-    ...sourceData,
-    ownedPath,
   }
 }
 
@@ -60,13 +44,11 @@ export function createHarvestSourceData(
 }
 
 export function packSourceData(sourceData: SourceData): PackedSourceData {
-  const packed = [
+  return [
     sourceData.sourceId,
     sourceData.roomName,
     sourceData.miningPositions.map((pos) => toRoomIndex(pos.x, pos.y)),
-  ] as const
-
-  return sourceData.ownedPath === undefined ? packed : [...packed, packPath(sourceData.ownedPath)]
+  ]
 }
 
 export function unpackSourceData(packed: PackedSourceData): SourceData {
@@ -79,7 +61,6 @@ export function unpackSourceData(packed: PackedSourceData): SourceData {
       const coordinate = fromRoomIndex(index)
       return new RoomPosition(coordinate.x, coordinate.y, roomName)
     }),
-    ownedPath: packed[3] == null ? undefined : unpackPath(packed[3]),
   }
 }
 

@@ -4,6 +4,7 @@ import type { SourceEconomy } from "./sourceEconomy"
 export interface HarvestRuntime {
   sourceOrder?: Id<Source>[]
   sourceEconomyById?: Map<Id<Source>, SourceEconomy>
+  ownedPathsBySourceId?: Map<Id<Source>, readonly RoomPosition[]>
 }
 
 const harvestRuntimes = runtimeRegistry.createCache<string, HarvestRuntime>("harvest.colonies", {

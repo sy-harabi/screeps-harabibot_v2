@@ -1,10 +1,10 @@
 import type { BasePlan } from "../../capabilities/basePlanning/basePlan"
 import type { RoomCoordinate } from "../../world/map/roomCoordinate"
 import { invalidateHarvestRuntime } from "./harvestRuntime"
-import { createSourceData, withOwnedPath } from "./sourceData"
+import { createSourceData } from "./sourceData"
 import { sourceDataStore } from "./sourceDataStore"
 
-export function ensureOwnedSources(room: Room, basePlan: BasePlan): void {
+export function ensureOwnedSources(room: Room): void {
   if (!sourceDataStore.isReady()) {
     return
   }
@@ -12,7 +12,7 @@ export function ensureOwnedSources(room: Room, basePlan: BasePlan): void {
   let changed = false
 
   for (const source of room.find(FIND_SOURCES)) {
-    changed = ensureOwnedSource(source, basePlan) || changed
+    changed = ensureOwnedSource(source) || changed
   }
 
   if (changed) {
@@ -20,49 +20,37 @@ export function ensureOwnedSources(room: Room, basePlan: BasePlan): void {
   }
 }
 
-function ensureOwnedSource(source: Source, basePlan: BasePlan): boolean {
+export function findOwnedSourcePath(basePlan: BasePlan, sourceId: Id<Source>): readonly RoomPosition[] | undefined {
+  const container = basePlan.structures.find(
+    (structure) =>
+      structure.structureType === STRUCTURE_CONTAINER &&
+      structure.tag?.kind === "source" &&
+      structure.tag?.id === sourceId,
+  )
+
+  if (container === undefined) {
+    return
+  }
+
+  return findSourcePath(basePlan, container.coordinate)
+}
+
+function ensureOwnedSource(source: Source): boolean {
   const result = sourceDataStore.get(source.id)
 
   if (result.status === "loading") {
     return false
   }
 
-  if (result.status === "ready" && result.value.roomName === source.room.name && result.value.ownedPath !== undefined) {
-    return false
-  }
-
-  const container = basePlan.structures.find(
-    (structure) =>
-      structure.structureType === STRUCTURE_CONTAINER &&
-      structure.tag?.kind === "source" &&
-      structure.tag?.id === source.id,
-  )
-
-  if (!container) {
-    return false
-  }
-
-  const path = findSourcePath(basePlan, container.coordinate)
-
-  if (!path) {
-    return false
-  }
-
   if (result.status === "ready" && result.value.roomName === source.room.name) {
-    sourceDataStore.set(withOwnedPath(result.value, path))
-    return true
+    return false
   }
 
   sourceDataStore.set(
-    createSourceData(
-      source.id,
-      source.room.name,
-      {
-        x: source.pos.x,
-        y: source.pos.y,
-      },
-      path,
-    ),
+    createSourceData(source.id, source.room.name, {
+      x: source.pos.x,
+      y: source.pos.y,
+    }),
   )
 
   return true

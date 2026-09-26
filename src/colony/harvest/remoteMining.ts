@@ -5,6 +5,7 @@ import { getBaseRoomCostMatrix } from "../../capabilities/movement/roomCostMatri
 import { type TickContext } from "../../kernel/tickContext"
 import { intelStore } from "../../world/intel/intelStore"
 import { type RoomIntel, type SourceIntel } from "../../world/intel/roomIntel"
+import { fromRoomIndex, toRoomIndex } from "../../world/map/roomGrid"
 import { getRoomsByDepth, getRoomType, isRoomReachable } from "../../world/map/roomTopology"
 import { invalidateHarvestRuntime } from "./harvestRuntime"
 import {
@@ -34,9 +35,19 @@ interface ColonyRouteCandidate {
   readonly route: readonly string[]
 }
 
+interface RemotePathContext {
+  readonly roadPositionsByRoom: Map<string, Set<number>>
+  readonly containerPositionsByRoom: Map<string, Set<number>>
+}
+
 const MAX_REMOTE_DEPTH = 4
 const MAX_REMOTE_DISTANCE = 200
 const REMOTE_CHECK_INTERVAL = 1000
+
+const REMOTE_ROAD_COST = 4
+const REMOTE_PLAIN_COST = 5
+const REMOTE_SWAMP_COST = 6
+const REMOTE_CONTAINER_COST = 30
 
 export function updateRemoteRoomFromIntel(roomName: string, context: TickContext, force = false): void {
   if (!sourceDataStore.isReady() || !remoteRoomDataStore.isReady() || !intelStore.isReady()) {
@@ -293,10 +304,11 @@ function createRemoteCandidate(
   route: readonly string[],
 ): RemoteCandidate | undefined {
   const sources: RemoteSourceData[] = []
+  const pathContext = createRemotePathContext(room.name, intel.roomName)
   let totalDistance = 0
 
   for (const source of intel.sources) {
-    const path = findRemoteSourcePath(room, basePlan, intel.roomName, source, route)
+    const path = findRemoteSourcePath(room, basePlan, intel.roomName, source, route, pathContext)
 
     if (path === undefined || path.length > MAX_REMOTE_DISTANCE) {
       return
@@ -307,6 +319,7 @@ function createRemoteCandidate(
       path,
     })
     totalDistance += path.length
+    addRemotePath(pathContext, path)
   }
 
   return {
@@ -362,6 +375,7 @@ function findRemoteSourcePath(
   remoteRoomName: string,
   source: SourceIntel,
   route: readonly string[],
+  pathContext: RemotePathContext,
 ): readonly RoomPosition[] | undefined {
   const allowedRooms = new Set(route)
 
@@ -372,8 +386,8 @@ function findRemoteSourcePath(
       range: 1,
     },
     {
-      plainCost: 2,
-      swampCost: 10,
+      plainCost: REMOTE_PLAIN_COST,
+      swampCost: REMOTE_SWAMP_COST,
       maxRooms: allowedRooms.size,
       maxOps: allowedRooms.size * 2000,
 
@@ -389,6 +403,8 @@ function findRemoteSourcePath(
           applyBasePlanCosts(costs, basePlan)
         }
 
+        applyRemotePathCosts(costs, roomName, pathContext)
+
         return costs
       },
     },
@@ -399,6 +415,81 @@ function findRemoteSourcePath(
   }
 
   return result.path
+}
+
+function createRemotePathContext(colonyName: string, excludedRemoteRoomName: string): RemotePathContext {
+  const context: RemotePathContext = {
+    roadPositionsByRoom: new Map(),
+    containerPositionsByRoom: new Map(),
+  }
+
+  for (const remoteRoomName of remoteRoomDataStore.getByColony(colonyName)) {
+    if (remoteRoomName === excludedRemoteRoomName) {
+      continue
+    }
+
+    const remote = remoteRoomDataStore.get(remoteRoomName)
+
+    if (remote === undefined) {
+      continue
+    }
+
+    for (const source of remote.sources) {
+      addRemotePath(context, source.path)
+    }
+  }
+
+  return context
+}
+
+function addRemotePath(context: RemotePathContext, path: readonly RoomPosition[]): void {
+  for (const pos of path) {
+    addRemotePosition(context.roadPositionsByRoom, pos)
+  }
+
+  const containerPos = path[path.length - 1]
+
+  if (containerPos !== undefined) {
+    addRemotePosition(context.containerPositionsByRoom, containerPos)
+  }
+}
+
+function addRemotePosition(positionsByRoom: Map<string, Set<number>>, pos: RoomPosition): void {
+  let positions = positionsByRoom.get(pos.roomName)
+
+  if (positions === undefined) {
+    positions = new Set()
+    positionsByRoom.set(pos.roomName, positions)
+  }
+
+  positions.add(toRoomIndex(pos.x, pos.y))
+}
+
+function applyRemotePathCosts(costs: CostMatrix, roomName: string, context: RemotePathContext): void {
+  const roadPositions = context.roadPositionsByRoom.get(roomName)
+
+  if (roadPositions !== undefined) {
+    for (const index of roadPositions) {
+      const coordinate = fromRoomIndex(index)
+      const currentCost = costs.get(coordinate.x, coordinate.y)
+
+      if (currentCost !== 255 && (currentCost === 0 || currentCost > REMOTE_ROAD_COST)) {
+        costs.set(coordinate.x, coordinate.y, REMOTE_ROAD_COST)
+      }
+    }
+  }
+
+  const containerPositions = context.containerPositionsByRoom.get(roomName)
+
+  if (containerPositions !== undefined) {
+    for (const index of containerPositions) {
+      const coordinate = fromRoomIndex(index)
+
+      if (costs.get(coordinate.x, coordinate.y) !== 255) {
+        costs.set(coordinate.x, coordinate.y, REMOTE_CONTAINER_COST)
+      }
+    }
+  }
 }
 
 function applyBasePlanCosts(costs: CostMatrix, basePlan: BasePlan): void {

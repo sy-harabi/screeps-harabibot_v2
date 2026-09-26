@@ -1,3 +1,4 @@
+import type { BasePlan } from "../../capabilities/basePlanning/basePlan"
 import { estimatePathTravelTicks } from "../../capabilities/movement/travelTime"
 import { requestSpawn } from "../../capabilities/spawning/spawnQueue"
 import { getColonyCreeps, type TickContext } from "../../kernel/tickContext"
@@ -5,6 +6,7 @@ import type { LogisticsState } from "../logistics/logistics"
 import { createHaulerBody, HAULER_ROLE, runHaulers } from "./hauler"
 import { getHarvestRuntime } from "./harvestRuntime"
 import { createMinerBody, MINER_ROLE, runMiners } from "./miner"
+import { findOwnedSourcePath } from "./ownedSources"
 import { remoteRoomDataStore } from "./remoteRoomDataStore"
 import { createHarvestSourceData, getSourceContainer, type HarvestSourceData } from "./sourceData"
 import { sourceDataStore } from "./sourceDataStore"
@@ -34,7 +36,7 @@ export interface HarvestResult {
 
 const ROLES_BY_PRIORITY = [MINER_ROLE, HAULER_ROLE]
 
-export function runHarvest(room: Room, context: TickContext, logistics: LogisticsState): HarvestResult {
+export function runHarvest(room: Room, basePlan: BasePlan, context: TickContext, logistics: LogisticsState): HarvestResult {
   if (!sourceDataStore.isReady() || !remoteRoomDataStore.isReady()) {
     return {
       income: 0,
@@ -44,7 +46,7 @@ export function runHarvest(room: Room, context: TickContext, logistics: Logistic
   }
 
   const colonyName = room.name
-  const sourceDataById = getHarvestSourceDataById(colonyName)
+  const sourceDataById = getHarvestSourceDataById(colonyName, basePlan)
   const sourceOrder = getSourceOrder(colonyName, sourceDataById)
   const sourceStateById = new Map<Id<Source>, SourceState>()
   const miners = getColonyCreeps(context, colonyName, MINER_ROLE)
@@ -166,15 +168,26 @@ export function runHarvest(room: Room, context: TickContext, logistics: Logistic
   return { income, maxIncome, spawnUsage }
 }
 
-function getHarvestSourceDataById(colonyName: string): Map<Id<Source>, HarvestSourceData> {
+function getHarvestSourceDataById(colonyName: string, basePlan: BasePlan): Map<Id<Source>, HarvestSourceData> {
   const result = new Map<Id<Source>, HarvestSourceData>()
+  const runtime = getHarvestRuntime(colonyName)
+
+  runtime.ownedPathsBySourceId ??= new Map()
 
   for (const sourceData of sourceDataStore.getByRoom(colonyName).values()) {
-    if (sourceData.ownedPath === undefined) {
-      continue
+    let path = runtime.ownedPathsBySourceId.get(sourceData.sourceId)
+
+    if (path === undefined) {
+      path = findOwnedSourcePath(basePlan, sourceData.sourceId)
+
+      if (path === undefined) {
+        continue
+      }
+
+      runtime.ownedPathsBySourceId.set(sourceData.sourceId, path)
     }
 
-    result.set(sourceData.sourceId, createHarvestSourceData(sourceData, colonyName, sourceData.ownedPath))
+    result.set(sourceData.sourceId, createHarvestSourceData(sourceData, colonyName, path))
   }
 
   for (const remoteName of remoteRoomDataStore.getByColony(colonyName)) {
