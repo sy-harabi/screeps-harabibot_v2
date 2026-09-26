@@ -116,10 +116,7 @@ export function createReserverBody(room: Room): readonly BodyPartConstant[] | un
     return
   }
 
-  return [
-    ...Array<BodyPartConstant>(count).fill(CLAIM),
-    ...Array<BodyPartConstant>(count).fill(MOVE),
-  ]
+  return [...Array<BodyPartConstant>(count).fill(CLAIM), ...Array<BodyPartConstant>(count).fill(MOVE)]
 }
 
 function isReadyForReservation(remote: RemoteRoomData, sourceStateById: ReadonlyMap<Id<Source>, SourceState>): boolean {
