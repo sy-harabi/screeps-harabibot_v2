@@ -36,7 +36,12 @@ export interface HarvestResult {
 
 const ROLES_BY_PRIORITY = [MINER_ROLE, HAULER_ROLE]
 
-export function runHarvest(room: Room, basePlan: BasePlan, context: TickContext, logistics: LogisticsState): HarvestResult {
+export function runHarvest(
+  room: Room,
+  basePlan: BasePlan,
+  context: TickContext,
+  logistics: LogisticsState,
+): HarvestResult {
   if (!sourceDataStore.isReady() || !remoteRoomDataStore.isReady()) {
     return {
       income: 0,

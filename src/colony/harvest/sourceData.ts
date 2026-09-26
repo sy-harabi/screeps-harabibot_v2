@@ -15,11 +15,7 @@ export interface HarvestSourceData {
   readonly miningPositions: readonly RoomPosition[]
 }
 
-export type PackedSourceData = readonly [
-  sourceId: Id<Source>,
-  roomName: string,
-  miningPositions: readonly number[],
-]
+export type PackedSourceData = readonly [sourceId: Id<Source>, roomName: string, miningPositions: readonly number[]]
 
 export function createSourceData(sourceId: Id<Source>, roomName: string, coordinate: RoomCoordinate): SourceData {
   return {
