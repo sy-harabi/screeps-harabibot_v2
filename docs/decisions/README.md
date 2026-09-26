@@ -51,3 +51,4 @@ Date: YYYY-MM-DD
 - [0012: Module-owned runtime lifecycles and cleanup](0012-module-runtime-lifecycles-and-cleanup.md)
 - [0013: Scouting purposes, intel, and initial exploration](0013-scouting-intel-and-exploration.md) — persistence and Explore details partially superseded by 0014
 - [0014: Intel persistence, bootstrap, and Explore topology](0014-intel-persistence-bootstrap-and-explore.md)
+- [0015: Remote harvesting and reservation lifecycle](0015-remote-harvesting-and-reservation.md)
