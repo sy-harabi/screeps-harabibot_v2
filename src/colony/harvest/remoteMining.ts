@@ -40,6 +40,11 @@ interface RemotePathContext {
   readonly containerPositionsByRoom: Map<string, Set<number>>
 }
 
+interface RemoteSourceCandidate {
+  readonly source: SourceIntel
+  readonly initialPath: readonly RoomPosition[]
+}
+
 const MAX_REMOTE_DEPTH = 4
 const MAX_REMOTE_DISTANCE = 200
 const REMOTE_CHECK_INTERVAL = 1000
@@ -305,20 +310,45 @@ function createRemoteCandidate(
 ): RemoteCandidate | undefined {
   const sources: RemoteSourceData[] = []
   const pathContext = createRemotePathContext(room.name, intel.roomName)
-  let totalDistance = 0
+
+  const sourceCandidates: RemoteSourceCandidate[] = []
 
   for (const source of intel.sources) {
-    const path = findRemoteSourcePath(room, basePlan, intel.roomName, source, route, pathContext)
+    const initialPath = findRemoteSourcePath(room, basePlan, intel.roomName, source, route, pathContext)
+
+    if (initialPath === undefined || initialPath.length > MAX_REMOTE_DISTANCE) {
+      return
+    }
+
+    sourceCandidates.push({
+      source,
+      initialPath,
+    })
+  }
+
+  sourceCandidates.sort((a, b) => a.initialPath.length - b.initialPath.length || a.source.id.localeCompare(b.source.id))
+
+  let totalDistance = 0
+
+  for (let i = 0; i < sourceCandidates.length; i++) {
+    const candidate = sourceCandidates[i]
+
+    const path =
+      i === 0
+        ? candidate.initialPath
+        : findRemoteSourcePath(room, basePlan, intel.roomName, candidate.source, route, pathContext)
 
     if (path === undefined || path.length > MAX_REMOTE_DISTANCE) {
       return
     }
 
     sources.push({
-      sourceId: source.id,
+      sourceId: candidate.source.id,
       path,
     })
+
     totalDistance += path.length
+
     addRemotePath(pathContext, path)
   }
 
