@@ -160,7 +160,7 @@ function reconcileConstruction(
     })
   }
 
-  if (controller.level < 4) {
+  if (controller.level < 4 && controller.level > 1) {
     const { x, y } = basePlan.storage
 
     const containerKey = structureKey(x, y, STRUCTURE_CONTAINER)
