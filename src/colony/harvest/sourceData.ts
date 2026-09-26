@@ -40,11 +40,7 @@ export function createHarvestSourceData(
 }
 
 export function packSourceData(sourceData: SourceData): PackedSourceData {
-  return [
-    sourceData.sourceId,
-    sourceData.roomName,
-    sourceData.miningPositions.map((pos) => toRoomIndex(pos.x, pos.y)),
-  ]
+  return [sourceData.sourceId, sourceData.roomName, sourceData.miningPositions.map((pos) => toRoomIndex(pos.x, pos.y))]
 }
 
 export function unpackSourceData(packed: PackedSourceData): SourceData {
