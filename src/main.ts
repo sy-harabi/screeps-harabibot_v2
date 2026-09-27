@@ -3,6 +3,7 @@ import { getBaseRoomCostMatrix } from "./capabilities/movement/roomCostMatrix"
 import { run as runTraffic } from "./capabilities/movement/traffic"
 import { allocateSpawns } from "./capabilities/spawning/spawnAllocator"
 import { runColonies } from "./colony/colonyManager"
+import { updateRclProgress } from "./colony/rclProgress"
 import { harvestRoomPlanStore } from "./colony/harvest/harvestRoomPlanStore"
 import { considerRemoteHarvest } from "./colony/harvest/harvestRoomPlanner"
 import "./console/consoleApi"
@@ -18,6 +19,8 @@ export function loop(): void {
   segmentManager.pretick()
 
   const context = createTickContext()
+
+  updateRclProgress(context)
 
   basePlanStore.pretick(context.ownedRooms.values())
   harvestRoomPlanStore.pretick()
