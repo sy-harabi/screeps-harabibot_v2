@@ -1,6 +1,7 @@
 import { HARVEST_PLAN_SEGMENT_IDS } from "../../persistence/segmentIds"
 import { segmentManager } from "../../persistence/segmentManager"
 import { runtimeRegistry } from "../../runtime/runtimeRegistry"
+import { invalidateHarvestRuntime } from "./harvestRuntime"
 import {
   packHarvestRoomPlan,
   unpackHarvestRoomPlan,
@@ -97,6 +98,7 @@ function deleteHarvestRoomPlan(roomName: string): void {
   if (plan !== undefined) {
     removeFromColonyIndex(roomName, plan.colonyName)
     plansByRoom.delete(roomName)
+    invalidateHarvestRuntime(plan.colonyName)
   }
 }
 
@@ -121,6 +123,7 @@ function set(roomName: string, plan: HarvestRoomPlan): void {
 
   if (previous !== undefined && previous.colonyName !== plan.colonyName) {
     removeFromColonyIndex(roomName, previous.colonyName)
+    invalidateHarvestRuntime(previous.colonyName)
   }
 
   const segmentId = getHarvestPlanSegmentId(roomName)
@@ -142,6 +145,7 @@ function set(roomName: string, plan: HarvestRoomPlan): void {
   segmentManager.setSegment(segmentId, segment)
   plansByRoom.set(roomName, plan)
   addToColonyIndex(roomName, plan.colonyName)
+  invalidateHarvestRuntime(plan.colonyName)
 }
 
 function addToColonyIndex(roomName: string, colonyName: string): void {
