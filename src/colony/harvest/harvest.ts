@@ -438,7 +438,11 @@ function prepareHarvestRoomStates(
     const leftDistance = left.sources[0]?.path.length ?? Infinity
     const rightDistance = right.sources[0]?.path.length ?? Infinity
 
-    return Number(leftRemote) - Number(rightRemote) || leftDistance - rightDistance || left.roomName.localeCompare(right.roomName)
+    return (
+      Number(leftRemote) - Number(rightRemote) ||
+      leftDistance - rightDistance ||
+      left.roomName.localeCompare(right.roomName)
+    )
   })
 
   return result
