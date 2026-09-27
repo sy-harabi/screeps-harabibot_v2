@@ -32,3 +32,7 @@ export function getHarvestRuntime(colonyName: string): HarvestRuntime {
 
   return runtime
 }
+
+export function invalidateHarvestRuntime(colonyName: string): void {
+  harvestRuntimes.delete(colonyName)
+}
