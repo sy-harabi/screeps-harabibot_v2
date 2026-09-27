@@ -13,13 +13,15 @@ interface HarvestDataSegment {
   rooms: Record<string, PackedHarvestRoomData>
 }
 
-export const harvsetRoomDataStore = {
+const EMPTY_ROOM_NAMES: ReadonlySet<string> = new Set()
+
+export const harvestRoomDataStore = {
   pretick,
   isReady,
   get,
   set,
   delete: deleteHarvestData,
-  getRemoteNames,
+  getByColony,
 }
 
 const dataByRoom = runtimeRegistry.createCache<string, HarvestRoomData>("harvest.rooms")
@@ -98,12 +100,12 @@ function deleteHarvestData(roomName: string): void {
   }
 }
 
-function getRemoteNames(colonyName: string): Set<string> | undefined {
+function getByColony(colonyName: string): ReadonlySet<string> {
   if (!isReady()) {
     throw new Error(`Cannot read remote names before ready`)
   }
 
-  return roomsByColony.get(colonyName)
+  return roomsByColony.get(colonyName) ?? EMPTY_ROOM_NAMES
 }
 
 function get(roomName: string): HarvestRoomData | undefined {
@@ -118,7 +120,7 @@ function set(roomName: string, data: HarvestRoomData): void {
   const previous = dataByRoom.get(roomName)
 
   if (previous !== undefined && previous.colonyName !== data.colonyName) {
-    deleteHarvestData(roomName)
+    removeFromColonyIndex(roomName, previous.colonyName)
   }
 
   const segmentId = getHarvestDataSegmentId(roomName)
@@ -155,12 +157,16 @@ function addToColonyIndex(roomName: string, colonyName: string): void {
 }
 
 function removeFromColonyIndex(roomName: string, colonyName: string): void {
-  const colonyIndex = roomsByColony.get(colonyName)
-  if (colonyIndex === undefined) {
+  const rooms = roomsByColony.get(colonyName)
+  if (rooms === undefined) {
     return
   }
 
-  colonyIndex.delete(roomName)
+  rooms.delete(roomName)
+
+  if (rooms.size === 0) {
+    roomsByColony.delete(colonyName)
+  }
 }
 
 function getHarvestDataSegmentId(roomName: string): number {

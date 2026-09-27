@@ -54,7 +54,7 @@ export function unpackBasePlan(packed: PackedBasePlan): BasePlan {
 export function packBasePlan(plan: BasePlan): PackedBasePlan {
   return {
     formatVersion: 1,
-    revision: Game.time,
+    revision: plan.revision,
     roomName: plan.roomName,
     storage: packCoordinate(plan.storage),
     structures: plan.structures.map(packStructure),

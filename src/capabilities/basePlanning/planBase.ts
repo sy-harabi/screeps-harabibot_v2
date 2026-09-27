@@ -292,6 +292,7 @@ function tryPlanBaseWithRegions(
 
   return {
     version: 1,
+    revision: Game.time,
     roomName,
     storage: bestControllerArea.storage,
     structures,
