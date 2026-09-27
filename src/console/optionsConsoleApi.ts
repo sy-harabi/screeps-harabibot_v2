@@ -4,6 +4,10 @@ export interface BotOptionsConsoleApi {
   show(roomName?: string): void
   setBasePlanVisual(value: boolean): void
   clearBasePlanVisual(): void
+  setHarvestVisual(value: boolean): void
+  clearHarvestVisual(): void
+  setRclProgressVisual(value: boolean): void
+  clearRclProgressVisual(): void
   setRampartBuildRcl(value: number, roomName?: string): void
   clearRampartBuildRcl(roomName?: string): void
 }
@@ -44,6 +48,34 @@ export const botOptionsConsoleApi: BotOptionsConsoleApi = {
     delete Memory.options?.visuals?.basePlan
 
     console.log(`basePlan visual reset to default = ${DEFAULT_BOT_OPTIONS.visuals.basePlan}`)
+  },
+
+  setHarvestVisual(value: boolean): void {
+    Memory.options ??= {}
+    Memory.options.visuals ??= {}
+    Memory.options.visuals.harvest = value
+
+    console.log(`harvest visual = ${value}`)
+  },
+
+  clearHarvestVisual(): void {
+    delete Memory.options?.visuals?.harvest
+
+    console.log(`harvest visual reset to default = ${DEFAULT_BOT_OPTIONS.visuals.harvest}`)
+  },
+
+  setRclProgressVisual(value: boolean): void {
+    Memory.options ??= {}
+    Memory.options.visuals ??= {}
+    Memory.options.visuals.rclProgress = value
+
+    console.log(`rclProgress visual = ${value}`)
+  },
+
+  clearRclProgressVisual(): void {
+    delete Memory.options?.visuals?.rclProgress
+
+    console.log(`rclProgress visual reset to default = ${DEFAULT_BOT_OPTIONS.visuals.rclProgress}`)
   },
 
   setRampartBuildRcl(value: number, roomName?: string): void {
