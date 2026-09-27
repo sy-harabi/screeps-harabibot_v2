@@ -63,7 +63,7 @@ export function planHarvest(colonyName: string, basePlan: BasePlan): void {
   }
 }
 
-export function considerRemoteHarvestRoom(roomName: string, context: TickContext): HarvestRoomPlan | undefined {
+export function considerRemoteHarvest(roomName: string, context: TickContext): HarvestRoomPlan | undefined {
   if (!harvestRoomPlanStore.isReady() || !intelStore.isReady() || context.ownedRooms.has(roomName)) {
     return
   }
