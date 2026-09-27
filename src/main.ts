@@ -4,7 +4,7 @@ import { run as runTraffic } from "./capabilities/movement/traffic"
 import { allocateSpawns } from "./capabilities/spawning/spawnAllocator"
 import { runColonies } from "./colony/colonyManager"
 import { harvestRoomPlanStore } from "./colony/harvest/harvestRoomPlanStore"
-import { considerRemoteHarvestRoom } from "./colony/harvest/harvestRoomPlanner"
+import { considerRemoteHarvest } from "./colony/harvest/harvestRoomPlanner"
 import "./console/consoleApi"
 import { createTickContext } from "./kernel/tickContext"
 import { segmentManager } from "./persistence/segmentManager"
@@ -31,7 +31,7 @@ export function loop(): void {
         continue
       }
 
-      considerRemoteHarvestRoom(room.name, context)
+      considerRemoteHarvest(room.name, context)
     }
   }
 
