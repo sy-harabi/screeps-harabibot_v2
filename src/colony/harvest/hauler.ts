@@ -236,7 +236,10 @@ function preparePendingEnergy(sourceStates: readonly HarvestSourceState[]): void
       continue
     }
 
-    sourceState.pendingEnergy = getAvailableEnergy(source, sourceState) + getExpectedEnergyDelta(source, sourceState)
+    const available = getAvailableEnergy(source, sourceState)
+    sourceState.containerEnergy = available.container
+    sourceState.droppedEnergy = available.dropped
+    sourceState.pendingEnergy = available.container + available.dropped + getExpectedEnergyDelta(source, sourceState)
   }
 }
 
@@ -277,22 +280,24 @@ function getExpectedEnergyDelta(source: Source, sourceState: HarvestSourceState)
   )
 }
 
-function getAvailableEnergy(source: Source, sourceState: HarvestSourceState): number {
-  let energy = 0
+function getAvailableEnergy(
+  source: Source,
+  sourceState: HarvestSourceState,
+): { container: number; dropped: number } {
+  let dropped = 0
 
   for (const resource of source.pos.findInRange(FIND_DROPPED_RESOURCES, 1)) {
     if (resource.resourceType === RESOURCE_ENERGY) {
-      energy += resource.amount
+      dropped += resource.amount
     }
   }
 
   const container = getSourceContainer(sourceState.path)
 
-  if (container !== undefined) {
-    energy += container.store.getUsedCapacity(RESOURCE_ENERGY)
+  return {
+    container: container?.store.getUsedCapacity(RESOURCE_ENERGY) ?? 0,
+    dropped,
   }
-
-  return energy
 }
 
 export function createHaulerBody(room: Room): readonly BodyPartConstant[] | undefined {
