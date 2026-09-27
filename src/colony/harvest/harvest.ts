@@ -25,9 +25,11 @@ interface HarvestRoomState {
   readonly sources: HarvestSourceState[]
 
   readonly reservationState: ReservationState
+  readonly controllerTravelTicks?: number
   readonly reserverLeadTime?: number
 
   reservePower: number
+  hasReserver: boolean
 }
 
 type ReservationState = "owned" | "none" | "ours" | "foreign"
@@ -96,13 +98,16 @@ export function runHarvest(
     }
 
     const roomState = roomByName.get(remoteRoomName)
-    const leadTime = roomState?.reserverLeadTime
 
-    if (roomState === undefined || leadTime === undefined) {
+    if (roomState === undefined) {
       continue
     }
 
-    if (reserver.spawning || (reserver.ticksToLive ?? 0) >= leadTime) {
+    roomState.hasReserver = true
+
+    const leadTime = roomState.reserverLeadTime
+
+    if (leadTime !== undefined && (reserver.spawning || (reserver.ticksToLive ?? 0) >= leadTime)) {
       roomState.reservePower += reserver.getActiveBodyparts(CLAIM)
     }
   }
@@ -281,22 +286,45 @@ export function runHarvest(
           requestReserver(roomState)
         }
 
+        if (roomState.hasReserver || (firstSourceReady && roomState.reserverLeadTime !== undefined)) {
+          const upkeep = getReservationUpkeep(roomState)
+
+          income -= upkeep.energy
+          maxIncome -= upkeep.energy
+          spawnUsage += upkeep.spawnUsage
+        }
+
         for (let i = 1; i < roomState.sources.length; i++) {
           processSource(roomState.sources[i])
         }
         break
       }
 
-      case "ours":
+      case "ours": {
         requestReserver(roomState)
+
+        const upkeep = getReservationUpkeep(roomState)
+
+        income -= upkeep.energy
+        maxIncome -= upkeep.energy
+        spawnUsage += upkeep.spawnUsage
 
         for (const source of roomState.sources) {
           processSource(source)
         }
         break
+      }
 
       case "foreign":
         requestReserver(roomState)
+
+        if (roomState.hasReserver || roomState.reserverLeadTime !== undefined) {
+          const upkeep = getReservationUpkeep(roomState)
+
+          income -= upkeep.energy
+          maxIncome -= upkeep.energy
+          spawnUsage += upkeep.spawnUsage
+        }
         break
     }
   }
@@ -322,7 +350,7 @@ function getReservationState(intel: RoomIntel, username: string): ReservationSta
 
   const reservation = intel.controller?.reservation
 
-  if (reservation === undefined) {
+  if (reservation === undefined || reservation.endTick <= Game.time) {
     return "none"
   }
 
@@ -347,6 +375,25 @@ function needsReserver(roomState: HarvestRoomState): boolean {
   }
 
   return getReservationTicks(roomState) - leadTime < RESERVATION_RESTART_MARGIN
+}
+
+function getReservationUpkeep(roomState: HarvestRoomState): { energy: number; spawnUsage: number } {
+  const travelTicks = roomState.controllerTravelTicks
+
+  if (travelTicks === undefined) {
+    return { energy: 0, spawnUsage: 0 }
+  }
+
+  const productiveLifetime = CREEP_CLAIM_LIFE_TIME - travelTicks
+
+  if (productiveLifetime <= 0) {
+    return { energy: 0, spawnUsage: 0 }
+  }
+
+  return {
+    energy: 650 / productiveLifetime,
+    spawnUsage: (TARGET_RESERVE_POWER * CREEP_SPAWN_TIME) / productiveLifetime,
+  }
 }
 
 function getTargetMinerWork(room: Room, source: HarvestSourceState): number {
@@ -411,12 +458,15 @@ function prepareHarvestRoomStates(
     sources.sort((left, right) => left.path.length - right.path.length || left.id.localeCompare(right.id))
 
     const reservationState = getReservationState(intel, username)
+    let controllerTravelTicks: number | undefined
     let reserverLeadTime: number | undefined
 
-    if (roomName !== colonyName && reserverBody !== undefined) {
+    if (roomName !== colonyName) {
       const controllerRuntime = getRemoteControllerRuntime(basePlan, roomName, intel, sources)
 
-      if (controllerRuntime !== undefined) {
+      controllerTravelTicks = controllerRuntime?.travelTicks
+
+      if (controllerRuntime !== undefined && reserverBody !== undefined) {
         reserverLeadTime =
           reserverBody.length * CREEP_SPAWN_TIME + controllerRuntime.travelTicks + RESERVER_REPLACEMENT_BUFFER
       }
@@ -427,8 +477,10 @@ function prepareHarvestRoomStates(
       intel,
       sources,
       reservationState,
+      controllerTravelTicks,
       reserverLeadTime,
       reservePower: 0,
+      hasReserver: false,
     })
   }
 
@@ -543,7 +595,7 @@ function getRequiredHarvestPower(intel: RoomIntel, username: string): number {
     return controller.owner.username === username ? SOURCE_ENERGY_CAPACITY / ENERGY_REGEN_TIME : 0
   }
 
-  if (controller.reservation !== undefined) {
+  if (controller.reservation !== undefined && controller.reservation.endTick > Game.time) {
     return controller.reservation.username === username ? SOURCE_ENERGY_CAPACITY / ENERGY_REGEN_TIME : 0
   }
 
