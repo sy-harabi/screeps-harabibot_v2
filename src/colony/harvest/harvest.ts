@@ -10,11 +10,16 @@ import { createMinerBody, MINER_ROLE, runMiners } from "./miner"
 import { createSourceData, getSourceContainer, type SourceData } from "./sourceData"
 import { sourceDataStore } from "./sourceDataStore"
 import { getSourceEconomy } from "./sourceEconomy"
+import { harvestRoomDataStore } from "./harvestDataStore"
+import { intelStore } from "../../world/intel/intelStore"
+import { ensureHarvestRoomData } from "./harvestRoomPlanner"
 
 const SOURCE_CONTAINER_REPAIR_THRESHOLD = 150_000
 
 export interface SourceState {
-  readonly data: SourceData
+  readonly roomName: string
+  readonly path: readonly RoomPosition[]
+  readonly miningPositions: readonly RoomPosition[]
 
   harvestPower: number
   harvestingPower: number
@@ -35,17 +40,22 @@ export interface HarvestResult {
 
 const ROLES_BY_PRIORITY = [MINER_ROLE, HAULER_ROLE]
 
+const EMPTY_HARVEST_RESULT = { income: 0, maxIncome: 0, spawnUsage: 0 }
+
 export function runHarvest(
   room: Room,
   basePlan: BasePlan,
   context: TickContext,
   logistics: LogisticsState,
 ): HarvestResult {
-  const colonyName = room.name
-  const sourceDataById = ensureSourceDataById(room, basePlan)
+  if (!harvestRoomDataStore.isReady() || !intelStore.isReady()) {
+    return EMPTY_HARVEST_RESULT
+  }
 
-  if (sourceDataById === undefined) {
-    return { income: 0, maxIncome: 0, spawnUsage: 0 }
+  const colonyName = room.name
+
+  if (ensureHarvestRoomData(colonyName, colonyName, basePlan) === undefined) {
+    return EMPTY_HARVEST_RESULT
   }
 
   const sourceOrder = getSourceOrder(colonyName, sourceDataById)
@@ -216,6 +226,10 @@ function ensureSourceState(
   }
 
   return sourceState
+}
+
+function createSourceStateById(colonyName: string): Map<Id<Source>, SourceState> | undefined {
+  const runtime = 
 }
 
 function ensureSourceDataById(room: Room, basePlan: BasePlan): Map<Id<Source>, SourceData> | undefined {
