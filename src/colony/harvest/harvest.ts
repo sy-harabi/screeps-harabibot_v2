@@ -13,6 +13,7 @@ import { getMiningPositions, getSourceContainer } from "./miningSite"
 import { createMinerBody, MINER_ROLE, runMiners } from "./miner"
 import { createReserverBody, RESERVER_ROLE, runReserver } from "./reserver"
 import { getSourceEconomyStats } from "./sourceEconomyStats"
+import { visualizeHarvest, type HarvestVisualReservationRow, type HarvestVisualSourceRow } from "./harvestVisual"
 
 const SOURCE_CONTAINER_REPAIR_THRESHOLD = 150_000
 const RESERVER_REPLACEMENT_BUFFER = 20
@@ -76,13 +77,16 @@ export function runHarvest(
   const roomByName = new Map<string, HarvestRoomState>()
   const sourceStates: HarvestSourceState[] = []
   const sourceById = new Map<Id<Source>, HarvestSourceState>()
+  const sourceIndexById = new Map<Id<Source>, number>()
 
   for (const roomState of roomStates) {
     roomByName.set(roomState.roomName, roomState)
 
-    for (const source of roomState.sources) {
+    for (let i = 0; i < roomState.sources.length; i++) {
+      const source = roomState.sources[i]
       sourceStates.push(source)
       sourceById.set(source.id, source)
+      sourceIndexById.set(source.id, i)
     }
   }
 
@@ -161,6 +165,8 @@ export function runHarvest(
   let maxIncome = 0
   let spawnUsage = 0
   let spawnRequested = false
+  const visualSourceRows: HarvestVisualSourceRow[] = []
+  const visualReservationRows: HarvestVisualReservationRow[] = []
 
   const requestReserver = (roomState: HarvestRoomState): void => {
     if (spawnRequested || reserverBody === undefined || !needsReserver(roomState)) {
@@ -204,6 +210,12 @@ export function runHarvest(
     income -= upkeep.energy
     maxIncome -= upkeep.energy
     spawnUsage += upkeep.spawnUsage
+
+    visualReservationRows.push({
+      roomName: roomState.roomName,
+      upkeep: upkeep.energy,
+      spawnUsage: upkeep.spawnUsage,
+    })
   }
 
   const processSource = (source: HarvestSourceState): boolean => {
@@ -230,23 +242,47 @@ export function runHarvest(
       container !== undefined,
     )
 
+    let sourceIncome: number | undefined
+    let sourceMaxIncome: number | undefined
+    let sourceSpawnUsage: number | undefined
+    let actualHaulerUpkeep: number | undefined
+
     if (haulerRatio > 0) {
       const productionRatio = Math.min(1, minerRatio, haulerRatio)
 
-      income +=
+      actualHaulerUpkeep = sourceEconomyStats.haulerUpkeep * haulerRatio
+      sourceIncome =
         sourceEconomyStats.harvestIncome * productionRatio -
         sourceEconomyStats.minerUpkeep -
-        sourceEconomyStats.haulerUpkeep * haulerRatio -
+        actualHaulerUpkeep -
         sourceEconomyStats.infrastructureUpkeep
-
-      maxIncome +=
+      sourceMaxIncome =
         sourceEconomyStats.harvestIncome -
         sourceEconomyStats.minerUpkeep -
         sourceEconomyStats.haulerUpkeep -
         sourceEconomyStats.infrastructureUpkeep
+      sourceSpawnUsage =
+        sourceEconomyStats.minerSpawnUsage + sourceEconomyStats.haulerSpawnUsage * haulerRatio
 
-      spawnUsage += sourceEconomyStats.minerSpawnUsage + sourceEconomyStats.haulerSpawnUsage * haulerRatio
+      income += sourceIncome
+      maxIncome += sourceMaxIncome
+      spawnUsage += sourceSpawnUsage
     }
+
+    visualSourceRows.push({
+      roomName: source.roomName,
+      sourceIndex: sourceIndexById.get(source.id) ?? 0,
+      distance: source.path.length,
+      minerRatio,
+      haulerRatio,
+      grossIncome: sourceEconomyStats.harvestIncome,
+      minerUpkeep: haulerRatio > 0 ? sourceEconomyStats.minerUpkeep : undefined,
+      haulerUpkeep: actualHaulerUpkeep,
+      infrastructureUpkeep: haulerRatio > 0 ? sourceEconomyStats.infrastructureUpkeep : undefined,
+      income: sourceIncome,
+      maxIncome: sourceMaxIncome,
+      spawnUsage: sourceSpawnUsage,
+    })
 
     if (!spawnRequested) {
       const priorityType = source.roomName === colonyName ? "ownedSource" : "remoteSource"
@@ -352,7 +388,13 @@ export function runHarvest(
   runMiners(miners, sourceById)
   runHaulers(colonyName, haulers, sourceStates, sourceById, logistics)
 
-  return { income, maxIncome, spawnUsage }
+  const result = { income, maxIncome, spawnUsage }
+
+  if (Memory.options?.visuals?.harvest) {
+    visualizeHarvest(room, visualSourceRows, visualReservationRows, result)
+  }
+
+  return result
 }
 
 function getReservationState(intel: RoomIntel, username: string): ReservationState {
