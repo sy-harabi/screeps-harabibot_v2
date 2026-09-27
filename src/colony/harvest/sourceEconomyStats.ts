@@ -8,13 +8,12 @@ export interface SourceEconomyStats {
   readonly numMiningPositions: number
   readonly grossIncome: number
   readonly targetWork: number
+  readonly hasContainer: boolean
 
   readonly harvestIncome: number
-
   readonly minerUpkeep: number
   readonly haulerUpkeep: number
   readonly infrastructureUpkeep: number
-
   readonly minerSpawnUsage: number
   readonly haulerSpawnUsage: number
 }
@@ -40,7 +39,8 @@ export function getSourceEconomyStats(
     cached.path === path &&
     cached.numMiningPositions === numMiningPositions &&
     cached.grossIncome === grossIncome &&
-    cached.targetWork === targetWork
+    cached.targetWork === targetWork &&
+    cached.hasContainer === hasContainer
   ) {
     return cached
   }
@@ -70,6 +70,7 @@ function calculateSourceEconomyStats(
       numMiningPositions,
       grossIncome,
       targetWork,
+      hasContainer,
       harvestIncome: 0,
       minerUpkeep: 0,
       haulerUpkeep: 0,
@@ -98,23 +99,14 @@ function calculateSourceEconomyStats(
   const travelTicks = estimatePathTravelTicks(path, move, work)
   const productiveLifetime = CREEP_LIFE_TIME - travelTicks
   const minerUpkeep = (minerCount * bodyCost) / productiveLifetime
-  const minerSpawnUsage = (minerCount * minerBody.length * CREEP_SPAWN_TIME) / productiveLifetime
-
   const requiredCarryCapacity = path.length * 2 * harvestIncome
   const carryParts = requiredCarryCapacity / CARRY_CAPACITY
   const haulerUpkeep = (carryParts * (BODYPART_COST[CARRY] + BODYPART_COST[MOVE])) / CREEP_LIFE_TIME
-  const haulerSpawnUsage = (carryParts * 2 * CREEP_SPAWN_TIME) / CREEP_LIFE_TIME
-
-  let infrastructureUpkeep: number
-
-  if (hasContainer) {
-    const sourceRoomName = path[path.length - 1]?.roomName
-    const owned = sourceRoomName === room.name
-
-    infrastructureUpkeep = (CONTAINER_DECAY * REPAIR_COST) / (owned ? CONTAINER_DECAY_TIME_OWNED : CONTAINER_DECAY_TIME)
-  } else {
-    infrastructureUpkeep = minerCount
-  }
+  const sourceRoomName = path[path.length - 1]?.roomName
+  const infrastructureUpkeep = hasContainer
+    ? (CONTAINER_DECAY * REPAIR_COST) /
+      (sourceRoomName === room.name ? CONTAINER_DECAY_TIME_OWNED : CONTAINER_DECAY_TIME)
+    : minerCount
 
   return {
     key,
@@ -122,11 +114,12 @@ function calculateSourceEconomyStats(
     numMiningPositions,
     grossIncome,
     targetWork,
+    hasContainer,
     harvestIncome,
     minerUpkeep,
     haulerUpkeep,
     infrastructureUpkeep,
-    minerSpawnUsage,
-    haulerSpawnUsage,
+    minerSpawnUsage: (minerCount * minerBody.length * CREEP_SPAWN_TIME) / productiveLifetime,
+    haulerSpawnUsage: (carryParts * 2 * CREEP_SPAWN_TIME) / CREEP_LIFE_TIME,
   }
 }
