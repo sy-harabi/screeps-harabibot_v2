@@ -194,6 +194,18 @@ export function runHarvest(
     spawnRequested = true
   }
 
+  const applyReservationUpkeep = (roomState: HarvestRoomState, firstSourceReady = false): void => {
+    if (!isReservationLifecycleActive(roomState, firstSourceReady)) {
+      return
+    }
+
+    const upkeep = getReservationUpkeep(roomState)
+
+    income -= upkeep.energy
+    maxIncome -= upkeep.energy
+    spawnUsage += upkeep.spawnUsage
+  }
+
   const processSource = (source: HarvestSourceState): boolean => {
     if (source.requiredHarvestPower <= 0) {
       return false
@@ -286,13 +298,7 @@ export function runHarvest(
           requestReserver(roomState)
         }
 
-        if (roomState.hasReserver || (firstSourceReady && roomState.reserverLeadTime !== undefined)) {
-          const upkeep = getReservationUpkeep(roomState)
-
-          income -= upkeep.energy
-          maxIncome -= upkeep.energy
-          spawnUsage += upkeep.spawnUsage
-        }
+        applyReservationUpkeep(roomState, firstSourceReady)
 
         for (let i = 1; i < roomState.sources.length; i++) {
           processSource(roomState.sources[i])
@@ -303,11 +309,7 @@ export function runHarvest(
       case "ours": {
         requestReserver(roomState)
 
-        const upkeep = getReservationUpkeep(roomState)
-
-        income -= upkeep.energy
-        maxIncome -= upkeep.energy
-        spawnUsage += upkeep.spawnUsage
+        applyReservationUpkeep(roomState)
 
         for (const source of roomState.sources) {
           processSource(source)
@@ -318,13 +320,7 @@ export function runHarvest(
       case "foreign":
         requestReserver(roomState)
 
-        if (roomState.hasReserver || roomState.reserverLeadTime !== undefined) {
-          const upkeep = getReservationUpkeep(roomState)
-
-          income -= upkeep.energy
-          maxIncome -= upkeep.energy
-          spawnUsage += upkeep.spawnUsage
-        }
+        applyReservationUpkeep(roomState)
         break
     }
   }
@@ -375,6 +371,18 @@ function needsReserver(roomState: HarvestRoomState): boolean {
   }
 
   return getReservationTicks(roomState) - leadTime < RESERVATION_RESTART_MARGIN
+}
+
+function isReservationLifecycleActive(roomState: HarvestRoomState, firstSourceReady = false): boolean {
+  if (roomState.reservationState === "ours" || roomState.hasReserver) {
+    return true
+  }
+
+  if (roomState.reserverLeadTime === undefined) {
+    return false
+  }
+
+  return roomState.reservationState === "foreign" || (roomState.reservationState === "none" && firstSourceReady)
 }
 
 function getReservationUpkeep(roomState: HarvestRoomState): { energy: number; spawnUsage: number } {
