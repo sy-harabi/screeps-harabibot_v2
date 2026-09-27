@@ -28,9 +28,9 @@ interface UpgradeLayout {
 }
 
 const ENERGY_RESERVE_BY_RCL: Partial<Record<number, number>> = {
-  4: 20_000,
-  5: 30_000,
-  6: 60_000,
+  4: 40_000,
+  5: 60_000,
+  6: 80_000,
   7: 100_000,
   8: 200_000,
 }
