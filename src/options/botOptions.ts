@@ -3,6 +3,7 @@
 export interface BotOptions {
   visuals: {
     basePlan: boolean
+    harvest: boolean
   }
   construction: {
     rampartBuildRcl: number
@@ -18,6 +19,7 @@ export interface RoomOptionsOverride {
 export interface BotOptionsOverride {
   visuals?: {
     basePlan?: boolean
+    harvest?: boolean
   }
   construction?: {
     rampartBuildRcl?: number
@@ -28,6 +30,7 @@ export interface BotOptionsOverride {
 export const DEFAULT_BOT_OPTIONS: BotOptions = {
   visuals: {
     basePlan: false,
+    harvest: false,
   },
   construction: {
     rampartBuildRcl: 6,
@@ -41,6 +44,7 @@ export function getBotOptions(): BotOptions {
   return {
     visuals: {
       basePlan: Memory.options?.visuals?.basePlan ?? DEFAULT_BOT_OPTIONS.visuals.basePlan,
+      harvest: Memory.options?.visuals?.harvest ?? DEFAULT_BOT_OPTIONS.visuals.harvest,
     },
     construction: {
       rampartBuildRcl,
