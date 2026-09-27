@@ -4,6 +4,7 @@ export interface BotOptions {
   visuals: {
     basePlan: boolean
     harvest: boolean
+    rclProgress: boolean
   }
   construction: {
     rampartBuildRcl: number
@@ -20,6 +21,7 @@ export interface BotOptionsOverride {
   visuals?: {
     basePlan?: boolean
     harvest?: boolean
+    rclProgress?: boolean
   }
   construction?: {
     rampartBuildRcl?: number
@@ -31,6 +33,7 @@ export const DEFAULT_BOT_OPTIONS: BotOptions = {
   visuals: {
     basePlan: false,
     harvest: false,
+    rclProgress: false,
   },
   construction: {
     rampartBuildRcl: 6,
@@ -45,6 +48,7 @@ export function getBotOptions(): BotOptions {
     visuals: {
       basePlan: Memory.options?.visuals?.basePlan ?? DEFAULT_BOT_OPTIONS.visuals.basePlan,
       harvest: Memory.options?.visuals?.harvest ?? DEFAULT_BOT_OPTIONS.visuals.harvest,
+      rclProgress: Memory.options?.visuals?.rclProgress ?? DEFAULT_BOT_OPTIONS.visuals.rclProgress,
     },
     construction: {
       rampartBuildRcl,
