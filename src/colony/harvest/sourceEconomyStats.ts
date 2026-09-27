@@ -2,7 +2,7 @@ import { estimatePathTravelTicks } from "../../capabilities/movement/travelTime"
 import { getHarvestRuntime } from "./harvestRuntime"
 import { createMinerBody } from "./miner"
 
-export interface SourceEconomy {
+export interface SourceEconomyStats {
   readonly key: number
   readonly path: readonly RoomPosition[]
   readonly numMiningPositions: number
@@ -12,19 +12,19 @@ export interface SourceEconomy {
   readonly spawnUsage: number
 }
 
-export function getSourceEconomy(
+export function getSourceEconomyStats(
   room: Room,
   sourceId: Id<Source>,
   path: readonly RoomPosition[],
   numMiningPositions: number,
   grossIncome: number,
-): SourceEconomy {
+): SourceEconomyStats {
   const runtime = getHarvestRuntime(room.name)
 
-  runtime.sourceEconomyById ??= new Map()
+  runtime.sourceEconomyStatsById ??= new Map()
 
   const key = room.energyCapacityAvailable
-  const cached = runtime.sourceEconomyById.get(sourceId)
+  const cached = runtime.sourceEconomyStatsById.get(sourceId)
 
   if (
     cached?.key === key &&
@@ -35,19 +35,19 @@ export function getSourceEconomy(
     return cached
   }
 
-  const sourceEconomy = calculateSourceEconomy(room, path, numMiningPositions, grossIncome)
+  const stats = calculateSourceEconomyStats(room, path, numMiningPositions, grossIncome)
 
-  runtime.sourceEconomyById.set(sourceId, sourceEconomy)
+  runtime.sourceEconomyStatsById.set(sourceId, stats)
 
-  return sourceEconomy
+  return stats
 }
 
-function calculateSourceEconomy(
+function calculateSourceEconomyStats(
   room: Room,
   path: readonly RoomPosition[],
   numMiningPositions: number,
   grossIncome: number,
-): SourceEconomy {
+): SourceEconomyStats {
   const key = room.energyCapacityAvailable
   const targetWork = Math.ceil(grossIncome / HARVEST_POWER)
   const minerBody = createMinerBody(room, path, targetWork, true)

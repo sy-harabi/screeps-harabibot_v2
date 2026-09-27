@@ -1,15 +1,15 @@
 import type { BasePlan } from "../../capabilities/basePlanning/basePlan"
 import { intelStore } from "../../world/intel/intelStore"
 import type { SourceIntel } from "../../world/intel/roomIntel"
-import { harvestRoomDataStore } from "./harvestDataStore"
-import type { HarvestRoomData, HarvestSourceData } from "./harvestRoomData"
+import { harvestRoomPlanStore } from "./harvestRoomPlanStore"
+import type { HarvestRoomPlan, HarvestSourcePlan } from "./harvestRoomPlan"
 
-export function planHarvestRoom(roomName: string, colonyName: string, basePlan: BasePlan): HarvestRoomData | undefined {
-  if (!harvestRoomDataStore.isReady()) {
+export function planHarvestRoom(roomName: string, colonyName: string, basePlan: BasePlan): HarvestRoomPlan | undefined {
+  if (!harvestRoomPlanStore.isReady()) {
     return
   }
 
-  const existing = harvestRoomDataStore.get(roomName)
+  const existing = harvestRoomPlanStore.get(roomName)
 
   if (existing !== undefined && existing.colonyName === colonyName && existing.basePlanRevision === basePlan.revision) {
     return existing
@@ -27,15 +27,15 @@ export function planHarvestRoom(roomName: string, colonyName: string, basePlan: 
     return
   }
 
-  const data: HarvestRoomData = {
+  const plan: HarvestRoomPlan = {
     colonyName,
     basePlanRevision: basePlan.revision,
     sources,
   }
 
-  harvestRoomDataStore.set(roomName, data)
+  harvestRoomPlanStore.set(roomName, plan)
 
-  return data
+  return plan
 }
 
 function planHarvestSourcePaths(
@@ -43,20 +43,20 @@ function planHarvestSourcePaths(
   colonyName: string,
   basePlan: BasePlan,
   sources: readonly SourceIntel[],
-): ReadonlyMap<Id<Source>, HarvestSourceData> | undefined {
+): ReadonlyMap<Id<Source>, HarvestSourcePlan> | undefined {
   if (roomName === colonyName) {
     return planOwnedSourcePaths(basePlan, sources)
   }
 
-  // Remote path planning will use the same HarvestRoomData shape.
+  // Remote path planning will use the same HarvestRoomPlan shape.
   return
 }
 
 function planOwnedSourcePaths(
   basePlan: BasePlan,
   sources: readonly SourceIntel[],
-): ReadonlyMap<Id<Source>, HarvestSourceData> | undefined {
-  const result = new Map<Id<Source>, HarvestSourceData>()
+): ReadonlyMap<Id<Source>, HarvestSourcePlan> | undefined {
+  const result = new Map<Id<Source>, HarvestSourcePlan>()
 
   for (const source of sources) {
     const path = findOwnedSourcePath(source, basePlan)

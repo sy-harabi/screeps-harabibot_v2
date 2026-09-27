@@ -1,8 +1,8 @@
 import { runtimeRegistry } from "../../runtime/runtimeRegistry"
-import type { SourceEconomy } from "./sourceEconomy"
+import type { SourceEconomyStats } from "./sourceEconomyStats"
 
 export interface HarvestRuntime {
-  sourceEconomyById?: Map<Id<Source>, SourceEconomy>
+  sourceEconomyStatsById?: Map<Id<Source>, SourceEconomyStats>
 }
 
 const harvestRuntimes = runtimeRegistry.createCache<string, HarvestRuntime>("harvest.colonies", {

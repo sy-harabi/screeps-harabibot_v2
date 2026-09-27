@@ -4,15 +4,15 @@ import { getColonyCreeps, type TickContext } from "../../kernel/tickContext"
 import { intelStore } from "../../world/intel/intelStore"
 import type { RoomIntel } from "../../world/intel/roomIntel"
 import type { LogisticsState } from "../logistics/logistics"
-import { harvestRoomDataStore } from "./harvestDataStore"
+import { harvestRoomPlanStore } from "./harvestRoomPlanStore"
 import { createHaulerBody, HAULER_ROLE, runHaulers } from "./hauler"
 import { getMiningPositions, getSourceContainer } from "./harvestSource"
 import { createMinerBody, MINER_ROLE, runMiners } from "./miner"
-import { getSourceEconomy } from "./sourceEconomy"
+import { getSourceEconomyStats } from "./sourceEconomyStats"
 
 const SOURCE_CONTAINER_REPAIR_THRESHOLD = 150_000
 
-export interface HarvestSource {
+export interface HarvestSourceState {
   readonly id: Id<Source>
   readonly roomName: string
   readonly path: readonly RoomPosition[]
@@ -38,13 +38,13 @@ const ROLES_BY_PRIORITY = [MINER_ROLE, HAULER_ROLE]
 const EMPTY_HARVEST_RESULT: HarvestResult = { income: 0, maxIncome: 0, spawnUsage: 0 }
 
 export function runHarvest(room: Room, context: TickContext, logistics: LogisticsState): HarvestResult {
-  if (!harvestRoomDataStore.isReady() || !intelStore.isReady()) {
+  if (!harvestRoomPlanStore.isReady() || !intelStore.isReady()) {
     return EMPTY_HARVEST_RESULT
   }
 
   const colonyName = room.name
-  const sources = prepareHarvestSources(room)
-  const sourceById = new Map<Id<Source>, HarvestSource>(sources.map((source) => [source.id, source] as const))
+  const sourceStates = prepareHarvestSourceStates(room)
+  const sourceById = new Map<Id<Source>, HarvestSourceState>(sourceStates.map((source) => [source.id, source] as const))
   const miners = getColonyCreeps(context, colonyName, MINER_ROLE)
   const haulers = getColonyCreeps(context, colonyName, HAULER_ROLE)
 
@@ -97,7 +97,7 @@ export function runHarvest(room: Room, context: TickContext, logistics: Logistic
   let maxIncome = 0
   let spawnUsage = 0
 
-  for (const source of sources) {
+  for (const source of sourceStates) {
     if (source.requiredHarvestPower <= 0) {
       continue
     }
@@ -108,7 +108,7 @@ export function runHarvest(room: Room, context: TickContext, logistics: Logistic
     const minerRatio = source.harvestPower / source.requiredHarvestPower
     const haulerRatio = source.carryCapacity / source.requiredCarryCapacity
 
-    const sourceEconomy = getSourceEconomy(
+    const sourceEconomyStats = getSourceEconomyStats(
       room,
       source.id,
       source.path,
@@ -116,9 +116,9 @@ export function runHarvest(room: Room, context: TickContext, logistics: Logistic
       source.requiredHarvestPower,
     )
 
-    income += sourceEconomy.maxIncome * Math.min(1, minerRatio, haulerRatio)
-    maxIncome += sourceEconomy.maxIncome
-    spawnUsage += sourceEconomy.spawnUsage
+    income += sourceEconomyStats.maxIncome * Math.min(1, minerRatio, haulerRatio)
+    maxIncome += sourceEconomyStats.maxIncome
+    spawnUsage += sourceEconomyStats.spawnUsage
 
     if (minerRatio < 1 && minerRatio <= haulerRatio && source.numMiners < source.miningPositions.length) {
       const container = getSourceContainer(source.path)
@@ -157,12 +157,12 @@ export function runHarvest(room: Room, context: TickContext, logistics: Logistic
   }
 
   runMiners(miners, sourceById)
-  runHaulers(colonyName, haulers, sources, sourceById, logistics)
+  runHaulers(colonyName, haulers, sourceStates, sourceById, logistics)
 
   return { income, maxIncome, spawnUsage }
 }
 
-function prepareHarvestSources(room: Room): HarvestSource[] {
+function prepareHarvestSourceStates(room: Room): HarvestSourceState[] {
   const colonyName = room.name
   const username = room.controller?.owner?.username
 
@@ -170,34 +170,34 @@ function prepareHarvestSources(room: Room): HarvestSource[] {
     return []
   }
 
-  const result: HarvestSource[] = []
+  const result: HarvestSourceState[] = []
 
-  for (const roomName of harvestRoomDataStore.getByColony(colonyName)) {
-    const harvestData = harvestRoomDataStore.get(roomName)
+  for (const roomName of harvestRoomPlanStore.getByColony(colonyName)) {
+    const harvestPlan = harvestRoomPlanStore.get(roomName)
     const intel = intelStore.get(roomName)
 
-    if (harvestData === undefined || intel === undefined) {
+    if (harvestPlan === undefined || intel === undefined) {
       continue
     }
 
     const requiredHarvestPower = getRequiredHarvestPower(intel, username)
 
     for (const sourceIntel of intel.sources) {
-      const sourceData = harvestData.sources.get(sourceIntel.id)
+      const sourcePlan = harvestPlan.sources.get(sourceIntel.id)
 
-      if (sourceData === undefined) {
+      if (sourcePlan === undefined) {
         continue
       }
 
-      const miningPositions = getMiningPositions(roomName, sourceIntel.coordinate, sourceData.path)
+      const miningPositions = getMiningPositions(roomName, sourceIntel.coordinate, sourcePlan.path)
 
       result.push({
         id: sourceIntel.id,
         roomName,
-        path: sourceData.path,
+        path: sourcePlan.path,
         miningPositions,
         requiredHarvestPower,
-        requiredCarryCapacity: sourceData.path.length * 2 * requiredHarvestPower,
+        requiredCarryCapacity: sourcePlan.path.length * 2 * requiredHarvestPower,
 
         harvestPower: 0,
         harvestingPower: 0,

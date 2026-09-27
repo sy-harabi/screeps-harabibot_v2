@@ -1,7 +1,7 @@
 import { moveCreep, moveCreepByPath } from "../../capabilities/movement/movement"
 import type { LogisticsState } from "../logistics/logistics"
 import { registerEnergySupplier } from "../logistics/logistics"
-import type { HarvestSource } from "./harvest"
+import type { HarvestSourceState } from "./harvest"
 import { getSourceContainer } from "./harvestSource"
 
 export const HAULER_ROLE = "hauler"
@@ -9,11 +9,11 @@ export const HAULER_ROLE = "hauler"
 export function runHaulers(
   colonyName: string,
   haulers: readonly Creep[],
-  sources: readonly HarvestSource[],
-  sourceById: ReadonlyMap<Id<Source>, HarvestSource>,
+  sourceStates: readonly HarvestSourceState[],
+  sourceById: ReadonlyMap<Id<Source>, HarvestSourceState>,
   logistics: LogisticsState,
 ): void {
-  preparePendingEnergy(sources)
+  preparePendingEnergy(sourceStates)
 
   for (const hauler of haulers) {
     if (hauler.memory.sourceId === undefined || hauler.memory.delivering) {
@@ -36,7 +36,7 @@ export function runHaulers(
 
     if (hauler.memory.delivering) {
       if (hauler.store.getUsedCapacity(RESOURCE_ENERGY) === 0) {
-        finishDelivery(hauler, sources, sourceById)
+        finishDelivery(hauler, sourceStates, sourceById)
         continue
       }
 
@@ -50,7 +50,7 @@ export function runHaulers(
     }
 
     if (hauler.memory.sourceId === undefined) {
-      assignHauler(hauler, sources)
+      assignHauler(hauler, sourceStates)
     }
 
     const sourceId = hauler.memory.sourceId
@@ -70,7 +70,7 @@ export function runHaulers(
   }
 }
 
-function moveToColony(colonyName: string, hauler: Creep, sourceById: ReadonlyMap<Id<Source>, HarvestSource>): void {
+function moveToColony(colonyName: string, hauler: Creep, sourceById: ReadonlyMap<Id<Source>, HarvestSourceState>): void {
   const sourceId = hauler.memory.sourceId
   const source = sourceId === undefined ? undefined : sourceById.get(sourceId)
 
@@ -94,19 +94,19 @@ function moveToColony(colonyName: string, hauler: Creep, sourceById: ReadonlyMap
   )
 }
 
-function moveToSource(hauler: Creep, source: HarvestSource): void {
+function moveToSource(hauler: Creep, source: HarvestSourceState): void {
   moveCreepByPath(hauler, source.path)
 }
 
 function finishDelivery(
   hauler: Creep,
-  sources: readonly HarvestSource[],
-  sourceById: ReadonlyMap<Id<Source>, HarvestSource>,
+  sourceStates: readonly HarvestSourceState[],
+  sourceById: ReadonlyMap<Id<Source>, HarvestSourceState>,
 ): void {
   delete hauler.memory.sourceId
   delete hauler.memory.delivering
 
-  if (!assignHauler(hauler, sources)) {
+  if (!assignHauler(hauler, sourceStates)) {
     return
   }
 
@@ -126,7 +126,7 @@ function finishDelivery(
   moveToSource(hauler, source)
 }
 
-function runFetch(colonyName: string, hauler: Creep, sourceState: HarvestSource): void {
+function runFetch(colonyName: string, hauler: Creep, sourceState: HarvestSourceState): void {
   const path = sourceState.path
   const sourcePos = path[path.length - 1]
 
@@ -199,7 +199,7 @@ function runFetch(colonyName: string, hauler: Creep, sourceState: HarvestSource)
   }
 }
 
-function startDelivering(colonyName: string, hauler: Creep, sourceState: HarvestSource): void {
+function startDelivering(colonyName: string, hauler: Creep, sourceState: HarvestSourceState): void {
   hauler.memory.delivering = true
 
   if (hauler.room.name !== colonyName) {
@@ -223,8 +223,8 @@ function getDroppedEnergy(source: Source): Resource<ResourceConstant> | undefine
   return result
 }
 
-function preparePendingEnergy(sources: readonly HarvestSource[]): void {
-  for (const sourceState of sources) {
+function preparePendingEnergy(sourceStates: readonly HarvestSourceState[]): void {
+  for (const sourceState of sourceStates) {
     const source = Game.getObjectById(sourceState.id)
 
     if (source === null) {
@@ -236,10 +236,10 @@ function preparePendingEnergy(sources: readonly HarvestSource[]): void {
   }
 }
 
-function assignHauler(hauler: Creep, sources: readonly HarvestSource[]): boolean {
+function assignHauler(hauler: Creep, sourceStates: readonly HarvestSourceState[]): boolean {
   const capacity = hauler.store.getCapacity(RESOURCE_ENERGY)
 
-  for (const source of sources) {
+  for (const source of sourceStates) {
     if (source.pendingEnergy < capacity) {
       continue
     }
@@ -259,7 +259,7 @@ function assignHauler(hauler: Creep, sources: readonly HarvestSource[]): boolean
   return false
 }
 
-function getExpectedEnergyDelta(source: Source, sourceState: HarvestSource): number {
+function getExpectedEnergyDelta(source: Source, sourceState: HarvestSourceState): number {
   const travelTicks = sourceState.path.length
   const regeneration = source.ticksToRegeneration ?? ENERGY_REGEN_TIME
 
@@ -273,7 +273,7 @@ function getExpectedEnergyDelta(source: Source, sourceState: HarvestSource): num
   )
 }
 
-function getAvailableEnergy(source: Source, sourceState: HarvestSource): number {
+function getAvailableEnergy(source: Source, sourceState: HarvestSourceState): number {
   let energy = 0
 
   for (const resource of source.pos.findInRange(FIND_DROPPED_RESOURCES, 1)) {

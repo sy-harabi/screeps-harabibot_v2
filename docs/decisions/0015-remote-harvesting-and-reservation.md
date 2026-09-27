@@ -28,9 +28,9 @@ Remote mining is routine colony economy, not a mission and not an independent op
 
 Remote room assignment, remote source paths, miners, shared haulers, reservers, and their sustainable income belong to the colony harvest domain.
 
-### 2. Remote rooms own source paths; source data remains source-local
+### 2. Harvest room plans own source paths; source identity remains in room intel
 
-Source identity and intrinsic mining positions belong to source data. A remote room assignment owns the colony-relative paths used to reach its sources. Do not duplicate remote path ownership into generic source data.
+Source identity and coordinates belong to RoomIntel. A HarvestRoomPlan owns the colony-relative paths used to reach its sources. Do not duplicate observed source facts into the harvest plan.
 
 Remote sources in one room are planned nearest-first:
 
@@ -76,7 +76,7 @@ const checkedRemotes = new Set<string>()
 
 The first source encountered for a remote performs that room's reservation logic. Later sources from the same room do not repeat it.
 
-This avoids coupling room-level policy to a particular element of RemoteRoomData.sources while naturally giving the room-level decision the priority of its nearest source.
+This avoids coupling room-level policy to a particular element of HarvestRoomPlan.sources while naturally giving the room-level decision the priority of its nearest source.
 
 ### 6. Reservation state is explicit
 
@@ -282,7 +282,7 @@ A reservation lifecycle is active when the room is ours-reserved, foreign-reserv
 
 ### 15. Source and reservation economy remain separate
 
-SourceEconomy continues to describe source-local economics:
+SourceEconomyStats continues to describe source-local economics:
 
 ```text
 source production

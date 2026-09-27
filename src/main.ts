@@ -3,7 +3,7 @@ import { getBaseRoomCostMatrix } from "./capabilities/movement/roomCostMatrix"
 import { run as runTraffic } from "./capabilities/movement/traffic"
 import { allocateSpawns } from "./capabilities/spawning/spawnAllocator"
 import { runColonies } from "./colony/colonyManager"
-import { harvestRoomDataStore } from "./colony/harvest/harvestDataStore"
+import { harvestRoomPlanStore } from "./colony/harvest/harvestRoomPlanStore"
 import { planHarvestRoom } from "./colony/harvest/harvestRoomPlanner"
 import "./console/consoleApi"
 import { createTickContext } from "./kernel/tickContext"
@@ -20,14 +20,14 @@ export function loop(): void {
   const context = createTickContext()
 
   basePlanStore.pretick(context.ownedRooms.values())
-  harvestRoomDataStore.pretick()
+  harvestRoomPlanStore.pretick()
   intelStore.pretick()
 
   if (intelStore.isReady()) {
     for (const room of Object.values(Game.rooms)) {
       const newStaticIntel = intelStore.observe(room)
 
-      if (!newStaticIntel || room.controller?.my !== true || !harvestRoomDataStore.isReady()) {
+      if (!newStaticIntel || room.controller?.my !== true || !harvestRoomPlanStore.isReady()) {
         continue
       }
 
@@ -41,7 +41,7 @@ export function loop(): void {
 
   runScouting(context)
 
-  if (intelStore.isReady() && harvestRoomDataStore.isReady()) {
+  if (intelStore.isReady() && harvestRoomPlanStore.isReady()) {
     runColonies(context)
   }
 

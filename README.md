@@ -38,7 +38,7 @@ segmentManager.pretick()
         |
 create TickContext
         |
-preload BasePlan -> HarvestRoomData -> RoomIntel segments
+preload BasePlan -> HarvestRoomPlan -> RoomIntel segments
         |
 refresh visible room intel when intel is ready
         |

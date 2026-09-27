@@ -1,7 +1,7 @@
 import { moveCreep, moveCreepByPath } from "../../capabilities/movement/movement"
 import { estimatePathTravelTicks } from "../../capabilities/movement/travelTime"
 import { runtimeRegistry } from "../../runtime/runtimeRegistry"
-import type { HarvestSource } from "./harvest"
+import type { HarvestSourceState } from "./harvest"
 import { getSourceContainer } from "./harvestSource"
 
 interface MinerRuntime {
@@ -34,7 +34,7 @@ export const MINER_ROLE = "miner"
 
 type RunMinerResult = "harvesting" | "moving"
 
-export function runMiners(miners: readonly Creep[], sourceById: ReadonlyMap<Id<Source>, HarvestSource>): void {
+export function runMiners(miners: readonly Creep[], sourceById: ReadonlyMap<Id<Source>, HarvestSourceState>): void {
   for (const miner of miners) {
     const sourceId = miner.memory.sourceId
 
@@ -54,7 +54,7 @@ export function runMiners(miners: readonly Creep[], sourceById: ReadonlyMap<Id<S
   }
 }
 
-function runMiner(miner: Creep, sourceState: HarvestSource): RunMinerResult {
+function runMiner(miner: Creep, sourceState: HarvestSourceState): RunMinerResult {
   const path = sourceState.path
   const pathEnd = path[path.length - 1]
 
@@ -110,7 +110,7 @@ function canSpendTickOnRepair(source: Source, miner: Creep): boolean {
   return harvestTicksNeeded < ticksToRegeneration
 }
 
-function getMiningPosition(miner: Creep, sourceState: HarvestSource): RoomPosition | undefined {
+function getMiningPosition(miner: Creep, sourceState: HarvestSourceState): RoomPosition | undefined {
   const primaryPos = sourceState.miningPositions[0]
 
   if (primaryPos === undefined) {
@@ -149,7 +149,7 @@ function getMiningPosition(miner: Creep, sourceState: HarvestSource): RoomPositi
   return fallback
 }
 
-function findFallbackMiningPosition(miner: Creep, sourceState: HarvestSource): RoomPosition | undefined {
+function findFallbackMiningPosition(miner: Creep, sourceState: HarvestSourceState): RoomPosition | undefined {
   for (let i = 1; i < sourceState.miningPositions.length; i++) {
     const pos = sourceState.miningPositions[i]
     const occupied = pos.lookFor(LOOK_CREEPS).some((creep) => creep.name !== miner.name)

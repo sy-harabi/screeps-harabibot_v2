@@ -1,30 +1,30 @@
-import { HARVEST_DATA_SEGMENT_IDS } from "../../persistence/segmentIds"
+import { HARVEST_PLAN_SEGMENT_IDS } from "../../persistence/segmentIds"
 import { segmentManager } from "../../persistence/segmentManager"
 import { runtimeRegistry } from "../../runtime/runtimeRegistry"
 import {
-  packHarvestRoomData,
-  unpackHarvestRoomData,
-  type HarvestRoomData,
-  type PackedHarvestRoomData,
-} from "./harvestRoomData"
+  packHarvestRoomPlan,
+  unpackHarvestRoomPlan,
+  type HarvestRoomPlan,
+  type PackedHarvestRoomPlan,
+} from "./harvestRoomPlan"
 
-interface HarvestDataSegment {
+interface HarvestPlanSegment {
   version: 1
-  rooms: Record<string, PackedHarvestRoomData>
+  rooms: Record<string, PackedHarvestRoomPlan>
 }
 
 const EMPTY_ROOM_NAMES: ReadonlySet<string> = new Set()
 
-export const harvestRoomDataStore = {
+export const harvestRoomPlanStore = {
   pretick,
   isReady,
   get,
   set,
-  delete: deleteHarvestData,
+  delete: deleteHarvestRoomPlan,
   getByColony,
 }
 
-const dataByRoom = runtimeRegistry.createCache<string, HarvestRoomData>("harvest.rooms")
+const plansByRoom = runtimeRegistry.createCache<string, HarvestRoomPlan>("harvest.roomPlans")
 const roomsByColony = new Map<string, Set<string>>()
 
 let ready = false
@@ -34,11 +34,11 @@ function pretick(): boolean {
     return true
   }
 
-  const segments: HarvestDataSegment[] = []
+  const segments: HarvestPlanSegment[] = []
   ready = true
 
-  for (const segmentId of HARVEST_DATA_SEGMENT_IDS) {
-    const result = segmentManager.getSegment<HarvestDataSegment>(segmentId)
+  for (const segmentId of HARVEST_PLAN_SEGMENT_IDS) {
+    const result = segmentManager.getSegment<HarvestPlanSegment>(segmentId)
 
     if (result.status === "loading") {
       ready = false
@@ -54,15 +54,15 @@ function pretick(): boolean {
     return false
   }
 
-  dataByRoom.clear()
+  plansByRoom.clear()
   roomsByColony.clear()
 
   for (const segment of segments) {
     for (const [roomName, packed] of Object.entries(segment.rooms)) {
-      const data = unpackHarvestRoomData(packed)
+      const plan = unpackHarvestRoomPlan(packed)
 
-      dataByRoom.set(roomName, data)
-      addToColonyIndex(roomName, data.colonyName)
+      plansByRoom.set(roomName, plan)
+      addToColonyIndex(roomName, plan.colonyName)
     }
   }
 
@@ -73,12 +73,12 @@ function isReady(): boolean {
   return ready
 }
 
-function deleteHarvestData(roomName: string): void {
-  const segmentId = getHarvestDataSegmentId(roomName)
-  const result = segmentManager.getSegment<HarvestDataSegment>(segmentId)
+function deleteHarvestRoomPlan(roomName: string): void {
+  const segmentId = getHarvestPlanSegmentId(roomName)
+  const result = segmentManager.getSegment<HarvestPlanSegment>(segmentId)
 
   if (result.status === "loading") {
-    throw new Error("Cannot delete harvest data before segment " + segmentId + " is loaded")
+    throw new Error("Cannot delete harvest room plan before segment " + segmentId + " is loaded")
   }
 
   const segment =
@@ -92,42 +92,42 @@ function deleteHarvestData(roomName: string): void {
   delete segment.rooms[roomName]
   segmentManager.setSegment(segmentId, segment)
 
-  const data = dataByRoom.get(roomName)
+  const plan = plansByRoom.get(roomName)
 
-  if (data !== undefined) {
-    removeFromColonyIndex(roomName, data.colonyName)
-    dataByRoom.delete(roomName)
+  if (plan !== undefined) {
+    removeFromColonyIndex(roomName, plan.colonyName)
+    plansByRoom.delete(roomName)
   }
 }
 
 function getByColony(colonyName: string): ReadonlySet<string> {
   if (!ready) {
-    throw new Error("Cannot read harvest rooms before ready")
+    throw new Error("Cannot read harvest room plans before ready")
   }
 
   return roomsByColony.get(colonyName) ?? EMPTY_ROOM_NAMES
 }
 
-function get(roomName: string): HarvestRoomData | undefined {
+function get(roomName: string): HarvestRoomPlan | undefined {
   if (!ready) {
-    throw new Error("Cannot read harvest data before ready")
+    throw new Error("Cannot read harvest room plan before ready")
   }
 
-  return dataByRoom.get(roomName)
+  return plansByRoom.get(roomName)
 }
 
-function set(roomName: string, data: HarvestRoomData): void {
-  const previous = dataByRoom.get(roomName)
+function set(roomName: string, plan: HarvestRoomPlan): void {
+  const previous = plansByRoom.get(roomName)
 
-  if (previous !== undefined && previous.colonyName !== data.colonyName) {
+  if (previous !== undefined && previous.colonyName !== plan.colonyName) {
     removeFromColonyIndex(roomName, previous.colonyName)
   }
 
-  const segmentId = getHarvestDataSegmentId(roomName)
-  const result = segmentManager.getSegment<HarvestDataSegment>(segmentId)
+  const segmentId = getHarvestPlanSegmentId(roomName)
+  const result = segmentManager.getSegment<HarvestPlanSegment>(segmentId)
 
   if (result.status === "loading") {
-    throw new Error("Cannot save harvest data before segment " + segmentId + " is loaded")
+    throw new Error("Cannot save harvest room plan before segment " + segmentId + " is loaded")
   }
 
   const segment =
@@ -138,10 +138,10 @@ function set(roomName: string, data: HarvestRoomData): void {
           rooms: {},
         }
 
-  segment.rooms[roomName] = packHarvestRoomData(data)
+  segment.rooms[roomName] = packHarvestRoomPlan(plan)
   segmentManager.setSegment(segmentId, segment)
-  dataByRoom.set(roomName, data)
-  addToColonyIndex(roomName, data.colonyName)
+  plansByRoom.set(roomName, plan)
+  addToColonyIndex(roomName, plan.colonyName)
 }
 
 function addToColonyIndex(roomName: string, colonyName: string): void {
@@ -169,12 +169,12 @@ function removeFromColonyIndex(roomName: string, colonyName: string): void {
   }
 }
 
-function getHarvestDataSegmentId(roomName: string): number {
+function getHarvestPlanSegmentId(roomName: string): number {
   let hash = 0
 
   for (let i = 0; i < roomName.length; i++) {
     hash = (hash * 31 + roomName.charCodeAt(i)) >>> 0
   }
 
-  return HARVEST_DATA_SEGMENT_IDS[hash % HARVEST_DATA_SEGMENT_IDS.length]
+  return HARVEST_PLAN_SEGMENT_IDS[hash % HARVEST_PLAN_SEGMENT_IDS.length]
 }
