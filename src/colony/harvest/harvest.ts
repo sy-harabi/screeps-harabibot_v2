@@ -218,6 +218,8 @@ export function runHarvest(
     const haulerRatio = source.carryCapacity / source.requiredCarryCapacity
     const targetMinerWork = getTargetMinerWork(room, source)
 
+    const container = getSourceContainer(source.path)
+
     const sourceEconomyStats = getSourceEconomyStats(
       room,
       source.id,
@@ -225,17 +227,31 @@ export function runHarvest(
       source.miningPositions.length,
       source.requiredHarvestPower,
       targetMinerWork,
+      container !== undefined,
     )
 
-    income += sourceEconomyStats.maxIncome * Math.min(1, minerRatio, haulerRatio)
-    maxIncome += sourceEconomyStats.maxIncome
-    spawnUsage += sourceEconomyStats.spawnUsage
+    if (haulerRatio > 0) {
+      const productionRatio = Math.min(1, minerRatio, haulerRatio)
+
+      income +=
+        sourceEconomyStats.harvestIncome * productionRatio -
+        sourceEconomyStats.minerUpkeep -
+        sourceEconomyStats.haulerUpkeep * haulerRatio -
+        sourceEconomyStats.infrastructureUpkeep
+
+      maxIncome +=
+        sourceEconomyStats.harvestIncome -
+        sourceEconomyStats.minerUpkeep -
+        sourceEconomyStats.haulerUpkeep -
+        sourceEconomyStats.infrastructureUpkeep
+
+      spawnUsage += sourceEconomyStats.minerSpawnUsage + sourceEconomyStats.haulerSpawnUsage * haulerRatio
+    }
 
     if (!spawnRequested) {
       const priorityType = source.roomName === colonyName ? "ownedSource" : "remoteSource"
 
       if (minerRatio < 1 && minerRatio <= haulerRatio && source.numMiners < source.miningPositions.length) {
-        const container = getSourceContainer(source.path)
         const repairContainer =
           hasHarvestIncome && container !== undefined && container.hits < SOURCE_CONTAINER_REPAIR_THRESHOLD
 

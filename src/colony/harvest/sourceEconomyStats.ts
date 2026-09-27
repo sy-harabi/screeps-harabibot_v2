@@ -9,8 +9,14 @@ export interface SourceEconomyStats {
   readonly grossIncome: number
   readonly targetWork: number
 
-  readonly maxIncome: number
-  readonly spawnUsage: number
+  readonly harvestIncome: number
+
+  readonly minerUpkeep: number
+  readonly haulerUpkeep: number
+  readonly infrastructureUpkeep: number
+
+  readonly minerSpawnUsage: number
+  readonly haulerSpawnUsage: number
 }
 
 export function getSourceEconomyStats(
@@ -20,6 +26,7 @@ export function getSourceEconomyStats(
   numMiningPositions: number,
   grossIncome: number,
   targetWork: number,
+  hasContainer: boolean,
 ): SourceEconomyStats {
   const runtime = getHarvestRuntime(room.name)
 
@@ -38,7 +45,7 @@ export function getSourceEconomyStats(
     return cached
   }
 
-  const stats = calculateSourceEconomyStats(room, path, numMiningPositions, grossIncome, targetWork)
+  const stats = calculateSourceEconomyStats(room, path, numMiningPositions, grossIncome, targetWork, hasContainer)
 
   runtime.sourceEconomyStatsById.set(sourceId, stats)
 
@@ -51,6 +58,7 @@ function calculateSourceEconomyStats(
   numMiningPositions: number,
   grossIncome: number,
   targetWork: number,
+  hasContainer: boolean,
 ): SourceEconomyStats {
   const key = room.energyCapacityAvailable
   const minerBody = createMinerBody(room, path, targetWork, true)
@@ -62,8 +70,12 @@ function calculateSourceEconomyStats(
       numMiningPositions,
       grossIncome,
       targetWork,
-      maxIncome: 0,
-      spawnUsage: 0,
+      harvestIncome: 0,
+      minerUpkeep: 0,
+      haulerUpkeep: 0,
+      infrastructureUpkeep: 0,
+      minerSpawnUsage: 0,
+      haulerSpawnUsage: 0,
     }
   }
 
@@ -85,10 +97,24 @@ function calculateSourceEconomyStats(
   const harvestIncome = Math.min(grossIncome, minerCount * work * HARVEST_POWER)
   const travelTicks = estimatePathTravelTicks(path, move, work)
   const productiveLifetime = CREEP_LIFE_TIME - travelTicks
-  const minerCost = (minerCount * bodyCost) / productiveLifetime
+  const minerUpkeep = (minerCount * bodyCost) / productiveLifetime
+  const minerSpawnUsage = (minerCount * minerBody.length * CREEP_SPAWN_TIME) / productiveLifetime
+
   const requiredCarryCapacity = path.length * 2 * harvestIncome
   const carryParts = requiredCarryCapacity / CARRY_CAPACITY
-  const haulerCost = (carryParts * (BODYPART_COST[CARRY] + BODYPART_COST[MOVE])) / CREEP_LIFE_TIME
+  const haulerUpkeep = (carryParts * (BODYPART_COST[CARRY] + BODYPART_COST[MOVE])) / CREEP_LIFE_TIME
+  const haulerSpawnUsage = (carryParts * 2 * CREEP_SPAWN_TIME) / CREEP_LIFE_TIME
+
+  let infrastructureUpkeep: number
+
+  if (hasContainer) {
+    const sourceRoomName = path[path.length - 1]?.roomName
+    const owned = sourceRoomName === room.name
+
+    infrastructureUpkeep = (CONTAINER_DECAY * REPAIR_COST) / (owned ? CONTAINER_DECAY_TIME_OWNED : CONTAINER_DECAY_TIME)
+  } else {
+    infrastructureUpkeep = minerCount
+  }
 
   return {
     key,
@@ -96,9 +122,11 @@ function calculateSourceEconomyStats(
     numMiningPositions,
     grossIncome,
     targetWork,
-    maxIncome: harvestIncome - minerCost - haulerCost,
-    spawnUsage:
-      (minerCount * minerBody.length * CREEP_SPAWN_TIME) / productiveLifetime +
-      (carryParts * 2 * CREEP_SPAWN_TIME) / CREEP_LIFE_TIME,
+    harvestIncome,
+    minerUpkeep,
+    haulerUpkeep,
+    infrastructureUpkeep,
+    minerSpawnUsage,
+    haulerSpawnUsage,
   }
 }
