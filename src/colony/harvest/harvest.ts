@@ -182,17 +182,17 @@ function prepareHarvestSources(room: Room): HarvestSource[] {
 
     const requiredHarvestPower = getRequiredHarvestPower(intel, username)
 
-    for (const [sourceId, sourceData] of harvestData.sources) {
-      const sourceIntel = intel.sources.find((source) => source.id === sourceId)
+    for (const sourceIntel of intel.sources) {
+      const sourceData = harvestData.sources.get(sourceIntel.id)
 
-      if (sourceIntel === undefined) {
+      if (sourceData === undefined) {
         continue
       }
 
       const miningPositions = getMiningPositions(roomName, sourceIntel.coordinate, sourceData.path)
 
       result.push({
-        id: sourceId,
+        id: sourceIntel.id,
         roomName,
         path: sourceData.path,
         miningPositions,
