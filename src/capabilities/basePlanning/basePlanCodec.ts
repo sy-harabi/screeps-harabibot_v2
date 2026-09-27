@@ -18,6 +18,7 @@ type PackedStructureTag =
 
 export interface PackedBasePlan {
   formatVersion: 1
+  revision: number
   roomName: string
   storage: number
   structures: PackedPlannedStructure[]
@@ -32,6 +33,7 @@ export function unpackBasePlan(packed: PackedBasePlan): BasePlan {
 
   return {
     version: 1,
+    revision: packed.revision,
     roomName: packed.roomName,
     storage: fromRoomIndex(packed.storage),
     structures: packed.structures.map(unpackStructure),
@@ -52,6 +54,7 @@ export function unpackBasePlan(packed: PackedBasePlan): BasePlan {
 export function packBasePlan(plan: BasePlan): PackedBasePlan {
   return {
     formatVersion: 1,
+    revision: Game.time,
     roomName: plan.roomName,
     storage: packCoordinate(plan.storage),
     structures: plan.structures.map(packStructure),

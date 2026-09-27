@@ -29,6 +29,8 @@ export interface BasePlanController {
 
 export interface BasePlan {
   readonly version: 1
+  readonly revision: number
+
   readonly roomName: string
   readonly storage: RoomCoordinate
   readonly structures: PlannedStructure[]
