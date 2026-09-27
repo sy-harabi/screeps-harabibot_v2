@@ -9,8 +9,21 @@ import { createHaulerBody, HAULER_ROLE, runHaulers } from "./hauler"
 import { getMiningPositions, getSourceContainer } from "./miningSite"
 import { createMinerBody, MINER_ROLE, runMiners } from "./miner"
 import { getSourceEconomyStats } from "./sourceEconomyStats"
+import { RESERVER_ROLE } from "./reserver"
 
 const SOURCE_CONTAINER_REPAIR_THRESHOLD = 150_000
+
+interface HarvestRoomState {
+  readonly roomName: string
+  readonly intel: RoomIntel
+  readonly sources: HarvestSourceState[]
+
+  readonly reservationState: ReservationState
+
+  reservePower: number
+}
+
+type ReservationState = "owned" | "none" | "ours" | "foreign"
 
 export interface HarvestSourceState {
   readonly id: Id<Source>
@@ -43,12 +56,35 @@ export function runHarvest(room: Room, context: TickContext, logistics: Logistic
   }
 
   const colonyName = room.name
-  const sourceStates = prepareHarvestSourceStates(room)
+  const roomStates = prepareHarvestRoomStates(room)
+  const roomByRoomName = new Map<string, HarvestRoomState>(
+    roomStates.map((roomState) => [roomState.roomName, roomState] as const),
+  )
   const sourceById = new Map<Id<Source>, HarvestSourceState>(sourceStates.map((source) => [source.id, source] as const))
+
   const miners = getColonyCreeps(context, colonyName, MINER_ROLE)
   const haulers = getColonyCreeps(context, colonyName, HAULER_ROLE)
+  const reservers = getColonyCreeps(context, colonyName, RESERVER_ROLE)
+
+  const shouldReserve = room.energyCapacityAvailable >= BODYPART_COST[CLAIM] + BODYPART_COST[MOVE]
 
   let hasHarvestIncome = false
+
+  for (const reserver of reservers) {
+    const remoteName = reserver.memory.remoteRoomName
+
+    if (remoteName === undefined) {
+      continue
+    }
+
+    const roomState = roomByRoomName.get(remoteName)
+
+    if (roomState === undefined) {
+      continue
+    }
+
+    roomState.reservePower += reserver.body.reduce((prev, curr) => prev + (curr.type === CLAIM ? 1 : 0), 0)
+  }
 
   for (const miner of miners) {
     const sourceId = miner.memory.sourceId
@@ -99,8 +135,8 @@ export function runHarvest(room: Room, context: TickContext, logistics: Logistic
 
   let spawnRequested = false
 
-  for (const source of sourceStates) {
-    if (source.requiredHarvestPower <= 0) {
+  for (const roomState of roomStates) {
+    if (roomState.reservationState === "foreign") {
       continue
     }
 
@@ -177,6 +213,20 @@ export function runHarvest(room: Room, context: TickContext, logistics: Logistic
   return { income, maxIncome, spawnUsage }
 }
 
+function getReservationState(intel: RoomIntel, username: string): ReservationState {
+  if (intel.controller?.owner?.username === username) {
+    return "owned"
+  }
+
+  const reservation = intel.controller?.reservation
+
+  if (reservation === undefined) {
+    return "none"
+  }
+
+  return reservation.username === username ? "ours" : "foreign"
+}
+
 function getTargetMinerWork(room: Room, source: HarvestSourceState): number {
   if (source.roomName === room.name || room.energyCapacityAvailable >= BODYPART_COST[CLAIM] + BODYPART_COST[MOVE]) {
     return Math.ceil(SOURCE_ENERGY_CAPACITY / ENERGY_REGEN_TIME / HARVEST_POWER)
@@ -185,7 +235,7 @@ function getTargetMinerWork(room: Room, source: HarvestSourceState): number {
   return Math.ceil(SOURCE_ENERGY_NEUTRAL_CAPACITY / ENERGY_REGEN_TIME / HARVEST_POWER)
 }
 
-function prepareHarvestSourceStates(room: Room): HarvestSourceState[] {
+function prepareHarvestRoomStates(room: Room): HarvestRoomState[] {
   const colonyName = room.name
   const username = room.controller?.owner?.username
 
@@ -193,7 +243,7 @@ function prepareHarvestSourceStates(room: Room): HarvestSourceState[] {
     return []
   }
 
-  const result: HarvestSourceState[] = []
+  const result: HarvestRoomState[] = []
 
   for (const roomName of harvestRoomPlanStore.getByColony(colonyName)) {
     const harvestPlan = harvestRoomPlanStore.get(roomName)
@@ -205,6 +255,8 @@ function prepareHarvestSourceStates(room: Room): HarvestSourceState[] {
 
     const requiredHarvestPower = getRequiredHarvestPower(intel, username)
 
+    const sources: HarvestSourceState[] = []
+
     for (const sourceIntel of intel.sources) {
       const sourcePlan = harvestPlan.sources.get(sourceIntel.id)
 
@@ -214,7 +266,7 @@ function prepareHarvestSourceStates(room: Room): HarvestSourceState[] {
 
       const miningPositions = getMiningPositions(roomName, sourceIntel.coordinate, sourcePlan.path)
 
-      result.push({
+      sources.push({
         id: sourceIntel.id,
         roomName,
         path: sourcePlan.path,
@@ -230,6 +282,21 @@ function prepareHarvestSourceStates(room: Room): HarvestSourceState[] {
         pendingEnergy: 0,
       })
     }
+
+    sources.sort((left, right) => left.path.length - right.path.length)
+
+    const reservationState = getReservationState(intel, username)
+
+    const roomState = {
+      roomName,
+      intel,
+      reservationState,
+      sources,
+
+      reservePower: 0,
+    }
+
+    result.push(roomState)
   }
 
   result.sort((left, right) => {
@@ -238,12 +305,10 @@ function prepareHarvestSourceStates(room: Room): HarvestSourceState[] {
 
     return (
       Number(leftRemote) - Number(rightRemote) ||
-      left.path.length - right.path.length ||
-      left.id.localeCompare(right.id)
+      left.sources[0].path.length - right.sources[0].path.length ||
+      left.roomName.localeCompare(right.roomName)
     )
   })
-
-  return result
 }
 
 function getRequiredHarvestPower(intel: RoomIntel, username: string): number {

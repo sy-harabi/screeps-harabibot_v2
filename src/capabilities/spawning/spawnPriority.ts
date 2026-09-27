@@ -8,8 +8,8 @@ export const SPAWN_PRIORITY_ORDER = [
   "build",
   "combat",
   "ownedMineral",
-  "remoteSource",
   "upgrade",
+  "remoteSource",
 ] as const
 
 export type SpawnPriorityType = (typeof SPAWN_PRIORITY_ORDER)[number]

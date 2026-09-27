@@ -3,6 +3,12 @@ import type { SourceEconomyStats } from "./sourceEconomyStats"
 
 export interface HarvestRuntime {
   sourceEconomyStatsById?: Map<Id<Source>, SourceEconomyStats>
+  remoteControllersByRoom?: Map<string, RemoteControllerRuntime>
+}
+
+export interface RemoteControllerRuntime {
+  readonly travelTicks: number
+  readonly availablePositions: number
 }
 
 const harvestRuntimes = runtimeRegistry.createCache<string, HarvestRuntime>("harvest.colonies", {

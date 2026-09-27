@@ -11,7 +11,10 @@ declare global {
   interface CreepMemory {
     assignment: CreepAssignment
     role: string
+
     sourceId?: Id<Source>
     delivering?: boolean
+
+    remoteRoomName?: string
   }
 }
