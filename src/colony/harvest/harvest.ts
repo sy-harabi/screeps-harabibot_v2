@@ -97,6 +97,8 @@ export function runHarvest(room: Room, context: TickContext, logistics: Logistic
   let maxIncome = 0
   let spawnUsage = 0
 
+  let spawnRequested = false
+
   for (const source of sourceStates) {
     if (source.requiredHarvestPower <= 0) {
       continue
@@ -120,19 +122,25 @@ export function runHarvest(room: Room, context: TickContext, logistics: Logistic
     maxIncome += sourceEconomyStats.maxIncome
     spawnUsage += sourceEconomyStats.spawnUsage
 
+    if (spawnRequested) {
+      continue
+    }
+
+    const priorityType = source.roomName === colonyName ? "ownedSource" : "remoteSource"
+
     if (minerRatio < 1 && minerRatio <= haulerRatio && source.numMiners < source.miningPositions.length) {
       const container = getSourceContainer(source.path)
       const repairContainer =
         hasHarvestIncome && container !== undefined && container.hits < SOURCE_CONTAINER_REPAIR_THRESHOLD
 
-      const targetWork = Math.ceil(source.requiredHarvestPower / HARVEST_POWER) + (repairContainer ? 1 : 0)
+      const targetWork = getTargetMinerWork(room, source) + (repairContainer ? 1 : 0)
 
       requestSpawn(
         {
           requesterId,
           spawnRoomName: colonyName,
           assignment,
-          priorityType: "ownedSource",
+          priorityType,
           order: source.path.length,
           rolesByPriority: ROLES_BY_PRIORITY,
         },
@@ -140,19 +148,26 @@ export function runHarvest(room: Room, context: TickContext, logistics: Logistic
         MINER_ROLE,
         { memory: { sourceId: source.id } },
       )
-    } else if (haulerRatio < 1) {
+
+      spawnRequested = true
+      continue
+    }
+
+    if (haulerRatio < 1) {
       requestSpawn(
         {
           requesterId,
           spawnRoomName: colonyName,
           assignment,
-          priorityType: "ownedSource",
+          priorityType,
           order: source.path.length,
           rolesByPriority: ROLES_BY_PRIORITY,
         },
         () => createHaulerBody(room),
         HAULER_ROLE,
       )
+
+      spawnRequested = true
     }
   }
 
@@ -160,6 +175,14 @@ export function runHarvest(room: Room, context: TickContext, logistics: Logistic
   runHaulers(colonyName, haulers, sourceStates, sourceById, logistics)
 
   return { income, maxIncome, spawnUsage }
+}
+
+function getTargetMinerWork(room: Room, source: HarvestSourceState): number {
+  if (source.roomName === room.name || room.energyCapacityAvailable >= BODYPART_COST[CLAIM] + BODYPART_COST[MOVE]) {
+    return Math.ceil(SOURCE_ENERGY_CAPACITY / ENERGY_REGEN_TIME / HARVEST_POWER)
+  }
+
+  return Math.ceil(SOURCE_ENERGY_NEUTRAL_CAPACITY / ENERGY_REGEN_TIME / HARVEST_POWER)
 }
 
 function prepareHarvestSourceStates(room: Room): HarvestSourceState[] {
@@ -209,7 +232,16 @@ function prepareHarvestSourceStates(room: Room): HarvestSourceState[] {
     }
   }
 
-  result.sort((left, right) => left.path.length - right.path.length || left.id.localeCompare(right.id))
+  result.sort((left, right) => {
+    const leftRemote = left.roomName !== colonyName
+    const rightRemote = right.roomName !== colonyName
+
+    return (
+      Number(leftRemote) - Number(rightRemote) ||
+      left.path.length - right.path.length ||
+      left.id.localeCompare(right.id)
+    )
+  })
 
   return result
 }
