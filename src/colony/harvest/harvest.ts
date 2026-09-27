@@ -49,6 +49,8 @@ export interface HarvestSourceState {
 
   carryCapacity: number
   pendingEnergy: number
+  containerEnergy: number
+  droppedEnergy: number
 }
 
 export interface HarvestResult {
@@ -388,6 +390,15 @@ export function runHarvest(
   runMiners(miners, sourceById)
   runHaulers(colonyName, haulers, sourceStates, sourceById, logistics)
 
+  for (let i = 0; i < visualSourceRows.length; i++) {
+    const source = sourceStates[i]
+
+    if (source !== undefined) {
+      visualSourceRows[i].containerEnergy = source.containerEnergy
+      visualSourceRows[i].droppedEnergy = source.droppedEnergy
+    }
+  }
+
   const result = { income, maxIncome, spawnUsage }
 
   if (Memory.options?.visuals?.harvest) {
@@ -518,6 +529,8 @@ function prepareHarvestRoomStates(
 
         carryCapacity: 0,
         pendingEnergy: 0,
+        containerEnergy: 0,
+        droppedEnergy: 0,
       })
     }
 
