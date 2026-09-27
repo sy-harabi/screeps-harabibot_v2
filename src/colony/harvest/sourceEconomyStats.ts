@@ -7,6 +7,7 @@ export interface SourceEconomyStats {
   readonly path: readonly RoomPosition[]
   readonly numMiningPositions: number
   readonly grossIncome: number
+  readonly targetWork: number
 
   readonly maxIncome: number
   readonly spawnUsage: number
@@ -18,6 +19,7 @@ export function getSourceEconomyStats(
   path: readonly RoomPosition[],
   numMiningPositions: number,
   grossIncome: number,
+  targetWork: number,
 ): SourceEconomyStats {
   const runtime = getHarvestRuntime(room.name)
 
@@ -30,12 +32,13 @@ export function getSourceEconomyStats(
     cached?.key === key &&
     cached.path === path &&
     cached.numMiningPositions === numMiningPositions &&
-    cached.grossIncome === grossIncome
+    cached.grossIncome === grossIncome &&
+    cached.targetWork === targetWork
   ) {
     return cached
   }
 
-  const stats = calculateSourceEconomyStats(room, path, numMiningPositions, grossIncome)
+  const stats = calculateSourceEconomyStats(room, path, numMiningPositions, grossIncome, targetWork)
 
   runtime.sourceEconomyStatsById.set(sourceId, stats)
 
@@ -47,9 +50,9 @@ function calculateSourceEconomyStats(
   path: readonly RoomPosition[],
   numMiningPositions: number,
   grossIncome: number,
+  targetWork: number,
 ): SourceEconomyStats {
   const key = room.energyCapacityAvailable
-  const targetWork = Math.ceil(grossIncome / HARVEST_POWER)
   const minerBody = createMinerBody(room, path, targetWork, true)
 
   if (minerBody === undefined) {
@@ -58,6 +61,7 @@ function calculateSourceEconomyStats(
       path,
       numMiningPositions,
       grossIncome,
+      targetWork,
       maxIncome: 0,
       spawnUsage: 0,
     }
@@ -91,6 +95,7 @@ function calculateSourceEconomyStats(
     path,
     numMiningPositions,
     grossIncome,
+    targetWork,
     maxIncome: harvestIncome - minerCost - haulerCost,
     spawnUsage:
       (minerCount * minerBody.length * CREEP_SPAWN_TIME) / productiveLifetime +
