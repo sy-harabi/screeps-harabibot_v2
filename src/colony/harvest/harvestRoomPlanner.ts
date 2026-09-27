@@ -230,10 +230,29 @@ function planRemoteSourcePaths(
   sources: readonly SourceIntel[],
   route: readonly string[],
 ): ReadonlyMap<Id<Source>, HarvestSourcePlan> | undefined {
-  const result = new Map<Id<Source>, HarvestSourcePlan>()
   const pathContext = createRemotePathContext(colonyName, roomName)
+  const sourcesByDistance: { source: SourceIntel; distance: number }[] = []
 
   for (const source of sources) {
+    const initialPath = findRemoteSourcePath(basePlan, roomName, source, route, pathContext)
+
+    if (initialPath === undefined) {
+      return
+    }
+
+    sourcesByDistance.push({
+      source,
+      distance: initialPath.length,
+    })
+  }
+
+  sourcesByDistance.sort(
+    (left, right) => left.distance - right.distance || left.source.id.localeCompare(right.source.id),
+  )
+
+  const result = new Map<Id<Source>, HarvestSourcePlan>()
+
+  for (const { source } of sourcesByDistance) {
     const path = findRemoteSourcePath(basePlan, roomName, source, route, pathContext)
 
     if (path === undefined) {
