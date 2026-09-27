@@ -9,6 +9,7 @@ export interface HarvestVisualSourceRow {
   readonly haulerUpkeep?: number
   readonly infrastructureUpkeep?: number
   readonly income?: number
+  readonly maxIncome?: number
   readonly spawnUsage?: number
 }
 
@@ -130,11 +131,11 @@ function drawSourceRow(
   visual.text(format(row.minerUpkeep ?? 0), COLUMNS.miner, y, textStyle("right"))
   visual.text(format(row.haulerUpkeep ?? 0), COLUMNS.hauler, y, textStyle("right"))
   visual.text(format(row.infrastructureUpkeep ?? 0), COLUMNS.infra, y, textStyle("right"))
-  visual.text(format(row.income), COLUMNS.net, y, textStyle("right"))
+  visual.text(`${format(row.income)}/${format(row.maxIncome ?? 0)}`, COLUMNS.net, y, textStyle("right"))
   visual.text(format(row.spawnUsage ?? 0), COLUMNS.spawn, y, textStyle("right"))
 }
 
-function textStyle(align: TextStyle["align"], font = FONT): TextStyle {
+function textStyle(align: "left" | "right" | "center", font = FONT) {
   return {
     align,
     color: "#ffffff",
