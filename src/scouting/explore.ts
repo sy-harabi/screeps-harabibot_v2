@@ -1,6 +1,6 @@
 import { runtimeRegistry } from "../runtime/runtimeRegistry"
 import { intelStore } from "../world/intel/intelStore"
-import { getAdjacentRooms, getRoomType, isRoomReachable } from "../world/map/roomTopology"
+import { getRoomType, getRoomsByDepth, isRoomReachable } from "../world/map/roomTopology"
 
 type ExploreRoomsByDepth = readonly (readonly string[])[]
 
@@ -64,47 +64,9 @@ export function getExploreRoomsByDepth(colonyName: string): ExploreRoomsByDepth 
   let map = exploreRoomsByColony.get(colonyName)
 
   if (map === undefined) {
-    map = createExploreRoomsByDepth(colonyName)
+    map = getRoomsByDepth(colonyName, MAX_EXPLORE_DEPTH)
     exploreRoomsByColony.set(colonyName, map)
   }
 
   return map
-}
-
-function createExploreRoomsByDepth(colonyName: string): ExploreRoomsByDepth {
-  const depthByRoom = new Map<string, number>()
-  const roomsByDepth: string[][] = Array.from({ length: MAX_EXPLORE_DEPTH + 1 }, () => [])
-
-  const queue = [colonyName]
-  let index = 0
-
-  depthByRoom.set(colonyName, 0)
-
-  while (index < queue.length) {
-    const current = queue[index]
-    index++
-    const depth = depthByRoom.get(current)!
-
-    if (depth >= MAX_EXPLORE_DEPTH) {
-      continue
-    }
-
-    for (const adjacent of getAdjacentRooms(current)) {
-      if (depthByRoom.has(adjacent)) {
-        continue
-      }
-
-      if (!isRoomReachable(adjacent, colonyName)) {
-        continue
-      }
-
-      depthByRoom.set(adjacent, depth + 1)
-
-      queue.push(adjacent)
-
-      roomsByDepth[depth + 1].push(adjacent)
-    }
-  }
-
-  return roomsByDepth
 }
