@@ -1,8 +1,8 @@
 import { moveCreep, moveCreepByPath } from "../../capabilities/movement/movement"
 import { estimatePathTravelTicks } from "../../capabilities/movement/travelTime"
 import { runtimeRegistry } from "../../runtime/runtimeRegistry"
-import type { SourceState } from "./harvest"
-import { getSourceContainer } from "./sourceData"
+import type { HarvestSource } from "./harvest"
+import { getSourceContainer } from "./harvestSource"
 
 interface MinerRuntime {
   miningPosition?: RoomPosition
@@ -34,32 +34,31 @@ export const MINER_ROLE = "miner"
 
 type RunMinerResult = "harvesting" | "moving"
 
-export function runMiners(miners: readonly Creep[], sourceStateById: Map<Id<Source>, SourceState>): void {
+export function runMiners(
+  miners: readonly Creep[],
+  sourceById: ReadonlyMap<Id<Source>, HarvestSource>,
+): void {
   for (const miner of miners) {
     const sourceId = miner.memory.sourceId
 
-    if (!sourceId) {
+    if (sourceId === undefined) {
       continue
     }
 
-    const sourceState = sourceStateById.get(sourceId)
+    const source = sourceById.get(sourceId)
 
-    if (sourceState === undefined) {
+    if (source === undefined || source.requiredHarvestPower <= 0 || miner.spawning) {
       continue
     }
 
-    if (miner.spawning) {
-      continue
-    }
-
-    if (runMiner(miner, sourceState) === "harvesting") {
-      sourceState.harvestingPower += miner.getActiveBodyparts(WORK) * HARVEST_POWER
+    if (runMiner(miner, source) === "harvesting") {
+      source.harvestingPower += miner.getActiveBodyparts(WORK) * HARVEST_POWER
     }
   }
 }
 
-function runMiner(miner: Creep, sourceState: SourceState): RunMinerResult {
-  const path = sourceState.data.path
+function runMiner(miner: Creep, sourceState: HarvestSource): RunMinerResult {
+  const path = sourceState.path
   const pathEnd = path[path.length - 1]
 
   if (pathEnd !== undefined && (miner.pos.roomName !== pathEnd.roomName || !miner.pos.inRangeTo(pathEnd, 3))) {
@@ -69,13 +68,13 @@ function runMiner(miner: Creep, sourceState: SourceState): RunMinerResult {
 
   const miningPos = getMiningPosition(miner, sourceState)
 
-  if (!miningPos) {
+  if (miningPos === undefined) {
     return "moving"
   }
 
-  const source = Game.getObjectById(sourceState.data.sourceId)
+  const source = Game.getObjectById(sourceState.id)
 
-  if (!source) {
+  if (source === null) {
     moveCreep(miner, { pos: miningPos, range: 0 })
     return "moving"
   }
@@ -85,7 +84,7 @@ function runMiner(miner: Creep, sourceState: SourceState): RunMinerResult {
     return "moving"
   }
 
-  const container = getSourceContainer(sourceState.data)
+  const container = getSourceContainer(sourceState.path)
 
   if (
     container !== undefined &&
@@ -114,9 +113,14 @@ function canSpendTickOnRepair(source: Source, miner: Creep): boolean {
   return harvestTicksNeeded < ticksToRegeneration
 }
 
-function getMiningPosition(miner: Creep, sourceState: SourceState): RoomPosition | undefined {
+function getMiningPosition(miner: Creep, sourceState: HarvestSource): RoomPosition | undefined {
+  const primaryPos = sourceState.miningPositions[0]
+
+  if (primaryPos === undefined) {
+    return
+  }
+
   const runtime = getMinerRuntime(miner.name)
-  const primaryPos = sourceState.data.miningPositions[0]
 
   if (runtime.miningPosition !== undefined) {
     const primaryOccupied = primaryPos.lookFor(LOOK_CREEPS).some((creep) => creep.name !== miner.name)
@@ -148,9 +152,9 @@ function getMiningPosition(miner: Creep, sourceState: SourceState): RoomPosition
   return fallback
 }
 
-function findFallbackMiningPosition(miner: Creep, sourceState: SourceState): RoomPosition | undefined {
-  for (let i = 1; i < sourceState.data.miningPositions.length; i++) {
-    const pos = sourceState.data.miningPositions[i]
+function findFallbackMiningPosition(miner: Creep, sourceState: HarvestSource): RoomPosition | undefined {
+  for (let i = 1; i < sourceState.miningPositions.length; i++) {
+    const pos = sourceState.miningPositions[i]
     const occupied = pos.lookFor(LOOK_CREEPS).some((creep) => creep.name !== miner.name)
 
     if (!occupied) {
@@ -179,16 +183,13 @@ export function createMinerBody(
   }
 
   const carryCount = options.carry ? 1 : 0
-
   const fixedCost = BODYPART_COST[MOVE] + carryCount * BODYPART_COST[CARRY]
-
   const workCount = Math.min(targetWork, Math.floor((budget - fixedCost) / BODYPART_COST[WORK]))
 
   const maxMoveByEnergy = Math.floor(
     (budget - workCount * BODYPART_COST[WORK] - carryCount * BODYPART_COST[CARRY]) / BODYPART_COST[MOVE],
   )
   const maxMoveBySize = MAX_CREEP_SIZE - workCount - carryCount
-
   const maxMoveCount = Math.min(workCount * 5, maxMoveByEnergy, maxMoveBySize)
 
   let bestMoveCount = 1
@@ -212,6 +213,7 @@ export function createMinerBody(
       bestMoveCount = moveCount
     }
   }
+
   return [
     ...Array<BodyPartConstant>(workCount).fill(WORK),
     ...Array<BodyPartConstant>(carryCount).fill(CARRY),

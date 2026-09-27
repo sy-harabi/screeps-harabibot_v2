@@ -1,10 +1,10 @@
-import { type BasePlan } from "../../capabilities/basePlanning/basePlan"
+import type { BasePlan } from "../../capabilities/basePlanning/basePlan"
 import { intelStore } from "../../world/intel/intelStore"
-import { type SourceIntel } from "../../world/intel/roomIntel"
+import type { SourceIntel } from "../../world/intel/roomIntel"
 import { harvestRoomDataStore } from "./harvestDataStore"
-import { type HarvestSourceData, type HarvestRoomData } from "./harvestRoomData"
+import type { HarvestRoomData, HarvestSourceData } from "./harvestRoomData"
 
-export function ensureHarvestRoomData(
+export function planHarvestRoom(
   roomName: string,
   colonyName: string,
   basePlan: BasePlan,
@@ -31,8 +31,6 @@ export function ensureHarvestRoomData(
     return
   }
 
-  sources.sort((a, b) => a.path.length - b.path.length || a.sourceId.localeCompare(b.sourceId))
-
   const data: HarvestRoomData = {
     colonyName,
     basePlanRevision: basePlan.revision,
@@ -49,18 +47,20 @@ function planHarvestSourcePaths(
   colonyName: string,
   basePlan: BasePlan,
   sources: readonly SourceIntel[],
-): HarvestSourceData[] | undefined {
+): ReadonlyMap<Id<Source>, HarvestSourceData> | undefined {
   if (roomName === colonyName) {
     return planOwnedSourcePaths(basePlan, sources)
   }
 
-  //planRemoteSourcePaths
-
+  // Remote path planning will use the same HarvestRoomData shape.
   return
 }
 
-function planOwnedSourcePaths(basePlan: BasePlan, sources: readonly SourceIntel[]): HarvestSourceData[] | undefined {
-  const result: HarvestSourceData[] = []
+function planOwnedSourcePaths(
+  basePlan: BasePlan,
+  sources: readonly SourceIntel[],
+): ReadonlyMap<Id<Source>, HarvestSourceData> | undefined {
+  const result = new Map<Id<Source>, HarvestSourceData>()
 
   for (const source of sources) {
     const path = findOwnedSourcePath(source, basePlan)
@@ -69,10 +69,7 @@ function planOwnedSourcePaths(basePlan: BasePlan, sources: readonly SourceIntel[
       return
     }
 
-    result.push({
-      sourceId: source.id,
-      path,
-    })
+    result.set(source.id, { path })
   }
 
   return result
@@ -83,10 +80,10 @@ function findOwnedSourcePath(source: SourceIntel, basePlan: BasePlan): RoomPosit
     (structure) =>
       structure.structureType === STRUCTURE_CONTAINER &&
       structure.tag?.kind === "source" &&
-      structure.tag?.id === source.id,
+      structure.tag.id === source.id,
   )
 
-  if (!container) {
+  if (container === undefined) {
     return
   }
 

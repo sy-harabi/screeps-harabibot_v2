@@ -1,33 +1,29 @@
-import type { BasePlan } from "../../capabilities/basePlanning/basePlan"
 import { estimatePathTravelTicks } from "../../capabilities/movement/travelTime"
 import { requestSpawn } from "../../capabilities/spawning/spawnQueue"
 import { getColonyCreeps, type TickContext } from "../../kernel/tickContext"
-import type { RoomCoordinate } from "../../world/map/roomCoordinate"
-import type { LogisticsState } from "../logistics/logistics"
-import { createHaulerBody, HAULER_ROLE, runHaulers } from "./hauler"
-import { getHarvestRuntime } from "./harvestRuntime"
-import { createMinerBody, MINER_ROLE, runMiners } from "./miner"
-import { createSourceData, getSourceContainer, type SourceData } from "./sourceData"
-import { sourceDataStore } from "./sourceDataStore"
-import { getSourceEconomy } from "./sourceEconomy"
-import { harvestRoomDataStore } from "./harvestDataStore"
 import { intelStore } from "../../world/intel/intelStore"
-import { ensureHarvestRoomData } from "./harvestRoomPlanner"
+import type { RoomIntel } from "../../world/intel/roomIntel"
+import type { LogisticsState } from "../logistics/logistics"
+import { harvestRoomDataStore } from "./harvestDataStore"
+import { createHaulerBody, HAULER_ROLE, runHaulers } from "./hauler"
+import { getMiningPositions, getSourceContainer } from "./harvestSource"
+import { createMinerBody, MINER_ROLE, runMiners } from "./miner"
+import { getSourceEconomy } from "./sourceEconomy"
 
 const SOURCE_CONTAINER_REPAIR_THRESHOLD = 150_000
 
-export interface SourceState {
+export interface HarvestSource {
+  readonly id: Id<Source>
   readonly roomName: string
   readonly path: readonly RoomPosition[]
   readonly miningPositions: readonly RoomPosition[]
+  readonly requiredHarvestPower: number
+  readonly requiredCarryCapacity: number
 
   harvestPower: number
   harvestingPower: number
-  requiredHarvestPower: number
-
   numMiners: number
 
-  requiredCarryCapacity: number
   carryCapacity: number
   pendingEnergy: number
 }
@@ -39,27 +35,16 @@ export interface HarvestResult {
 }
 
 const ROLES_BY_PRIORITY = [MINER_ROLE, HAULER_ROLE]
+const EMPTY_HARVEST_RESULT: HarvestResult = { income: 0, maxIncome: 0, spawnUsage: 0 }
 
-const EMPTY_HARVEST_RESULT = { income: 0, maxIncome: 0, spawnUsage: 0 }
-
-export function runHarvest(
-  room: Room,
-  basePlan: BasePlan,
-  context: TickContext,
-  logistics: LogisticsState,
-): HarvestResult {
+export function runHarvest(room: Room, context: TickContext, logistics: LogisticsState): HarvestResult {
   if (!harvestRoomDataStore.isReady() || !intelStore.isReady()) {
     return EMPTY_HARVEST_RESULT
   }
 
   const colonyName = room.name
-
-  if (ensureHarvestRoomData(colonyName, colonyName, basePlan) === undefined) {
-    return EMPTY_HARVEST_RESULT
-  }
-
-  const sourceOrder = getSourceOrder(colonyName, sourceDataById)
-  const sourceStateById = new Map<Id<Source>, SourceState>()
+  const sources = prepareHarvestSources(room)
+  const sourceById = new Map<Id<Source>, HarvestSource>(sources.map((source) => [source.id, source] as const))
   const miners = getColonyCreeps(context, colonyName, MINER_ROLE)
   const haulers = getColonyCreeps(context, colonyName, HAULER_ROLE)
 
@@ -68,17 +53,17 @@ export function runHarvest(
   for (const miner of miners) {
     const sourceId = miner.memory.sourceId
 
-    if (!sourceId) {
+    if (sourceId === undefined) {
       continue
     }
 
-    const sourceState = ensureSourceState(sourceDataById, sourceStateById, sourceId)
+    const source = sourceById.get(sourceId)
 
-    if (sourceState === undefined) {
+    if (source === undefined || source.requiredHarvestPower <= 0) {
       continue
     }
 
-    const replacementLeadTime = getMinerReplacementLeadTime(miner, sourceState.data.path)
+    const replacementLeadTime = getMinerReplacementLeadTime(miner, source.path)
     const harvestPower = miner.getActiveBodyparts(WORK) * HARVEST_POWER
 
     if (harvestPower > 0) {
@@ -86,8 +71,8 @@ export function runHarvest(
     }
 
     if ((miner.ticksToLive ?? CREEP_LIFE_TIME) > replacementLeadTime) {
-      sourceState.harvestPower += harvestPower
-      sourceState.numMiners++
+      source.harvestPower += harvestPower
+      source.numMiners++
     }
   }
 
@@ -102,7 +87,7 @@ export function runHarvest(
   }
 
   let carryCapacityLeft = totalCarryCapacity
-  const requesterId = `harvest:${colonyName}`
+  const requesterId = "harvest:" + colonyName
   const assignment = {
     type: "colony" as const,
     colonyName,
@@ -112,35 +97,35 @@ export function runHarvest(
   let maxIncome = 0
   let spawnUsage = 0
 
-  for (const sourceId of sourceOrder) {
-    const sourceState = ensureSourceState(sourceDataById, sourceStateById, sourceId)
-
-    if (sourceState === undefined) {
+  for (const source of sources) {
+    if (source.requiredHarvestPower <= 0) {
       continue
     }
 
-    sourceState.carryCapacity = Math.min(sourceState.requiredCarryCapacity, carryCapacityLeft)
-    carryCapacityLeft -= sourceState.carryCapacity
+    source.carryCapacity = Math.min(source.requiredCarryCapacity, carryCapacityLeft)
+    carryCapacityLeft -= source.carryCapacity
 
-    const minerRatio = sourceState.harvestPower / sourceState.requiredHarvestPower
-    const haulerRatio = sourceState.carryCapacity / sourceState.requiredCarryCapacity
+    const minerRatio = source.harvestPower / source.requiredHarvestPower
+    const haulerRatio = source.carryCapacity / source.requiredCarryCapacity
 
-    const sourceEconomy = getSourceEconomy(room, sourceState.data)
+    const sourceEconomy = getSourceEconomy(
+      room,
+      source.id,
+      source.path,
+      source.miningPositions.length,
+      source.requiredHarvestPower,
+    )
 
     income += sourceEconomy.maxIncome * Math.min(1, minerRatio, haulerRatio)
     maxIncome += sourceEconomy.maxIncome
     spawnUsage += sourceEconomy.spawnUsage
 
-    if (
-      minerRatio < 1 &&
-      minerRatio <= haulerRatio &&
-      sourceState.numMiners < sourceState.data.miningPositions.length
-    ) {
-      const container = getSourceContainer(sourceState.data)
+    if (minerRatio < 1 && minerRatio <= haulerRatio && source.numMiners < source.miningPositions.length) {
+      const container = getSourceContainer(source.path)
       const repairContainer =
         hasHarvestIncome && container !== undefined && container.hits < SOURCE_CONTAINER_REPAIR_THRESHOLD
 
-      const targetWork = Math.ceil(sourceState.requiredHarvestPower / HARVEST_POWER) + (repairContainer ? 1 : 0)
+      const targetWork = Math.ceil(source.requiredHarvestPower / HARVEST_POWER) + (repairContainer ? 1 : 0)
 
       requestSpawn(
         {
@@ -148,12 +133,12 @@ export function runHarvest(
           spawnRoomName: colonyName,
           assignment,
           priorityType: "ownedSource",
-          order: sourceState.data.path.length,
+          order: source.path.length,
           rolesByPriority: ROLES_BY_PRIORITY,
         },
-        () => createMinerBody(room, sourceState.data.path, targetWork, hasHarvestIncome, { carry: repairContainer }),
+        () => createMinerBody(room, source.path, targetWork, hasHarvestIncome, { carry: repairContainer }),
         MINER_ROLE,
-        { memory: { sourceId } },
+        { memory: { sourceId: source.id } },
       )
     } else if (haulerRatio < 1) {
       requestSpawn(
@@ -162,7 +147,7 @@ export function runHarvest(
           spawnRoomName: colonyName,
           assignment,
           priorityType: "ownedSource",
-          order: sourceState.data.path.length,
+          order: source.path.length,
           rolesByPriority: ROLES_BY_PRIORITY,
         },
         () => createHaulerBody(room),
@@ -171,10 +156,80 @@ export function runHarvest(
     }
   }
 
-  runMiners(miners, sourceStateById)
-  runHaulers(colonyName, haulers, sourceOrder, sourceStateById, logistics)
+  runMiners(miners, sourceById)
+  runHaulers(colonyName, haulers, sources, sourceById, logistics)
 
   return { income, maxIncome, spawnUsage }
+}
+
+function prepareHarvestSources(room: Room): HarvestSource[] {
+  const colonyName = room.name
+  const username = room.controller?.owner?.username
+
+  if (username === undefined) {
+    return []
+  }
+
+  const result: HarvestSource[] = []
+
+  for (const roomName of harvestRoomDataStore.getByColony(colonyName)) {
+    const harvestData = harvestRoomDataStore.get(roomName)
+    const intel = intelStore.get(roomName)
+
+    if (harvestData === undefined || intel === undefined) {
+      continue
+    }
+
+    const requiredHarvestPower = getRequiredHarvestPower(intel, username)
+
+    for (const [sourceId, sourceData] of harvestData.sources) {
+      const sourceIntel = intel.sources.find((source) => source.id === sourceId)
+
+      if (sourceIntel === undefined) {
+        continue
+      }
+
+      const miningPositions = getMiningPositions(roomName, sourceIntel.coordinate, sourceData.path)
+
+      result.push({
+        id: sourceId,
+        roomName,
+        path: sourceData.path,
+        miningPositions,
+        requiredHarvestPower,
+        requiredCarryCapacity: sourceData.path.length * 2 * requiredHarvestPower,
+
+        harvestPower: 0,
+        harvestingPower: 0,
+        numMiners: 0,
+
+        carryCapacity: 0,
+        pendingEnergy: 0,
+      })
+    }
+  }
+
+  result.sort((left, right) => left.path.length - right.path.length || left.id.localeCompare(right.id))
+
+  return result
+}
+
+function getRequiredHarvestPower(intel: RoomIntel, username: string): number {
+  const controller = intel.controller
+
+  if (controller === undefined) {
+    return 0
+  }
+
+  if (controller.owner !== undefined) {
+    return controller.owner.username === username ? SOURCE_ENERGY_CAPACITY / ENERGY_REGEN_TIME : 0
+  }
+
+  if (controller.reservation !== undefined) {
+    return controller.reservation.username === username ? SOURCE_ENERGY_CAPACITY / ENERGY_REGEN_TIME : 0
+  }
+
+  return SOURCE_ENERGY_NEUTRAL_CAPACITY / ENERGY_REGEN_TIME
 }
 
 function getMinerReplacementLeadTime(miner: Creep, path: readonly RoomPosition[]): number {
@@ -192,165 +247,4 @@ function getMinerReplacementLeadTime(miner: Creep, path: readonly RoomPosition[]
   const travelTicks = estimatePathTravelTicks(path, moveCount, workCount)
 
   return miner.body.length * CREEP_SPAWN_TIME + travelTicks + 10
-}
-
-function ensureSourceState(
-  sourceDataById: Map<Id<Source>, SourceData>,
-  sourceStateById: Map<Id<Source>, SourceState>,
-  sourceId: Id<Source>,
-): SourceState | undefined {
-  const sourceData = sourceDataById.get(sourceId)
-
-  if (!sourceData) {
-    return
-  }
-
-  let sourceState = sourceStateById.get(sourceId)
-  const requiredHarvestPower = SOURCE_ENERGY_CAPACITY / ENERGY_REGEN_TIME
-
-  if (sourceState === undefined) {
-    sourceState = {
-      data: sourceData,
-
-      harvestPower: 0,
-      harvestingPower: 0,
-      requiredHarvestPower,
-      numMiners: 0,
-
-      requiredCarryCapacity: sourceData.path.length * 2 * requiredHarvestPower,
-      carryCapacity: 0,
-      pendingEnergy: 0,
-    }
-
-    sourceStateById.set(sourceId, sourceState)
-  }
-
-  return sourceState
-}
-
-function createSourceStateById(colonyName: string): Map<Id<Source>, SourceState> | undefined {
-  const runtime = 
-}
-
-function ensureSourceDataById(room: Room, basePlan: BasePlan): Map<Id<Source>, SourceData> | undefined {
-  const runtime = getHarvestRuntime(room.name)
-
-  if (runtime.sourceDataById !== undefined) {
-    return runtime.sourceDataById
-  }
-
-  const sourceDataById = new Map<Id<Source>, SourceData>()
-  let sourceReady = true
-
-  for (const source of room.find(FIND_SOURCES)) {
-    const sourceData = ensureOwnedSourceData(source, basePlan)
-
-    if (sourceData === undefined) {
-      sourceReady = false
-      continue
-    }
-
-    sourceDataById.set(source.id, sourceData)
-  }
-
-  if (!sourceReady) {
-    return
-  }
-
-  runtime.sourceDataById = sourceDataById
-  return sourceDataById
-}
-
-function getSourceOrder(colonyName: string, sourceDataById: Map<Id<Source>, SourceData>): Id<Source>[] {
-  const runtime = getHarvestRuntime(colonyName)
-
-  if (runtime.sourceOrder !== undefined) {
-    return runtime.sourceOrder
-  }
-
-  const sourceOrder = [...sourceDataById.values()]
-    .sort((left, right) => left.path.length - right.path.length)
-    .map((sourceData) => sourceData.sourceId)
-
-  runtime.sourceOrder = sourceOrder
-
-  return sourceOrder
-}
-
-function ensureOwnedSourceData(source: Source, basePlan: BasePlan): SourceData | undefined {
-  const result = sourceDataStore.get(source.id)
-
-  if (result.status === "ready") {
-    return result.value
-  }
-
-  if (result.status === "loading") {
-    return
-  }
-
-  const container = basePlan.structures.find(
-    (structure) =>
-      structure.structureType === STRUCTURE_CONTAINER &&
-      structure.tag?.kind === "source" &&
-      structure.tag?.id === source.id,
-  )
-
-  if (!container) {
-    return
-  }
-
-  const path = findSourcePath(basePlan, container.coordinate)
-
-  if (!path) {
-    return
-  }
-
-  const sourceData = createSourceData(
-    source.id,
-    source.room.name,
-    {
-      x: source.pos.x,
-      y: source.pos.y,
-    },
-    basePlan.roomName,
-    path,
-  )
-
-  sourceDataStore.set(sourceData)
-
-  return sourceData
-}
-
-function findSourcePath(basePlan: BasePlan, target: RoomCoordinate): RoomPosition[] | undefined {
-  const result = PathFinder.search(
-    new RoomPosition(basePlan.storage.x, basePlan.storage.y, basePlan.roomName),
-    {
-      pos: new RoomPosition(target.x, target.y, basePlan.roomName),
-      range: 0,
-    },
-    {
-      plainCost: 255,
-      swampCost: 255,
-      maxRooms: 1,
-      roomCallback: () => {
-        const costs = new PathFinder.CostMatrix()
-
-        for (const structure of basePlan.structures) {
-          if (structure.structureType === STRUCTURE_ROAD) {
-            costs.set(structure.coordinate.x, structure.coordinate.y, 1)
-          }
-        }
-
-        costs.set(target.x, target.y, 1)
-
-        return costs
-      },
-    },
-  )
-
-  if (result.incomplete) {
-    return
-  }
-
-  return result.path
 }

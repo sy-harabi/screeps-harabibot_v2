@@ -1,14 +1,13 @@
 import { packPath, unpackPath, type PackedPath } from "../../capabilities/movement/packedPath"
 
 export interface HarvestSourceData {
-  readonly sourceId: Id<Source>
   readonly path: readonly RoomPosition[]
 }
 
 export interface HarvestRoomData {
   readonly colonyName: string
   readonly basePlanRevision: number
-  readonly sources: readonly HarvestSourceData[]
+  readonly sources: ReadonlyMap<Id<Source>, HarvestSourceData>
 }
 
 export type PackedHarvestRoomData = readonly [
@@ -21,7 +20,7 @@ export function packHarvestRoomData(data: HarvestRoomData): PackedHarvestRoomDat
   return [
     data.colonyName,
     data.basePlanRevision,
-    data.sources.map(({ sourceId, path }) => [sourceId, packPath(path)] as const),
+    [...data.sources].map(([sourceId, source]) => [sourceId, packPath(source.path)] as const),
   ]
 }
 
@@ -29,6 +28,8 @@ export function unpackHarvestRoomData(packed: PackedHarvestRoomData): HarvestRoo
   return {
     colonyName: packed[0],
     basePlanRevision: packed[1],
-    sources: packed[2].map(([sourceId, packedPath]) => ({ sourceId, path: unpackPath(packedPath) })),
+    sources: new Map<Id<Source>, HarvestSourceData>(
+      packed[2].map(([sourceId, packedPath]) => [sourceId, { path: unpackPath(packedPath) }]),
+    ),
   }
 }

@@ -4,6 +4,7 @@ import { run as runTraffic } from "./capabilities/movement/traffic"
 import { allocateSpawns } from "./capabilities/spawning/spawnAllocator"
 import { runColonies } from "./colony/colonyManager"
 import { harvestRoomDataStore } from "./colony/harvest/harvestDataStore"
+import { planHarvestRoom } from "./colony/harvest/harvestRoomPlanner"
 import "./console/consoleApi"
 import { createTickContext } from "./kernel/tickContext"
 import { segmentManager } from "./persistence/segmentManager"
@@ -24,7 +25,17 @@ export function loop(): void {
 
   if (intelStore.isReady()) {
     for (const room of Object.values(Game.rooms)) {
-      intelStore.observe(room)
+      const newStaticIntel = intelStore.observe(room)
+
+      if (!newStaticIntel || room.controller?.my !== true || !harvestRoomDataStore.isReady()) {
+        continue
+      }
+
+      const basePlanResult = basePlanStore.get(room.name)
+
+      if (basePlanResult.status === "ready") {
+        planHarvestRoom(room.name, room.name, basePlanResult.value)
+      }
     }
   }
 

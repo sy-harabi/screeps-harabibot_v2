@@ -1,45 +1,68 @@
 import { estimatePathTravelTicks } from "../../capabilities/movement/travelTime"
 import { getHarvestRuntime } from "./harvestRuntime"
 import { createMinerBody } from "./miner"
-import type { SourceData } from "./sourceData"
 
 export interface SourceEconomy {
   readonly key: number
+  readonly path: readonly RoomPosition[]
+  readonly numMiningPositions: number
+  readonly grossIncome: number
+
   readonly maxIncome: number
   readonly spawnUsage: number
 }
 
-export function getSourceEconomy(room: Room, sourceData: SourceData): SourceEconomy {
+export function getSourceEconomy(
+  room: Room,
+  sourceId: Id<Source>,
+  path: readonly RoomPosition[],
+  numMiningPositions: number,
+  grossIncome: number,
+): SourceEconomy {
   const runtime = getHarvestRuntime(room.name)
 
   runtime.sourceEconomyById ??= new Map()
 
   const key = room.energyCapacityAvailable
-  const cached = runtime.sourceEconomyById.get(sourceData.sourceId)
+  const cached = runtime.sourceEconomyById.get(sourceId)
 
-  if (cached?.key === key) {
+  if (
+    cached?.key === key &&
+    cached.path === path &&
+    cached.numMiningPositions === numMiningPositions &&
+    cached.grossIncome === grossIncome
+  ) {
     return cached
   }
 
-  const sourceEconomy = calculateSourceEconomy(room, sourceData)
+  const sourceEconomy = calculateSourceEconomy(room, path, numMiningPositions, grossIncome)
 
-  runtime.sourceEconomyById.set(sourceData.sourceId, sourceEconomy)
+  runtime.sourceEconomyById.set(sourceId, sourceEconomy)
 
   return sourceEconomy
 }
 
-function calculateSourceEconomy(room: Room, sourceData: SourceData): SourceEconomy {
+function calculateSourceEconomy(
+  room: Room,
+  path: readonly RoomPosition[],
+  numMiningPositions: number,
+  grossIncome: number,
+): SourceEconomy {
   const key = room.energyCapacityAvailable
-
-  const grossIncome = SOURCE_ENERGY_CAPACITY / ENERGY_REGEN_TIME
-
   const targetWork = Math.ceil(grossIncome / HARVEST_POWER)
+  const minerBody = createMinerBody(room, path, targetWork, true)
 
-  const minerBody = createMinerBody(room, sourceData.path, targetWork, true)
-
-  if (!minerBody) {
-    return { key, maxIncome: 0, spawnUsage: 0 }
+  if (minerBody === undefined) {
+    return {
+      key,
+      path,
+      numMiningPositions,
+      grossIncome,
+      maxIncome: 0,
+      spawnUsage: 0,
+    }
   }
+
   let work = 0
   let move = 0
   let bodyCost = 0
@@ -54,26 +77,21 @@ function calculateSourceEconomy(room: Room, sourceData: SourceData): SourceEcono
     }
   }
 
-  const minerCount = Math.min(Math.ceil(targetWork / work), sourceData.miningPositions.length)
-
+  const minerCount = Math.min(Math.ceil(targetWork / work), numMiningPositions)
   const harvestIncome = Math.min(grossIncome, minerCount * work * HARVEST_POWER)
-
-  const travelTicks = estimatePathTravelTicks(sourceData.path, move, work)
-
+  const travelTicks = estimatePathTravelTicks(path, move, work)
   const productiveLifetime = CREEP_LIFE_TIME - travelTicks
-
   const minerCost = (minerCount * bodyCost) / productiveLifetime
-
-  const requiredCarryCapacity = sourceData.path.length * 2 * harvestIncome
-
+  const requiredCarryCapacity = path.length * 2 * harvestIncome
   const carryParts = requiredCarryCapacity / CARRY_CAPACITY
-
   const haulerCost = (carryParts * (BODYPART_COST[CARRY] + BODYPART_COST[MOVE])) / CREEP_LIFE_TIME
 
   return {
     key,
+    path,
+    numMiningPositions,
+    grossIncome,
     maxIncome: harvestIncome - minerCost - haulerCost,
-
     spawnUsage:
       (minerCount * minerBody.length * CREEP_SPAWN_TIME) / productiveLifetime +
       (carryParts * 2 * CREEP_SPAWN_TIME) / CREEP_LIFE_TIME,
