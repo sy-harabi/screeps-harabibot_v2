@@ -3,6 +3,7 @@ import { getBaseRoomCostMatrix } from "../../capabilities/movement/roomCostMatri
 import { estimatePathTravelTicks } from "../../capabilities/movement/travelTime"
 import { requestSpawn } from "../../capabilities/spawning/spawnQueue"
 import { getColonyCreeps, type TickContext } from "../../kernel/tickContext"
+import { getBotOptions } from "../../options/botOptions"
 import { intelStore } from "../../world/intel/intelStore"
 import type { RoomIntel } from "../../world/intel/roomIntel"
 import type { LogisticsState } from "../logistics/logistics"
@@ -401,7 +402,7 @@ export function runHarvest(
 
   const result = { income, maxIncome, spawnUsage }
 
-  if (Memory.options?.visuals?.harvest) {
+  if (getBotOptions().visuals.harvest) {
     visualizeHarvest(room, visualSourceRows, visualReservationRows, result)
   }
 
