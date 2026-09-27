@@ -115,6 +115,12 @@ function get(roomName: string): HarvestRoomData | undefined {
 }
 
 function set(roomName: string, data: HarvestRoomData): void {
+  const previous = dataByRoom.get(roomName)
+
+  if (previous !== undefined && previous.colonyName !== data.colonyName) {
+    deleteHarvestData(roomName)
+  }
+
   const segmentId = getHarvestDataSegmentId(roomName)
 
   const result = segmentManager.getSegment<HarvestDataSegment>(segmentId)
