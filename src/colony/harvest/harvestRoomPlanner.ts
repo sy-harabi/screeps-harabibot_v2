@@ -29,40 +29,42 @@ const REMOTE_PLAIN_COST = 5
 const REMOTE_SWAMP_COST = 6
 const REMOTE_CONTAINER_COST = 255
 
-export function planHarvestRoom(roomName: string, colonyName: string, basePlan: BasePlan): HarvestRoomPlan | undefined {
-  if (!harvestRoomPlanStore.isReady()) {
+export function planHarvest(colonyName: string, basePlan: BasePlan): void {
+  if (!harvestRoomPlanStore.isReady() || !intelStore.isReady()) {
     return
   }
 
-  const existing = harvestRoomPlanStore.get(roomName)
+  const colonyIntel = intelStore.get(colonyName)
 
-  if (existing !== undefined && existing.colonyName === colonyName && existing.basePlanRevision === basePlan.revision) {
-    return existing
-  }
-
-  const intel = intelStore.get(roomName)
-
-  if (intel === undefined) {
+  if (colonyIntel === undefined) {
     return
   }
 
-  const plan = createHarvestRoomPlan(roomName, colonyName, basePlan, intel)
+  const ownedPlan = createHarvestRoomPlan(colonyName, colonyName, basePlan, colonyIntel)
 
-  if (plan === undefined) {
+  if (ownedPlan === undefined) {
     return
   }
 
-  harvestRoomPlanStore.set(roomName, plan)
+  harvestRoomPlanStore.set(colonyName, ownedPlan)
 
-  return plan
+  const roomsByDepth = getRoomsByDepth(colonyName, MAX_REMOTE_DEPTH)
+
+  for (let depth = 1; depth <= MAX_REMOTE_DEPTH; depth++) {
+    for (const roomName of roomsByDepth[depth]) {
+      const intel = intelStore.get(roomName)
+
+      if (!isRemoteCandidateIntel(intel) || getRoomType(roomName) !== "normal") {
+        continue
+      }
+
+      considerRemoteHarvestCandidate(roomName, colonyName, basePlan, intel)
+    }
+  }
 }
 
-export function assignRemoteHarvestRoom(roomName: string, context: TickContext): HarvestRoomPlan | undefined {
+export function considerRemoteHarvestRoom(roomName: string, context: TickContext): HarvestRoomPlan | undefined {
   if (!harvestRoomPlanStore.isReady() || !intelStore.isReady() || context.ownedRooms.has(roomName)) {
-    return
-  }
-
-  if (harvestRoomPlanStore.get(roomName) !== undefined) {
     return
   }
 
@@ -73,7 +75,6 @@ export function assignRemoteHarvestRoom(roomName: string, context: TickContext):
   }
 
   const roomsByDepth = getRoomsByDepth(roomName, MAX_REMOTE_DEPTH)
-  const routes: { colonyName: string; basePlan: BasePlan; route: readonly string[] }[] = []
 
   for (let depth = 1; depth <= MAX_REMOTE_DEPTH; depth++) {
     for (const colonyName of roomsByDepth[depth]) {
@@ -87,55 +88,80 @@ export function assignRemoteHarvestRoom(roomName: string, context: TickContext):
         continue
       }
 
-      const route = findRemoteRoute(colonyName, roomName)
-
-      if (route !== undefined) {
-        routes.push({ colonyName, basePlan: basePlanResult.value, route })
-      }
+      considerRemoteHarvestCandidate(roomName, colonyName, basePlanResult.value, intel)
     }
   }
 
-  routes.sort((left, right) => left.route.length - right.route.length)
+  return harvestRoomPlanStore.get(roomName)
+}
 
-  let best: RemoteCandidate | undefined
+function considerRemoteHarvestCandidate(
+  roomName: string,
+  colonyName: string,
+  basePlan: BasePlan,
+  intel: RoomIntel,
+): HarvestRoomPlan | undefined {
+  const route = findRemoteRoute(colonyName, roomName)
 
-  for (const candidateRoute of routes) {
-    const roomHops = candidateRoute.route.length - 1
-
-    if (best !== undefined && roomHops > best.roomHops) {
-      break
-    }
-
-    const plan = createHarvestRoomPlan(
-      roomName,
-      candidateRoute.colonyName,
-      candidateRoute.basePlan,
-      intel,
-      candidateRoute.route,
-    )
-
-    if (plan === undefined) {
-      continue
-    }
-
-    const candidate: RemoteCandidate = {
-      plan,
-      roomHops,
-      totalPathLength: getTotalPathLength(plan),
-    }
-
-    if (best === undefined || compareRemoteCandidates(candidate, best) < 0) {
-      best = candidate
-    }
-  }
-
-  if (best === undefined) {
+  if (route === undefined) {
     return
   }
 
-  harvestRoomPlanStore.set(roomName, best.plan)
+  const plan = createHarvestRoomPlan(roomName, colonyName, basePlan, intel, route)
 
-  return best.plan
+  if (plan === undefined) {
+    return
+  }
+
+  const candidate: RemoteCandidate = {
+    plan,
+    roomHops: route.length - 1,
+    totalPathLength: getTotalPathLength(plan),
+  }
+  const existing = harvestRoomPlanStore.get(roomName)
+
+  if (existing === undefined) {
+    harvestRoomPlanStore.set(roomName, plan)
+    return plan
+  }
+
+  if (existing.colonyName === roomName) {
+    return existing
+  }
+
+  if (existing.colonyName === colonyName) {
+    if (existing.basePlanRevision === basePlan.revision) {
+      return existing
+    }
+
+    harvestRoomPlanStore.set(roomName, plan)
+    return plan
+  }
+
+  if (Game.rooms[existing.colonyName]?.controller?.my !== true) {
+    harvestRoomPlanStore.set(roomName, plan)
+    return plan
+  }
+
+  const existingRoute = findRemoteRoute(existing.colonyName, roomName)
+
+  if (existingRoute === undefined) {
+    harvestRoomPlanStore.set(roomName, plan)
+    return plan
+  }
+
+  const existingCandidate: RemoteCandidate = {
+    plan: existing,
+    roomHops: existingRoute.length - 1,
+    totalPathLength: getTotalPathLength(existing),
+  }
+
+  if (compareRemoteCandidates(candidate, existingCandidate) >= 0) {
+    return existing
+  }
+
+  harvestRoomPlanStore.set(roomName, plan)
+  return plan
 }
 
 function createHarvestRoomPlan(
