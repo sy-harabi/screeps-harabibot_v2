@@ -39,10 +39,15 @@ export function updateRclProgress(context: TickContext): void {
 
 function visualizeRclProgress(room: Room, progress: RclProgressMemory): void {
   const visual = new RoomVisual(room.name)
-  const records = Object.entries(progress.reachedAt)
-    .map(([rcl, tick]) => [Number(rcl) as Rcl, tick] as const)
-    .filter((entry): entry is readonly [Rcl, number] => entry[1] !== undefined)
-    .sort((left, right) => left[0] - right[0])
+  const records: Array<readonly [Rcl, number]> = []
+
+  for (let rcl = 1 as Rcl; rcl <= 8; rcl = (rcl + 1) as Rcl) {
+    const reachedAt = progress.reachedAt[rcl]
+
+    if (reachedAt !== undefined) {
+      records.push([rcl, reachedAt])
+    }
+  }
 
   const x = 42
   const startY = 42
