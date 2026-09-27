@@ -15,38 +15,46 @@ export function createReserverBody(room: Room): readonly BodyPartConstant[] | un
   return [CLAIM, CLAIM, MOVE, MOVE]
 }
 
-export function runReserver(reserver: Creep, roomName: string) {
+export function runReserver(reserver: Creep, roomName: string): void {
   if (reserver.spawning) {
     return
   }
 
   const intel = intelStore.get(roomName)
+  const controllerIntel = intel?.controller
 
-  if (intel === undefined) {
+  if (controllerIntel === undefined) {
     return
   }
 
-  const controllerCoordinate = intel.controller?.coordinate
+  const controllerPos = new RoomPosition(controllerIntel.coordinate.x, controllerIntel.coordinate.y, roomName)
 
-  if (controllerCoordinate === undefined) {
+  if (!reserver.pos.isNearTo(controllerPos)) {
+    moveCreep(
+      reserver,
+      {
+        pos: controllerPos,
+        range: 1,
+      },
+      {
+        useRoomRoute: true,
+      },
+    )
     return
   }
 
-  if (
-    reserver.pos.roomName !== roomName ||
-    reserver.pos.getRangeTo(controllerCoordinate.x, controllerCoordinate.y) > 1
-  ) {
-    moveCreep(reserver, { pos: new RoomPosition(controllerCoordinate.x, controllerCoordinate.y, roomName), range: 1 })
+  const controller = Game.getObjectById(controllerIntel.id)
+
+  if (controller === null || controller.owner !== undefined) {
     return
   }
 
-  const controller = Game.rooms[roomName]?.controller
+  const reservation = controller.reservation
 
-  if (controller === undefined) {
-    return
-  }
-
-  if (reserver.reserveController(controller) !== OK) {
+  if (reservation !== undefined && reservation.username !== reserver.owner.username) {
     reserver.attackController(controller)
+    return
   }
+
+  reserver.reserveController(controller)
 }
