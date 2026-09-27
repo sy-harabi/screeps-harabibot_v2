@@ -2,7 +2,7 @@ import { moveCreep, moveCreepByPath } from "../../capabilities/movement/movement
 import type { LogisticsState } from "../logistics/logistics"
 import { registerEnergySupplier } from "../logistics/logistics"
 import type { HarvestSourceState } from "./harvest"
-import { getSourceContainer } from "./harvestSource"
+import { getSourceContainer } from "./miningSite"
 
 export const HAULER_ROLE = "hauler"
 

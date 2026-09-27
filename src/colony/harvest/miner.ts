@@ -2,7 +2,7 @@ import { moveCreep, moveCreepByPath } from "../../capabilities/movement/movement
 import { estimatePathTravelTicks } from "../../capabilities/movement/travelTime"
 import { runtimeRegistry } from "../../runtime/runtimeRegistry"
 import type { HarvestSourceState } from "./harvest"
-import { getSourceContainer } from "./harvestSource"
+import { getSourceContainer } from "./miningSite"
 
 interface MinerRuntime {
   miningPosition?: RoomPosition

@@ -6,7 +6,7 @@ import type { RoomIntel } from "../../world/intel/roomIntel"
 import type { LogisticsState } from "../logistics/logistics"
 import { harvestRoomPlanStore } from "./harvestRoomPlanStore"
 import { createHaulerBody, HAULER_ROLE, runHaulers } from "./hauler"
-import { getMiningPositions, getSourceContainer } from "./harvestSource"
+import { getMiningPositions, getSourceContainer } from "./miningSite"
 import { createMinerBody, MINER_ROLE, runMiners } from "./miner"
 import { getSourceEconomyStats } from "./sourceEconomyStats"
 
