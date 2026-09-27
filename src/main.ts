@@ -41,7 +41,9 @@ export function loop(): void {
 
   runScouting(context)
 
-  runColonies(context)
+  if (intelStore.isReady() && harvestRoomDataStore.isReady()) {
+    runColonies(context)
+  }
 
   allocateSpawns()
 
