@@ -42,17 +42,18 @@ Remote sources in one room are planned nearest-first:
 
 Existing remotes from the same colony may contribute provisional road costs when planning a new remote. The remote currently being recalculated must not bias its own replacement path.
 
-### 3. Harvest uses one ordered source list
+### 3. Harvest uses ordered room and source traversal
 
-Owned and remote sources are evaluated together in one source order:
+Harvest is evaluated in a room-first order:
 
-1. owned sources before remote sources;
-2. within each class, shorter source path first;
-3. deterministic tie-breaking where needed.
+1. the owned room first;
+2. remote rooms ordered by the path length of their nearest source;
+3. sources within each room ordered by path length;
+4. deterministic room-name and source-ID tie-breaking where needed.
 
-The shared hauler pool is allocated across this same order.
+The shared hauler pool is allocated across this same traversal.
 
-This ordered traversal also defines harvest spawn priority: the first unsatisfied worker requirement encountered is the highest-priority harvest request for that tick.
+This order keeps room-level reservation policy adjacent to the sources it controls. It also defines harvest spawn priority: the first worker or reserver demand encountered is the highest-priority harvest demand for that tick.
 
 ### 4. Harvest submits at most one spawn request per tick
 
@@ -64,19 +65,13 @@ The traversal must not stop after finding a spawn need. Instead it keeps a tick-
 let spawnRequested = false
 ```
 
-After the first successful harvest spawn request, later sources continue economy calculation but skip spawn-decision logic.
+After the first harvest spawn demand is encountered, later rooms and sources continue economy calculation but skip spawn-decision logic. The demand claims the harvest spawn slot for that tick even when the spawn queue cannot currently accept the request or the requested body cannot currently be produced.
 
-### 5. Remote room-level logic runs on the first visit in source order
+### 5. Remote room-level logic owns a tick-local room state
 
-runHarvest keeps a tick-local set:
+runHarvest prepares a tick-local HarvestRoomState for every harvest room. The room state groups its ordered source states with current reservation state and effective reserver power.
 
-```ts
-const checkedRemotes = new Set<string>()
-```
-
-The first source encountered for a remote performs that room's reservation logic. Later sources from the same room do not repeat it.
-
-This avoids coupling room-level policy to a particular element of HarvestRoomPlan.sources while naturally giving the room-level decision the priority of its nearest source.
+The main traversal visits each room once, so reservation policy runs naturally at room scope without a separate checked-room set. The nearest source still determines the remote room's ordering relative to other remotes.
 
 ### 6. Reservation state is explicit
 
@@ -189,22 +184,23 @@ A foreign reservation is different: harvesting is impossible, so reserver demand
 
 ### 11. Spawn order is expressed directly by the single source traversal
 
-Within the ordered source traversal:
+Within the ordered room traversal:
 
 ```text
-owned source:
-  miner / hauler
+owned room:
+  source miner / hauler in source order
 
 remote + foreign reservation:
   reserver
 
 remote + no reservation:
-  miner / hauler at 5 energy/tick
-  -> reserver when the first source is ready
+  nearest source miner / hauler at 5 energy/tick
+  -> reserver when that source is ready
+  -> remaining sources
 
 remote + our reservation:
   reserver maintenance
-  -> miner / hauler at 10 energy/tick
+  -> source miner / hauler at 10 energy/tick
 ```
 
 Miner and hauler reinforcement continues to use fulfillment ratios. Reinforce the more limiting side and prefer mining on ties.
@@ -300,7 +296,7 @@ HarvestResult.income remains a sustainable net-income estimate and therefore inc
 
 ### One traversal makes priority visible
 
-The source traversal already defines economic ordering and shared-hauler allocation. Reusing the same order for spawn decisions removes a second priority model.
+The room-first traversal defines remote locality, room-level reservation policy, source ordering, and shared-hauler allocation in one place. Reusing that same traversal for spawn decisions removes a second priority model.
 
 ### One request per tick is sufficient
 
@@ -323,7 +319,7 @@ Controller travel time and adjacent terrain availability are cheap enough to com
 - runHarvest becomes the canonical place to read harvest spawn policy.
 - Harvest produces at most one spawn request per colony per tick.
 - The source loop always finishes even after a spawn request because economy accounting and shared-hauler allocation still need later sources.
-- Remote room reservation logic executes only on the first visit to that room in source order.
+- Remote room reservation logic executes once at room scope before or between that room's source work according to reservation state.
 - Foreign reservation produces zero harvest income until a reserver removes it.
 - Remote miner body sizing and actual source throughput are intentionally separate concepts.
 - At capacity below 1300, two one-CLAIM reservers may coexist to provide target power 2.
@@ -341,9 +337,9 @@ Rejected for the first implementation. It creates another priority surface and m
 
 Rejected. Later sources still need hauling allocation and economy accounting in the same tick.
 
-### Attach reservation responsibility to a fixed first source field
+### Keep one global source order across all remote rooms
 
-Not required. A tick-local checkedRemotes set directly expresses the intention to run room-level logic the first time the ordered traversal reaches a remote.
+Rejected. Reservation and its upkeep are room-level concerns, and grouping a remote's sources under one room state makes that policy explicit. Remote rooms are instead ordered by their nearest source, with sources ordered by distance inside each room.
 
 ### Require two controller-adjacent positions for two one-CLAIM reservers
 
