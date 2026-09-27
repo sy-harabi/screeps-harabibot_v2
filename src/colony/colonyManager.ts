@@ -30,7 +30,7 @@ function runColony(room: Room, context: TickContext): void {
 
   const logistics = createLogisticsState()
 
-  const harvest = runHarvest(room, context, logistics)
+  const harvest = runHarvest(room, basePlan, context, logistics)
 
   const construction = runConstruction(room, basePlan)
 
