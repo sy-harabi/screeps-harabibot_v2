@@ -4,11 +4,7 @@ import type { SourceIntel } from "../../world/intel/roomIntel"
 import { harvestRoomDataStore } from "./harvestDataStore"
 import type { HarvestRoomData, HarvestSourceData } from "./harvestRoomData"
 
-export function planHarvestRoom(
-  roomName: string,
-  colonyName: string,
-  basePlan: BasePlan,
-): HarvestRoomData | undefined {
+export function planHarvestRoom(roomName: string, colonyName: string, basePlan: BasePlan): HarvestRoomData | undefined {
   if (!harvestRoomDataStore.isReady()) {
     return
   }

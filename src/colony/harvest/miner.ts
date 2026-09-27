@@ -34,10 +34,7 @@ export const MINER_ROLE = "miner"
 
 type RunMinerResult = "harvesting" | "moving"
 
-export function runMiners(
-  miners: readonly Creep[],
-  sourceById: ReadonlyMap<Id<Source>, HarvestSource>,
-): void {
+export function runMiners(miners: readonly Creep[], sourceById: ReadonlyMap<Id<Source>, HarvestSource>): void {
   for (const miner of miners) {
     const sourceId = miner.memory.sourceId
 

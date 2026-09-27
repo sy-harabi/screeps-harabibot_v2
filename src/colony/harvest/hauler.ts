@@ -70,11 +70,7 @@ export function runHaulers(
   }
 }
 
-function moveToColony(
-  colonyName: string,
-  hauler: Creep,
-  sourceById: ReadonlyMap<Id<Source>, HarvestSource>,
-): void {
+function moveToColony(colonyName: string, hauler: Creep, sourceById: ReadonlyMap<Id<Source>, HarvestSource>): void {
   const sourceId = hauler.memory.sourceId
   const source = sourceId === undefined ? undefined : sourceById.get(sourceId)
 
