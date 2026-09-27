@@ -73,11 +73,9 @@ export function assignRemoteHarvestRoom(roomName: string, context: TickContext):
   }
 
   const roomsByDepth = getRoomsByDepth(roomName, MAX_REMOTE_DEPTH)
-  let best: RemoteCandidate | undefined
+  const routes: { colonyName: string; basePlan: BasePlan; route: readonly string[] }[] = []
 
   for (let depth = 1; depth <= MAX_REMOTE_DEPTH; depth++) {
-    let foundCandidateAtDepth = false
-
     for (const colonyName of roomsByDepth[depth]) {
       if (!context.ownedRooms.has(colonyName)) {
         continue
@@ -91,37 +89,43 @@ export function assignRemoteHarvestRoom(roomName: string, context: TickContext):
 
       const route = findRemoteRoute(colonyName, roomName)
 
-      if (route === undefined) {
-        continue
-      }
-
-      const roomHops = route.length - 1
-
-      if (roomHops !== depth) {
-        continue
-      }
-
-      const plan = createHarvestRoomPlan(roomName, colonyName, basePlanResult.value, intel, route)
-
-      if (plan === undefined) {
-        continue
-      }
-
-      foundCandidateAtDepth = true
-
-      const candidate: RemoteCandidate = {
-        plan,
-        roomHops,
-        totalPathLength: getTotalPathLength(plan),
-      }
-
-      if (best === undefined || compareRemoteCandidates(candidate, best) < 0) {
-        best = candidate
+      if (route !== undefined) {
+        routes.push({ colonyName, basePlan: basePlanResult.value, route })
       }
     }
+  }
 
-    if (foundCandidateAtDepth) {
+  routes.sort((left, right) => left.route.length - right.route.length)
+
+  let best: RemoteCandidate | undefined
+
+  for (const candidateRoute of routes) {
+    const roomHops = candidateRoute.route.length - 1
+
+    if (best !== undefined && roomHops > best.roomHops) {
       break
+    }
+
+    const plan = createHarvestRoomPlan(
+      roomName,
+      candidateRoute.colonyName,
+      candidateRoute.basePlan,
+      intel,
+      candidateRoute.route,
+    )
+
+    if (plan === undefined) {
+      continue
+    }
+
+    const candidate: RemoteCandidate = {
+      plan,
+      roomHops,
+      totalPathLength: getTotalPathLength(plan),
+    }
+
+    if (best === undefined || compareRemoteCandidates(candidate, best) < 0) {
+      best = candidate
     }
   }
 
