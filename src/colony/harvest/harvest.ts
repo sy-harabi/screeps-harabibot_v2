@@ -47,6 +47,9 @@ export interface HarvestSourceState {
 
   readonly requiredHarvestPower: number
   readonly requiredCarryCapacity: number
+  readonly container?: StructureContainer
+  readonly containerEnergy: number
+  readonly droppedEnergy: number
 
   harvestPower: number
   harvestingPower: number
@@ -54,8 +57,6 @@ export interface HarvestSourceState {
 
   carryCapacity: number
   pendingEnergy: number
-  containerEnergy: number
-  droppedEnergy: number
 }
 
 export interface HarvestResult {
@@ -236,8 +237,7 @@ export function runHarvest(
     const minerRatio = source.harvestPower / source.requiredHarvestPower
     const haulerRatio = source.carryCapacity / source.requiredCarryCapacity
     const targetMinerWork = getTargetMinerWork(room, source)
-
-    const container = getSourceContainer(source.path)
+    const container = source.container
 
     const sourceEconomyStats = getSourceEconomyStats(
       room,
@@ -521,6 +521,18 @@ function prepareHarvestRoomStates(
       const haulerTravel = getHaulerTravelRuntime(basePlan, sourceIntel.id, sourcePlan.path)
 
       const miningPositions = getMiningPositions(roomName, sourceIntel.coordinate, sourcePlan.path)
+      const container = getSourceContainer(sourcePlan.path)
+      const source = Game.getObjectById(sourceIntel.id)
+
+      let droppedEnergy = 0
+
+      if (source !== null) {
+        for (const resource of source.pos.findInRange(FIND_DROPPED_RESOURCES, 1)) {
+          if (resource.resourceType === RESOURCE_ENERGY) {
+            droppedEnergy += resource.amount
+          }
+        }
+      }
 
       sources.push({
         id: sourceIntel.id,
@@ -531,6 +543,9 @@ function prepareHarvestRoomStates(
         miningPositions,
         requiredHarvestPower,
         requiredCarryCapacity: haulerTravel.cycleTravelTicks * requiredHarvestPower,
+        container,
+        containerEnergy: container?.store.getUsedCapacity(RESOURCE_ENERGY) ?? 0,
+        droppedEnergy,
 
         harvestPower: 0,
         harvestingPower: 0,
@@ -538,8 +553,6 @@ function prepareHarvestRoomStates(
 
         carryCapacity: 0,
         pendingEnergy: 0,
-        containerEnergy: 0,
-        droppedEnergy: 0,
       })
     }
 
