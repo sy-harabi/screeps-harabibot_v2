@@ -177,7 +177,7 @@ export function findPath(
         return false
       }
 
-      const costs = options.avoidSourceKeepers ? getSourceKeeperCostMatrix(roomName) : getBaseRoomCostMatrix(roomName)
+      const costs = options.avoidSourceKeepers\n        ? getSourceKeeperCostMatrix(roomName)\n        : getDefaultRoomCostMatrix(roomName)
 
       return costs ?? true
     },
