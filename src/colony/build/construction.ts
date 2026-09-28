@@ -262,7 +262,6 @@ function reconcileConstruction(
   return { active: true, sites: sortConstructionSites(room, sites) }
 }
 
-
 function vacateBlockingConstructionSites(room: Room, sites: readonly ConstructionSite[]): void {
   const terrain = Game.map.getRoomTerrain(room.name)
   const costs = getBaseRoomCostMatrix(room.name)
