@@ -87,9 +87,7 @@ function setWorkingPositionCost(matrix: CostMatrix, coordinate: RoomCoordinate):
   matrix.set(coordinate.x, coordinate.y, WORKING_POSITION_COST)
 }
 
-function cleanupDefaultRoomCostMatrixCache(
-  targetCache: Map<string, DefaultRoomCostMatrixCacheEntry>,
-): void {
+function cleanupDefaultRoomCostMatrixCache(targetCache: Map<string, DefaultRoomCostMatrixCacheEntry>): void {
   for (const [roomName, entry] of targetCache) {
     if (Game.time - entry.lastUsed > CACHE_MAX_UNUSED_TICKS) {
       targetCache.delete(roomName)
