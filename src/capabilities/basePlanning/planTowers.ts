@@ -15,10 +15,7 @@ import type { CorePlan } from "./findCorePlans"
 import type { OuterRampartPlan } from "./planOuterRamparts"
 import { getSpawnPlanningInfo } from "./spawnPlanning"
 import type { StructureSlotPlan } from "./planStructureSlots"
-import {
-  buildUpgradeTileMinRclMask,
-  UPGRADE_TILE_NEVER_RELEASE_RCL,
-} from "./upgradeChainReservation"
+import { buildUpgradeTileMinRclMask, UPGRADE_TILE_NEVER_RELEASE_RCL } from "./upgradeChainReservation"
 
 const NUM_TOWERS = 6
 const NUM_EXTENSIONS = 60

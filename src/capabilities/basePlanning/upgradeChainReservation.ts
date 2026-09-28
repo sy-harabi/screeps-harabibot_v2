@@ -6,10 +6,7 @@ import type { CorePlan } from "./findCorePlans"
 
 export const UPGRADE_TILE_NEVER_RELEASE_RCL = 9
 
-export function buildUpgradeTileMinRclMask(
-  controllerArea: ControllerAreaCandidate,
-  corePlan: CorePlan,
-): Uint8Array {
+export function buildUpgradeTileMinRclMask(controllerArea: ControllerAreaCandidate, corePlan: CorePlan): Uint8Array {
   const mask = new Uint8Array(ROOM_AREA)
   const { rcl7Chain, rcl8Chain, finalChain } = getUpgradeChainRoles(controllerArea, corePlan)
 

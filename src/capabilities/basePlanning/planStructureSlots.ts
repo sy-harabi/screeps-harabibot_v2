@@ -13,10 +13,7 @@ import type { CorePlan } from "./findCorePlans"
 import type { LabPlan } from "./planLabs"
 import type { RegionBoundaryRoadPlan } from "./planRegionBoundaryRoads"
 import type { ResourceTreePlan } from "./planResourceTree"
-import {
-  buildUpgradeTileMinRclMask,
-  UPGRADE_TILE_NEVER_RELEASE_RCL,
-} from "./upgradeChainReservation"
+import { buildUpgradeTileMinRclMask, UPGRADE_TILE_NEVER_RELEASE_RCL } from "./upgradeChainReservation"
 
 const REQUIRED_STRUCTURE_SLOTS = 70
 const MAX_BRANCH_LENGTH = 3
