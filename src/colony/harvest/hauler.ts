@@ -79,7 +79,7 @@ function moveToColony(
   const source = sourceId === undefined ? undefined : sourceById.get(sourceId)
 
   if (source !== undefined) {
-    const result = moveCreepByPath(hauler, source.path, { reverse: true })
+    const result = moveCreepByPath(hauler, source.haulerTravel.loadedPath, { reverse: true })
 
     if (result === "pending") {
       return
@@ -99,7 +99,7 @@ function moveToColony(
 }
 
 function moveToSource(hauler: Creep, source: HarvestSourceState): void {
-  moveCreepByPath(hauler, source.path)
+  moveCreepByPath(hauler, source.haulerTravel.emptyPath)
 }
 
 function finishDelivery(
@@ -139,7 +139,7 @@ function runFetch(colonyName: string, hauler: Creep, sourceState: HarvestSourceS
   }
 
   if (hauler.room.name !== sourcePos.roomName || !hauler.pos.inRangeTo(sourcePos, 3)) {
-    moveCreepByPath(hauler, path)
+    moveCreepByPath(hauler, sourceState.haulerTravel.emptyPath)
     return
   }
 
@@ -207,7 +207,7 @@ function startDelivering(colonyName: string, hauler: Creep, sourceState: Harvest
   hauler.memory.delivering = true
 
   if (hauler.room.name !== colonyName) {
-    moveCreepByPath(hauler, sourceState.path, { reverse: true })
+    moveCreepByPath(hauler, sourceState.haulerTravel.loadedPath, { reverse: true })
   }
 }
 
@@ -251,7 +251,7 @@ function assignHauler(hauler: Creep, sourceStates: readonly HarvestSourceState[]
       continue
     }
 
-    const travelTicks = source.path.length
+    const travelTicks = source.haulerTravel.cycleTravelTicks
 
     if (hauler.ticksToLive !== undefined && hauler.ticksToLive <= travelTicks * 2 + 20) {
       continue
@@ -267,7 +267,7 @@ function assignHauler(hauler: Creep, sourceStates: readonly HarvestSourceState[]
 }
 
 function getExpectedEnergyDelta(source: Source, sourceState: HarvestSourceState): number {
-  const travelTicks = sourceState.path.length
+  const travelTicks = sourceState.haulerTravel.emptyTravelTicks
   const regeneration = source.ticksToRegeneration ?? ENERGY_REGEN_TIME
 
   if (travelTicks < regeneration) {
@@ -280,10 +280,7 @@ function getExpectedEnergyDelta(source: Source, sourceState: HarvestSourceState)
   )
 }
 
-function getAvailableEnergy(
-  source: Source,
-  sourceState: HarvestSourceState,
-): { container: number; dropped: number } {
+function getAvailableEnergy(source: Source, sourceState: HarvestSourceState): { container: number; dropped: number } {
   let dropped = 0
 
   for (const resource of source.pos.findInRange(FIND_DROPPED_RESOURCES, 1)) {

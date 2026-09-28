@@ -6,6 +6,7 @@ import type { TickContext } from "../../kernel/tickContext"
 import { intelStore } from "../../world/intel/intelStore"
 import type { RoomIntel, SourceIntel } from "../../world/intel/roomIntel"
 import { getRoomType, getRoomsByDepth } from "../../world/map/roomTopology"
+import { OBSTACLE_OBJECT_TYPES_SET } from "../../world/obstacles"
 import type { HarvestRoomPlan, HarvestSourcePlan } from "./harvestRoomPlan"
 import { harvestRoomPlanStore } from "./harvestRoomPlanStore"
 
@@ -19,8 +20,6 @@ interface RemoteCandidate {
   readonly roomHops: number
   readonly totalPathLength: number
 }
-
-const obstacleObjectTypes = new Set<string>(OBSTACLE_OBJECT_TYPES)
 
 const MAX_REMOTE_DEPTH = 4
 
@@ -440,7 +439,7 @@ function applyBasePlanCosts(costs: CostMatrix, basePlan: BasePlan): void {
       continue
     }
 
-    if (structure.structureType === STRUCTURE_CONTAINER || obstacleObjectTypes.has(structure.structureType)) {
+    if (structure.structureType === STRUCTURE_CONTAINER || OBSTACLE_OBJECT_TYPES_SET.has(structure.structureType)) {
       costs.set(structure.coordinate.x, structure.coordinate.y, 255)
     }
   }

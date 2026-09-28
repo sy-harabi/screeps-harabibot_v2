@@ -1,4 +1,5 @@
 import { runtimeRegistry } from "../../runtime/runtimeRegistry"
+import { OBSTACLE_OBJECT_TYPES_SET } from "../../world/obstacles"
 import { getRoomStructures } from "../../world/roomStructures"
 
 interface RoomCostMatrixSignature {
@@ -16,8 +17,6 @@ interface RoomCostMatrixCacheEntry {
 
 const CACHE_MAX_UNUSED_TICKS = 1000
 const CACHE_CLEANUP_INTERVAL = 100
-
-const obstacleObjectTypes = new Set<string>(OBSTACLE_OBJECT_TYPES)
 
 const cache = runtimeRegistry.createCache<string, RoomCostMatrixCacheEntry>("roomCostMatrix", {
   cleanupInterval: CACHE_CLEANUP_INTERVAL,
@@ -90,7 +89,7 @@ function buildRoomCostMatrix(
   }
 
   for (const site of constructionSites) {
-    if (obstacleObjectTypes.has(site.structureType)) {
+    if (OBSTACLE_OBJECT_TYPES_SET.has(site.structureType)) {
       matrix.set(site.pos.x, site.pos.y, 255)
     }
   }
@@ -109,7 +108,7 @@ function isBlockingStructure(structure: AnyStructure): boolean {
     return !structure.my && !structure.isPublic
   }
 
-  return obstacleObjectTypes.has(structure.structureType)
+  return OBSTACLE_OBJECT_TYPES_SET.has(structure.structureType)
 }
 
 function signaturesEqual(a: RoomCostMatrixSignature, b: RoomCostMatrixSignature): boolean {

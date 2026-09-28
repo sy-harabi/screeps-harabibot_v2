@@ -8,13 +8,14 @@ import { intelStore } from "../../world/intel/intelStore"
 import type { RoomIntel } from "../../world/intel/roomIntel"
 import type { LogisticsState } from "../logistics/logistics"
 import { harvestRoomPlanStore } from "./harvestRoomPlanStore"
-import { getHarvestRuntime, type RemoteControllerRuntime } from "./harvestRuntime"
+import { getHarvestRuntime, type HaulerTravelRuntime, type RemoteControllerRuntime } from "./harvestRuntime"
 import { createHaulerBody, HAULER_ROLE, runHaulers } from "./hauler"
 import { getMiningPositions, getSourceContainer } from "./miningSite"
 import { createMinerBody, MINER_ROLE, runMiners } from "./miner"
 import { createReserverBody, RESERVER_ROLE, runReserver } from "./reserver"
 import { getSourceEconomyStats } from "./sourceEconomyStats"
 import { visualizeHarvest, type HarvestVisualReservationRow, type HarvestVisualSourceRow } from "./harvestVisual"
+import { getHaulerTravelRuntime } from "./haulerTravel"
 
 const SOURCE_CONTAINER_REPAIR_THRESHOLD = 150_000
 const RESERVER_REPLACEMENT_BUFFER = 20
@@ -39,8 +40,11 @@ type ReservationState = "owned" | "none" | "ours" | "foreign"
 export interface HarvestSourceState {
   readonly id: Id<Source>
   readonly roomName: string
+
   readonly path: readonly RoomPosition[]
+  readonly haulerTravel: HaulerTravelRuntime
   readonly miningPositions: readonly RoomPosition[]
+
   readonly requiredHarvestPower: number
   readonly requiredCarryCapacity: number
 
@@ -243,6 +247,7 @@ export function runHarvest(
       source.requiredHarvestPower,
       targetMinerWork,
       container !== undefined,
+      source.haulerTravel.cycleTravelTicks,
     )
 
     let sourceIncome: number | undefined
@@ -264,8 +269,7 @@ export function runHarvest(
         sourceEconomyStats.minerUpkeep -
         sourceEconomyStats.haulerUpkeep -
         sourceEconomyStats.infrastructureUpkeep
-      sourceSpawnUsage =
-        sourceEconomyStats.minerSpawnUsage + sourceEconomyStats.haulerSpawnUsage * haulerRatio
+      sourceSpawnUsage = sourceEconomyStats.minerSpawnUsage + sourceEconomyStats.haulerSpawnUsage * haulerRatio
 
       income += sourceIncome
       maxIncome += sourceMaxIncome
@@ -514,15 +518,19 @@ function prepareHarvestRoomStates(
         continue
       }
 
+      const haulerTravel = getHaulerTravelRuntime(basePlan, sourceIntel.id, sourcePlan.path)
+
       const miningPositions = getMiningPositions(roomName, sourceIntel.coordinate, sourcePlan.path)
 
       sources.push({
         id: sourceIntel.id,
         roomName,
         path: sourcePlan.path,
+        haulerTravel,
+
         miningPositions,
         requiredHarvestPower,
-        requiredCarryCapacity: sourcePlan.path.length * 2 * requiredHarvestPower,
+        requiredCarryCapacity: haulerTravel.cycleTravelTicks * requiredHarvestPower,
 
         harvestPower: 0,
         harvestingPower: 0,

@@ -32,8 +32,6 @@ function runColony(room: Room, context: TickContext): void {
 
   const harvest = runHarvest(room, basePlan, context, logistics)
 
-  console.log(harvest.income, harvest.spawnUsage)
-
   const construction = runConstruction(room, basePlan)
 
   runBuild(room, context, logistics, harvest.income, construction)
