@@ -10,6 +10,12 @@ import type { RegionBoundaryRoadPlan } from "./planRegionBoundaryRoads"
 import type { ResourceTreePlan } from "./planResourceTree"
 import { getSpawnPlanningInfo } from "./spawnPlanning"
 import type { StructureSlot, StructureSlotPlan } from "./planStructureSlots"
+import { getStructureRcl } from "./structureRcl"
+import {
+  applyUpgradeTileRclConstraints,
+  buildUpgradeTileMinRclMask,
+  validateUpgradeTileRclConstraints,
+} from "./upgradeChainReservation"
 
 const NUM_EXTENSIONS = 60
 const NUM_OTHER_SLOT_STRUCTURES = 2
@@ -17,7 +23,7 @@ const PROVISIONAL_SLOT_RCL = 8
 
 interface RankedSlot {
   readonly slot: StructureSlot
-  readonly lateChain: boolean
+  readonly minBlockingRcl: number
   readonly roomIndex: number
 }
 
@@ -134,7 +140,15 @@ export function finalizeBasePlanStructures(
     structures.push({ structureType, coordinate, rcl })
   }
 
-  towers.forEach((coordinate, index) =>
+  const upgradeTileMinRcl = buildUpgradeTileMinRclMask(controllerArea, corePlan)
+  const rankedTowers = [...towers].sort((left, right) => {
+    const leftIndex = toRoomIndex(left.x, left.y)
+    const rightIndex = toRoomIndex(right.x, right.y)
+
+    return upgradeTileMinRcl[leftIndex] - upgradeTileMinRcl[rightIndex] || leftIndex - rightIndex
+  })
+
+  rankedTowers.forEach((coordinate, index) =>
     addStructure(STRUCTURE_TOWER, coordinate, getStructureRcl(STRUCTURE_TOWER, index)),
   )
 
@@ -153,7 +167,19 @@ export function finalizeBasePlanStructures(
     addStructure(STRUCTURE_EXTENSION, rankedSlot.slot.coordinate, getStructureRcl(STRUCTURE_EXTENSION, index)),
   )
 
-  return assignRoadRcls(structures, corePlan.roads)
+  const constrainedStructures = applyUpgradeTileRclConstraints(structures, controllerArea, corePlan)
+
+  if (!constrainedStructures) {
+    return
+  }
+
+  const finalizedStructures = assignRoadRcls(constrainedStructures, corePlan.roads)
+
+  if (!validateUpgradeTileRclConstraints(finalizedStructures, controllerArea, corePlan)) {
+    return
+  }
+
+  return finalizedStructures
 }
 
 function addFixedStructures(
@@ -263,7 +289,7 @@ function rankSlots(
   controllerArea: ControllerAreaCandidate,
   corePlan: CorePlan,
 ): RankedSlot[] {
-  const lateChainMask = buildLateChainMask(controllerArea, corePlan)
+  const upgradeTileMinRcl = buildUpgradeTileMinRclMask(controllerArea, corePlan)
 
   return slots
     .map((slot) => {
@@ -271,7 +297,7 @@ function rankSlots(
 
       return {
         slot,
-        lateChain: lateChainMask[roomIndex] === 1,
+        minBlockingRcl: upgradeTileMinRcl[roomIndex],
         roomIndex,
       }
     })
@@ -279,35 +305,11 @@ function rankSlots(
 }
 
 function compareRankedSlots(left: RankedSlot, right: RankedSlot): number {
-  if (left.lateChain !== right.lateChain) {
-    return left.lateChain ? 1 : -1
+  if (left.minBlockingRcl !== right.minBlockingRcl) {
+    return left.minBlockingRcl - right.minBlockingRcl
   }
 
   return left.slot.serviceDistance - right.slot.serviceDistance || left.roomIndex - right.roomIndex
-}
-
-function buildLateChainMask(controllerArea: ControllerAreaCandidate, corePlan: CorePlan): Uint8Array {
-  const mask = new Uint8Array(ROOM_AREA)
-  const lateStructureIndices = new Set([
-    toRoomIndex(corePlan.factory.x, corePlan.factory.y),
-    toRoomIndex(corePlan.powerSpawn.x, corePlan.powerSpawn.y),
-  ])
-
-  const { left, right, middle } = controllerArea.upgradeChains
-
-  for (const chain of [left, right, middle]) {
-    const isLateChain = chain.some(({ x, y }) => lateStructureIndices.has(toRoomIndex(x, y)))
-
-    if (!isLateChain) {
-      continue
-    }
-
-    for (const { x, y } of chain) {
-      mask[toRoomIndex(x, y)] = 1
-    }
-  }
-
-  return mask
 }
 
 function buildRoadMask(structures: readonly PlannedStructure[]): Uint8Array {
@@ -388,14 +390,3 @@ function getResourceTag(
   return
 }
 
-function getStructureRcl(structureType: BuildableStructureConstant, ordinal: number): number {
-  const limits = CONTROLLER_STRUCTURES[structureType] as Record<number, number>
-
-  for (let rcl = 1; rcl <= 8; rcl++) {
-    if ((limits[rcl] ?? 0) > ordinal) {
-      return rcl
-    }
-  }
-
-  throw new Error(`No RCL available for ${structureType} structure ordinal ${ordinal}`)
-}

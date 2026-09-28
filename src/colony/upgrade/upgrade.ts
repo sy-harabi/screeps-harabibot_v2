@@ -1,4 +1,5 @@
 import type { BasePlan } from "../../capabilities/basePlanning/basePlan"
+import { blocksUpgradeTile } from "../../capabilities/basePlanning/upgradeChainReservation"
 import { fillAreaWithCreeps } from "../../capabilities/movement/fillAreaWithCreeps"
 import { setWorkingArea } from "../../capabilities/movement/traffic"
 import { requestSpawn } from "../../capabilities/spawning/spawnQueue"
@@ -18,6 +19,7 @@ import { createUpgraderBody, UPGRADER_ROLE } from "./upgrader"
 
 interface UpgradeRuntime {
   rcl?: number
+  basePlanRevision?: number
   layout?: UpgradeLayout
 }
 
@@ -307,13 +309,14 @@ function getUpgradeEnergyDepot(
 function getUpgradeLayout(basePlan: BasePlan, rcl: number): UpgradeLayout {
   const runtime = getUpgradeRuntime(basePlan.roomName)
 
-  if (runtime.rcl === rcl && runtime.layout !== undefined) {
+  if (runtime.rcl === rcl && runtime.basePlanRevision === basePlan.revision && runtime.layout !== undefined) {
     return runtime.layout
   }
 
   const layout = createUpgradeLayout(basePlan, rcl)
 
   runtime.rcl = rcl
+  runtime.basePlanRevision = basePlan.revision
   runtime.layout = layout
 
   return layout
@@ -331,8 +334,20 @@ export function getUpgradeRuntime(colonyName: string): UpgradeRuntime {
 }
 
 function createUpgradeLayout(basePlan: BasePlan, rcl: number): UpgradeLayout {
+  const blockedPositions = new Set<number>()
+
+  for (const structure of basePlan.structures) {
+    if (structure.rcl > rcl || !blocksUpgradeTile(structure.structureType)) {
+      continue
+    }
+
+    blockedPositions.add(toRoomIndex(structure.coordinate.x, structure.coordinate.y))
+  }
+
   const { left, middle, right } = basePlan.controller.upgradeChains
-  const chains = [middle, left, right].filter((chain) => isChainAvailable(chain, basePlan, rcl))
+  const chains = [middle, left, right]
+    .map((chain) => getAvailableChainPrefix(chain, blockedPositions))
+    .filter((chain) => chain.length > 0)
 
   const area: RoomCoordinate[] = []
   const rootPositions = new Set<number>()
@@ -367,25 +382,11 @@ function createUpgradeLayout(basePlan: BasePlan, rcl: number): UpgradeLayout {
   return { area, rootPositions, nextByPosition }
 }
 
-function isChainAvailable(chain: readonly RoomCoordinate[], basePlan: BasePlan, rcl: number): boolean {
-  const root = chain[0]
+function getAvailableChainPrefix(
+  chain: readonly RoomCoordinate[],
+  blockedPositions: ReadonlySet<number>,
+): readonly RoomCoordinate[] {
+  const firstBlockedIndex = chain.findIndex(({ x, y }) => blockedPositions.has(toRoomIndex(x, y)))
 
-  if (!root) {
-    return false
-  }
-
-  for (const structure of basePlan.structures) {
-    if (structure.rcl > rcl) continue
-    if (structure.coordinate.x !== root.x || structure.coordinate.y !== root.y) continue
-
-    if (
-      structure.structureType !== STRUCTURE_ROAD &&
-      structure.structureType !== STRUCTURE_RAMPART &&
-      structure.structureType !== STRUCTURE_CONTAINER
-    ) {
-      return false
-    }
-  }
-
-  return true
+  return firstBlockedIndex < 0 ? chain : chain.slice(0, firstBlockedIndex)
 }

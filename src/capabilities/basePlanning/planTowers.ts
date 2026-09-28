@@ -15,6 +15,10 @@ import type { CorePlan } from "./findCorePlans"
 import type { OuterRampartPlan } from "./planOuterRamparts"
 import { getSpawnPlanningInfo } from "./spawnPlanning"
 import type { StructureSlotPlan } from "./planStructureSlots"
+import {
+  buildUpgradeTileMinRclMask,
+  UPGRADE_TILE_NEVER_RELEASE_RCL,
+} from "./upgradeChainReservation"
 
 const NUM_TOWERS = 6
 const NUM_EXTENSIONS = 60
@@ -621,17 +625,11 @@ function buildReservedOpenTileMask(controllerArea: ControllerAreaCandidate, core
   block(corePlan.manager)
   corePlan.parking.forEach(block)
 
-  const lateStructureIndices = new Set([
-    toRoomIndex(corePlan.factory.x, corePlan.factory.y),
-    toRoomIndex(corePlan.powerSpawn.x, corePlan.powerSpawn.y),
-  ])
-  const { left, middle, right } = controllerArea.upgradeChains
+  const upgradeTileMinRcl = buildUpgradeTileMinRclMask(controllerArea, corePlan)
 
-  for (const chain of [left, middle, right]) {
-    const isLateStructureChain = chain.some(({ x, y }) => lateStructureIndices.has(toRoomIndex(x, y)))
-
-    if (!isLateStructureChain) {
-      block(chain[0])
+  for (let index = 0; index < upgradeTileMinRcl.length; index++) {
+    if (upgradeTileMinRcl[index] === UPGRADE_TILE_NEVER_RELEASE_RCL) {
+      mask[index] = 1
     }
   }
 
