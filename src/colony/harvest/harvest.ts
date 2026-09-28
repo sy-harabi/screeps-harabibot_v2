@@ -17,7 +17,6 @@ import { getSourceEconomyStats } from "./sourceEconomyStats"
 import { visualizeHarvest, type HarvestVisualReservationRow, type HarvestVisualSourceRow } from "./harvestVisual"
 
 const SOURCE_CONTAINER_REPAIR_THRESHOLD = 150_000
-const SOURCE_BACKLOG_HAULER_THRESHOLD = 3000
 const RESERVER_REPLACEMENT_BUFFER = 20
 const RESERVATION_RESTART_MARGIN = 200
 const TARGET_RESERVE_POWER = 2
@@ -45,8 +44,6 @@ export interface HarvestSourceState {
   readonly requiredHarvestPower: number
   readonly requiredCarryCapacity: number
   readonly container?: StructureContainer
-  readonly containerEnergy: number
-  readonly droppedEnergy: number
 
   harvestPower: number
   harvestingPower: number
@@ -54,6 +51,8 @@ export interface HarvestSourceState {
 
   carryCapacity: number
   pendingEnergy: number
+  containerEnergy: number
+  droppedEnergy: number
 }
 
 export interface HarvestResult {
@@ -286,8 +285,6 @@ export function runHarvest(
       income: sourceIncome,
       maxIncome: sourceMaxIncome,
       spawnUsage: sourceSpawnUsage,
-      containerEnergy: source.containerEnergy,
-      droppedEnergy: source.droppedEnergy,
     })
 
     if (!spawnRequested) {
@@ -314,10 +311,7 @@ export function runHarvest(
         )
 
         spawnRequested = true
-      } else if (
-        haulerRatio < 1 ||
-        source.containerEnergy + source.droppedEnergy >= SOURCE_BACKLOG_HAULER_THRESHOLD
-      ) {
+      } else if (haulerRatio < 1) {
         requestSpawn(
           {
             requesterId,
@@ -396,6 +390,15 @@ export function runHarvest(
 
   runMiners(miners, sourceById)
   runHaulers(colonyName, haulers, sourceStates, sourceById, logistics)
+
+  for (let i = 0; i < visualSourceRows.length; i++) {
+    const source = sourceStates[i]
+
+    if (source !== undefined) {
+      visualSourceRows[i].containerEnergy = source.containerEnergy
+      visualSourceRows[i].droppedEnergy = source.droppedEnergy
+    }
+  }
 
   const result = { income, maxIncome, spawnUsage }
 
@@ -522,8 +525,6 @@ function prepareHarvestRoomStates(
         requiredHarvestPower,
         requiredCarryCapacity: sourcePlan.path.length * 2 * requiredHarvestPower,
         container,
-        containerEnergy: container?.store.getUsedCapacity(RESOURCE_ENERGY) ?? 0,
-        droppedEnergy: getSourceDroppedEnergy(sourceIntel.id),
 
         harvestPower: 0,
         harvestingPower: 0,
@@ -531,6 +532,8 @@ function prepareHarvestRoomStates(
 
         carryCapacity: 0,
         pendingEnergy: 0,
+        containerEnergy: 0,
+        droppedEnergy: 0,
       })
     }
 
@@ -575,24 +578,6 @@ function prepareHarvestRoomStates(
       left.roomName.localeCompare(right.roomName)
     )
   })
-
-  return result
-}
-
-function getSourceDroppedEnergy(sourceId: Id<Source>): number {
-  const source = Game.getObjectById(sourceId)
-
-  if (source === null) {
-    return 0
-  }
-
-  let result = 0
-
-  for (const resource of source.pos.findInRange(FIND_DROPPED_RESOURCES, 1)) {
-    if (resource.resourceType === RESOURCE_ENERGY) {
-      result += resource.amount
-    }
-  }
 
   return result
 }
