@@ -249,7 +249,7 @@ function assignHauler(hauler: Creep, sourceStates: readonly HarvestSourceState[]
 
     const travelTicks = source.haulerTravel.cycleTravelTicks
 
-    if (hauler.ticksToLive !== undefined && hauler.ticksToLive <= travelTicks * 2 + 20) {
+    if (hauler.ticksToLive !== undefined && hauler.ticksToLive <= travelTicks + 20) {
       continue
     }
 
