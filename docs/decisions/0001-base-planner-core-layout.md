@@ -288,13 +288,13 @@ Some unusual rooms may therefore be unsupported even when a hand-designed base c
 
 ## Upgrade-chain lifecycle
 
-The long-term direction remains:
+Upgrade-chain tiles have explicit release timing:
 
 - RCL1-6: preserve all generated upgrade-chain tiles;
-- RCL7: two chains are sufficient, so one chain may eventually be reclaimed for late structures;
-- RCL8: one final upgrader chain is sufficient for the controller's 15 energy/tick cap, so other chain tiles may eventually be reclaimed.
+- RCL7: reclaim the shortest chain. The factory occupies that chain's root, and other blocking structures on the chain are delayed until RCL7;
+- RCL8: only one upgrader root must remain permanently open. The power spawn occupies one of the two remaining roots, while every other tile in those two chains may be reclaimed at RCL8.
 
-The exact per-tile RCL availability representation is not yet implemented.
+The planner represents this as a per-tile minimum RCL for blocking structures. Roads, ramparts, and containers remain compatible with upgrader standing tiles and do not consume a chain position.
 
 ## Consequences
 

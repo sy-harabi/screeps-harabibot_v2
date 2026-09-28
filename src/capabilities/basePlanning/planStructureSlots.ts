@@ -13,6 +13,7 @@ import type { CorePlan } from "./findCorePlans"
 import type { LabPlan } from "./planLabs"
 import type { RegionBoundaryRoadPlan } from "./planRegionBoundaryRoads"
 import type { ResourceTreePlan } from "./planResourceTree"
+import { buildUpgradeTileMinRclMask, UPGRADE_TILE_NEVER_RELEASE_RCL } from "./upgradeChainReservation"
 
 const REQUIRED_STRUCTURE_SLOTS = 70
 const MAX_BRANCH_LENGTH = 3
@@ -529,18 +530,11 @@ function buildStructureSlotBlockedMask(
 
   block(controllerArea.storage)
 
-  const managerStructureIndices = new Set([
-    toRoomIndex(corePlan.factory.x, corePlan.factory.y),
-    toRoomIndex(corePlan.powerSpawn.x, corePlan.powerSpawn.y),
-  ])
+  const upgradeTileMinRcl = buildUpgradeTileMinRclMask(controllerArea, corePlan)
 
-  const { left, middle, right } = controllerArea.upgradeChains
-
-  for (const chain of [left, middle, right]) {
-    const isLateStructureChain = chain.some(({ x, y }) => managerStructureIndices.has(toRoomIndex(x, y)))
-
-    if (!isLateStructureChain) {
-      block(chain[0])
+  for (let index = 0; index < upgradeTileMinRcl.length; index++) {
+    if (upgradeTileMinRcl[index] === UPGRADE_TILE_NEVER_RELEASE_RCL) {
+      blockedMask[index] = 1
     }
   }
 

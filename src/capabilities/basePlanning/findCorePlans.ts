@@ -166,18 +166,38 @@ function findManagerStructures(
   manager: RoomCoordinate,
   upgradeChains: UpgradeChains,
 ): Pick<CorePlan, "factory" | "powerSpawn"> | undefined {
-  const adjacentChains = Object.values(upgradeChains)
-    .filter((chain) => chain.length > 0 && getRange(manager, chain[0]) === 1)
-    .sort((left, right) => left.length - right.length)
+  const chains = [upgradeChains.left, upgradeChains.middle, upgradeChains.right].filter((chain) => chain.length > 0)
 
-  if (adjacentChains.length < 2) {
+  if (chains.length < 3) {
+    return
+  }
+
+  const shortestLength = Math.min(...chains.map((chain) => chain.length))
+  const adjacentChains = chains.filter((chain) => getRange(manager, chain[0]) === 1)
+  const factoryChain = adjacentChains
+    .filter((chain) => chain.length === shortestLength)
+    .sort(compareChainRoots)[0]
+
+  if (!factoryChain) {
+    return
+  }
+
+  const powerSpawnChain = adjacentChains
+    .filter((chain) => chain !== factoryChain)
+    .sort((left, right) => right.length - left.length || compareChainRoots(left, right))[0]
+
+  if (!powerSpawnChain) {
     return
   }
 
   return {
-    factory: adjacentChains[0][0],
-    powerSpawn: adjacentChains[adjacentChains.length - 1][0],
+    factory: factoryChain[0],
+    powerSpawn: powerSpawnChain[0],
   }
+}
+
+function compareChainRoots(left: readonly RoomCoordinate[], right: readonly RoomCoordinate[]): number {
+  return toRoomIndex(left[0].x, left[0].y) - toRoomIndex(right[0].x, right[0].y)
 }
 
 function transformCoreCoordinate(
