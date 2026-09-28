@@ -1,5 +1,5 @@
 import type { BasePlan } from "../../capabilities/basePlanning/basePlan"
-import { getBaseRoomCostMatrix } from "../../capabilities/movement/roomCostMatrix"
+import { getDefaultRoomCostMatrix } from "../../capabilities/movement/defaultRoomCostMatrix"
 import { estimatePathTravelTicks } from "../../capabilities/movement/travelTime"
 import { requestSpawn } from "../../capabilities/spawning/spawnQueue"
 import { getColonyCreeps, type TickContext } from "../../kernel/tickContext"
@@ -647,7 +647,7 @@ function getRemoteControllerRuntime(
           return false
         }
 
-        return getBaseRoomCostMatrix(currentRoomName)?.clone() ?? new PathFinder.CostMatrix()
+        return getDefaultRoomCostMatrix(currentRoomName)?.clone() ?? new PathFinder.CostMatrix()
       },
     },
   )
