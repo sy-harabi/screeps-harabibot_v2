@@ -2,7 +2,6 @@ import { moveCreep, moveCreepByPath } from "../../capabilities/movement/movement
 import type { LogisticsState } from "../logistics/logistics"
 import { registerEnergySupplier } from "../logistics/logistics"
 import type { HarvestSourceState } from "./harvest"
-import { getSourceContainer } from "./miningSite"
 
 export const HAULER_ROLE = "hauler"
 
@@ -176,7 +175,7 @@ function runFetch(colonyName: string, hauler: Creep, sourceState: HarvestSourceS
     return
   }
 
-  const container = getSourceContainer(sourceState.path)
+  const container = sourceState.container
 
   if (container !== undefined) {
     if (!hauler.pos.isNearTo(container)) {
@@ -236,10 +235,8 @@ function preparePendingEnergy(sourceStates: readonly HarvestSourceState[]): void
       continue
     }
 
-    const available = getAvailableEnergy(source, sourceState)
-    sourceState.containerEnergy = available.container
-    sourceState.droppedEnergy = available.dropped
-    sourceState.pendingEnergy = available.container + available.dropped + getExpectedEnergyDelta(source, sourceState)
+    sourceState.pendingEnergy =
+      sourceState.containerEnergy + sourceState.droppedEnergy + getExpectedEnergyDelta(source, sourceState)
   }
 }
 
@@ -278,26 +275,6 @@ function getExpectedEnergyDelta(source: Source, sourceState: HarvestSourceState)
     Math.min(source.energy, sourceState.harvestingPower * regeneration) +
     sourceState.harvestingPower * (travelTicks - regeneration)
   )
-}
-
-function getAvailableEnergy(
-  source: Source,
-  sourceState: HarvestSourceState,
-): { container: number; dropped: number } {
-  let dropped = 0
-
-  for (const resource of source.pos.findInRange(FIND_DROPPED_RESOURCES, 1)) {
-    if (resource.resourceType === RESOURCE_ENERGY) {
-      dropped += resource.amount
-    }
-  }
-
-  const container = getSourceContainer(sourceState.path)
-
-  return {
-    container: container?.store.getUsedCapacity(RESOURCE_ENERGY) ?? 0,
-    dropped,
-  }
 }
 
 export function createHaulerBody(room: Room): readonly BodyPartConstant[] | undefined {
