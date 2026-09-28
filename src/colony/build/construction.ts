@@ -1,7 +1,11 @@
 import { type BasePlan } from "../../capabilities/basePlanning/basePlan"
 import { hasConstructionSiteBudget, tryCreateConstructionSite } from "../../capabilities/construction/constructionSite"
+import { getBaseRoomCostMatrix } from "../../capabilities/movement/roomCostMatrix"
+import { registerMove } from "../../capabilities/movement/traffic"
 import { getRampartBuildRcl } from "../../options/botOptions"
 import { runtimeRegistry } from "../../runtime/runtimeRegistry"
+import { NEIGHBOR_OFFSETS } from "../../world/map/roomGrid"
+import { OBSTACLE_OBJECT_TYPES_SET } from "../../world/obstacles"
 import { getRoomStructures, getStructuresByType } from "../../world/roomStructures"
 
 export interface ConstructionState {
@@ -94,6 +98,8 @@ export function runConstruction(room: Room, basePlan: BasePlan): ConstructionSta
     rclChanged || rampartBuildRclChanged || missingCachedSite || Game.time >= runtime.nextCheckTick
 
   if (!shouldReconcile) {
+    vacateBlockingConstructionSites(room, sites)
+
     return {
       active: runtime.hasPendingWork,
       sites: sortConstructionSites(room, sites),
@@ -119,6 +125,9 @@ function reconcileConstruction(
   }
 
   const sites = room.find(FIND_MY_CONSTRUCTION_SITES)
+
+  vacateBlockingConstructionSites(room, sites)
+
   const structures = getRoomStructures(room)
 
   const existingStructures = new Set<string>()
@@ -251,6 +260,52 @@ function reconcileConstruction(
   runtime.hasPendingWork = sites.length > 0 || candidates.length > 0 || created > 0
 
   return { active: true, sites: sortConstructionSites(room, sites) }
+}
+
+
+function vacateBlockingConstructionSites(room: Room, sites: readonly ConstructionSite[]): void {
+  const terrain = Game.map.getRoomTerrain(room.name)
+  const costs = getBaseRoomCostMatrix(room.name)
+
+  for (const site of sites) {
+    if (!OBSTACLE_OBJECT_TYPES_SET.has(site.structureType)) {
+      continue
+    }
+
+    const creep = site.pos.lookFor(LOOK_CREEPS).find((candidate) => candidate.my)
+
+    if (creep === undefined || creep.fatigue > 0) {
+      continue
+    }
+
+    const directions: DirectionConstant[] = []
+
+    for (let index = 0; index < NEIGHBOR_OFFSETS.length; index++) {
+      const offset = NEIGHBOR_OFFSETS[index]
+      const x = creep.pos.x + offset.x
+      const y = creep.pos.y + offset.y
+
+      if (x <= 0 || x >= 49 || y <= 0 || y >= 49) {
+        continue
+      }
+
+      if (terrain.get(x, y) === TERRAIN_MASK_WALL) {
+        continue
+      }
+
+      if (costs?.get(x, y) === 255) {
+        continue
+      }
+
+      directions.push((index + 1) as DirectionConstant)
+    }
+
+    if (directions.length === 0) {
+      continue
+    }
+
+    registerMove(creep, directions[Math.floor(Math.random() * directions.length)])
+  }
 }
 
 function getBootstrapStoragePriority(room: Room): number {
