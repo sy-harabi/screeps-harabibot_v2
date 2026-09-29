@@ -174,9 +174,7 @@ function findManagerStructures(
 
   const shortestLength = Math.min(...chains.map((chain) => chain.length))
   const adjacentChains = chains.filter((chain) => getRange(manager, chain[0]) === 1)
-  const factoryChain = adjacentChains
-    .filter((chain) => chain.length === shortestLength)
-    .sort(compareChainRoots)[0]
+  const factoryChain = adjacentChains.filter((chain) => chain.length === shortestLength).sort(compareChainRoots)[0]
 
   if (!factoryChain) {
     return
