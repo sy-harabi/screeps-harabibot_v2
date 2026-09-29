@@ -1,10 +1,12 @@
 import type { SpawnPriority } from "./spawnPriority"
 
+export type SpawnBody = readonly BodyPartConstant[] | (() => readonly BodyPartConstant[] | undefined)
+
 export interface SpawnRequest {
   readonly requesterId: string
   readonly spawnRoomName: string
   readonly role: string
-  readonly body: readonly BodyPartConstant[]
+  readonly body: SpawnBody
   readonly priority: SpawnPriority
   readonly memory: CreepMemory
 }

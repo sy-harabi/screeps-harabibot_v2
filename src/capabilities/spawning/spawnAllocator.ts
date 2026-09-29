@@ -1,7 +1,7 @@
 import { getTickContext } from "../../kernel/tickContext"
 import { compareSpawnPriority } from "./spawnPriority"
 import { getSpawnRoomStates, type SpawnRoomState } from "./spawnQueue"
-import type { SpawnRequest } from "./spawnRequest"
+import type { SpawnBody, SpawnRequest } from "./spawnRequest"
 
 export function allocateSpawns(): void {
   const roomStates = getSpawnRoomStates()
@@ -27,11 +27,21 @@ function allocateRoomSpawns(spawnRoomName: string, state: SpawnRoomState): void 
       const request = requests[requestIndex]
       requestIndex++
 
-      if (getBodyCost(request.body) > spawn.room.energyCapacityAvailable) {
+      const body = resolveSpawnBody(request.body)
+
+      if (body === undefined) {
+        return
+      }
+
+      if (body.length === 0) {
         continue
       }
 
-      const result = spawn.spawnCreep(request.body as BodyPartConstant[], generateCreepName(request, spawn), {
+      if (getBodyCost(body) > spawn.room.energyCapacityAvailable) {
+        continue
+      }
+
+      const result = spawn.spawnCreep(body as BodyPartConstant[], generateCreepName(request, spawn), {
         memory: request.memory,
       })
 
@@ -44,6 +54,10 @@ function allocateRoomSpawns(spawnRoomName: string, state: SpawnRoomState): void 
       }
     }
   }
+}
+
+function resolveSpawnBody(body: SpawnBody): readonly BodyPartConstant[] | undefined {
+  return typeof body === "function" ? body() : body
 }
 
 function generateCreepName(request: SpawnRequest, spawn: StructureSpawn): string {

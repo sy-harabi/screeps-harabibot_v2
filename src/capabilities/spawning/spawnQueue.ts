@@ -1,9 +1,7 @@
 import type { CreepAssignment } from "../../creeps/creepAssignment"
 import { getTickContext } from "../../kernel/tickContext"
 import type { SpawnPriorityType } from "./spawnPriority"
-import type { RenewRequest, SpawnRequest } from "./spawnRequest"
-
-export type SpawnBody = readonly BodyPartConstant[] | (() => readonly BodyPartConstant[] | undefined)
+import type { RenewRequest, SpawnBody, SpawnRequest } from "./spawnRequest"
 
 export interface SpawnRequestContext {
   readonly requesterId: string
@@ -44,17 +42,11 @@ export function requestSpawn(
     return
   }
 
-  const resolvedBody = typeof body === "function" ? body() : body
-
-  if (resolvedBody === undefined || resolvedBody.length === 0) {
-    return
-  }
-
   state.spawnRequests.push({
     requesterId: context.requesterId,
     spawnRoomName: context.spawnRoomName,
     role,
-    body: resolvedBody,
+    body,
     priority: {
       type: context.priorityType,
       order: context.order,
