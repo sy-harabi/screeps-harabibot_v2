@@ -160,6 +160,10 @@ function getTargetUpgradeWork(room: Room, income: number, energy: ColonyEnergySt
     return 0
   }
 
+  if (level === 1) {
+    return 2
+  }
+
   let targetWork = income
 
   if (room.storage !== undefined) {
