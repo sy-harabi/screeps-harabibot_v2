@@ -97,11 +97,7 @@ export function visualizeHarvest(
   visual.text(format(totals.spawnUsage), COLUMNS.spawn, y, textStyle("right"))
 }
 
-function drawReservation(
-  visual: RoomVisual,
-  y: number,
-  row: HarvestVisualReservationRow | undefined,
-): number {
+function drawReservation(visual: RoomVisual, y: number, row: HarvestVisualReservationRow | undefined): number {
   if (row === undefined) {
     return y
   }
@@ -129,12 +125,7 @@ function drawHeader(visual: RoomVisual, y: number): void {
   visual.text("Drop", COLUMNS.dropped, y, textStyle("right"))
 }
 
-function drawSourceRow(
-  visual: RoomVisual,
-  y: number,
-  row: HarvestVisualSourceRow,
-  sameRoomAsPrevious: boolean,
-): void {
+function drawSourceRow(visual: RoomVisual, y: number, row: HarvestVisualSourceRow, sameRoomAsPrevious: boolean): void {
   visual.text(sameRoomAsPrevious ? "" : row.roomName, COLUMNS.room, y, textStyle("left"))
   visual.text(String(row.sourceIndex), COLUMNS.source, y, textStyle("right"))
   visual.text(String(row.distance), COLUMNS.distance, y, textStyle("right"))
