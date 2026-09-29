@@ -1,6 +1,10 @@
 // src/options/botOptions.ts
 
+export type BotMode = "normal" | "speedrun"
+
 export interface BotOptions {
+  speedrun: boolean
+
   visuals: {
     basePlan: boolean
     harvest: boolean
@@ -18,6 +22,8 @@ export interface RoomOptionsOverride {
 }
 
 export interface BotOptionsOverride {
+  speedrun?: boolean
+
   visuals?: {
     basePlan?: boolean
     harvest?: boolean
@@ -30,6 +36,8 @@ export interface BotOptionsOverride {
 }
 
 export const DEFAULT_BOT_OPTIONS: BotOptions = {
+  speedrun: false,
+
   visuals: {
     basePlan: false,
     harvest: false,
@@ -45,6 +53,8 @@ export function getBotOptions(): BotOptions {
     getValidRcl(Memory.options?.construction?.rampartBuildRcl) ?? DEFAULT_BOT_OPTIONS.construction.rampartBuildRcl
 
   return {
+    speedrun: Memory.options?.speedrun ?? DEFAULT_BOT_OPTIONS.speedrun,
+
     visuals: {
       basePlan: Memory.options?.visuals?.basePlan ?? DEFAULT_BOT_OPTIONS.visuals.basePlan,
       harvest: Memory.options?.visuals?.harvest ?? DEFAULT_BOT_OPTIONS.visuals.harvest,

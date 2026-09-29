@@ -2,7 +2,7 @@ import { type BasePlan } from "../../capabilities/basePlanning/basePlan"
 import { hasConstructionSiteBudget, tryCreateConstructionSite } from "../../capabilities/construction/constructionSite"
 import { getBaseRoomCostMatrix } from "../../capabilities/movement/roomCostMatrix"
 import { registerMove } from "../../capabilities/movement/traffic"
-import { getRampartBuildRcl } from "../../options/botOptions"
+import { getBotOptions, getRampartBuildRcl } from "../../options/botOptions"
 import { runtimeRegistry } from "../../runtime/runtimeRegistry"
 import { NEIGHBOR_OFFSETS } from "../../world/map/roomGrid"
 import { OBSTACLE_OBJECT_TYPES_SET } from "../../world/obstacles"
@@ -147,6 +147,10 @@ function reconcileConstruction(
   const hasSpawn = getStructuresByType(room, STRUCTURE_SPAWN).some((spawn) => spawn.my)
 
   for (const planned of basePlan.structures) {
+    if (getBotOptions().speedrun && (planned.rcl > 3 || planned.structureType === STRUCTURE_ROAD)) {
+      continue
+    }
+
     if (planned.rcl > controller.level) {
       continue
     }

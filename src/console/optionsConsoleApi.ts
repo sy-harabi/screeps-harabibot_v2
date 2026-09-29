@@ -2,6 +2,8 @@ import { DEFAULT_BOT_OPTIONS, getBotOptions, getRampartBuildRcl, isValidRcl } fr
 
 export interface BotOptionsConsoleApi {
   show(roomName?: string): void
+  setSpeedrun(value: boolean): void
+  clearSpeedrun(): void
   setBasePlanVisual(value: boolean): void
   clearBasePlanVisual(): void
   setHarvestVisual(value: boolean): void
@@ -13,6 +15,19 @@ export interface BotOptionsConsoleApi {
 }
 
 export const botOptionsConsoleApi: BotOptionsConsoleApi = {
+  setSpeedrun(value: boolean): void {
+    Memory.options ??= {}
+    Memory.options.speedrun = value
+
+    console.log(`speedrun = ${value}`)
+  },
+
+  clearSpeedrun(): void {
+    delete Memory.options?.speedrun
+
+    console.log(`speedrun reset to default = ${DEFAULT_BOT_OPTIONS.speedrun}`)
+  },
+
   show(roomName?: string): void {
     const options = getBotOptions()
 
