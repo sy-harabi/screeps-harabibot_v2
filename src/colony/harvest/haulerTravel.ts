@@ -109,11 +109,9 @@ function getHaulerCostMatrix(
     const costs = base?.clone() ?? new PathFinder.CostMatrix()
 
     for (const structure of basePlan.structures) {
-      if (!OBSTACLE_OBJECT_TYPES_SET.has(structure.structureType)) {
-        continue
+      if (OBSTACLE_OBJECT_TYPES_SET.has(structure.structureType) || structure.structureType === STRUCTURE_CONTAINER) {
+        costs.set(structure.coordinate.x, structure.coordinate.y, 255)
       }
-
-      costs.set(structure.coordinate.x, structure.coordinate.y, 255)
     }
 
     return costs
@@ -171,7 +169,7 @@ function createContainerPositionsByRoom(colonyName: string): ContainerPositionsB
         continue
       }
 
-      const containerPositions = containerPositionsByRoom.get(roomName)
+      const containerPositions = containerPositionsByRoom.get(container.roomName)
 
       if (containerPositions === undefined) {
         containerPositionsByRoom.set(roomName, new Set([toRoomIndex(container.x, container.y)]))
