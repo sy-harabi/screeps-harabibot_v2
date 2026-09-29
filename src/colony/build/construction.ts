@@ -147,7 +147,10 @@ function reconcileConstruction(
   const hasSpawn = getStructuresByType(room, STRUCTURE_SPAWN).some((spawn) => spawn.my)
 
   for (const planned of basePlan.structures) {
-    if (getBotOptions().speedrun && (planned.rcl > 3 || planned.structureType === STRUCTURE_ROAD)) {
+    if (
+      getBotOptions().speedrun &&
+      (planned.rcl > 3 || planned.structureType === STRUCTURE_ROAD || planned.structureType === STRUCTURE_TOWER)
+    ) {
       continue
     }
 
