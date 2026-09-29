@@ -64,6 +64,7 @@ export function runHaulers(
 
     if (source === undefined) {
       delete hauler.memory.sourceId
+      delete hauler.memory.searchingEnergy
       continue
     }
 
@@ -110,6 +111,7 @@ function finishDelivery(
 ): void {
   delete hauler.memory.sourceId
   delete hauler.memory.delivering
+  delete hauler.memory.searchingEnergy
 
   if (!assignHauler(hauler, sourceStates)) {
     return
@@ -125,6 +127,7 @@ function finishDelivery(
 
   if (source === undefined) {
     delete hauler.memory.sourceId
+    delete hauler.memory.searchingEnergy
     return
   }
 
@@ -139,8 +142,24 @@ function runFetch(colonyName: string, hauler: Creep, sourceState: HarvestSourceS
     return
   }
 
-  if (hauler.room.name !== sourcePos.roomName || !hauler.pos.inRangeTo(sourcePos, 1)) {
-    moveCreepByPath(hauler, sourceState.haulerTravel.emptyPath)
+  if (!hauler.memory.searchingEnergy) {
+    if (hauler.room.name !== sourcePos.roomName || !hauler.pos.inRangeTo(sourcePos, 1)) {
+      moveCreepByPath(hauler, sourceState.haulerTravel.emptyPath)
+      return
+    }
+
+    hauler.memory.searchingEnergy = true
+  } else if (Game.rooms[sourcePos.roomName] === undefined) {
+    moveCreep(
+      hauler,
+      {
+        pos: new RoomPosition(25, 25, sourcePos.roomName),
+        range: 20,
+      },
+      {
+        useRoomRoute: true,
+      },
+    )
     return
   }
 
@@ -205,6 +224,7 @@ function runFetch(colonyName: string, hauler: Creep, sourceState: HarvestSourceS
 }
 
 function startDelivering(colonyName: string, hauler: Creep, sourceState: HarvestSourceState): void {
+  delete hauler.memory.searchingEnergy
   hauler.memory.delivering = true
 
   if (hauler.room.name !== colonyName) {
@@ -256,6 +276,7 @@ function assignHauler(hauler: Creep, sourceStates: readonly HarvestSourceState[]
       continue
     }
 
+    delete hauler.memory.searchingEnergy
     hauler.memory.sourceId = source.id
     source.pendingEnergy -= capacity
 

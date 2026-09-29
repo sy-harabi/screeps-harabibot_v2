@@ -19,6 +19,7 @@ declare global {
 
     sourceId?: Id<Source>
     delivering?: boolean
+    searchingEnergy?: boolean
 
     remoteRoomName?: string
   }
