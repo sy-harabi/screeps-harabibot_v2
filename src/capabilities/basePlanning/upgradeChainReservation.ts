@@ -29,9 +29,7 @@ export function buildUpgradeTileMinRclMask(controllerArea: ControllerAreaCandida
 
 export function blocksUpgradeTile(structureType: BuildableStructureConstant): boolean {
   return (
-    structureType !== STRUCTURE_ROAD &&
-    structureType !== STRUCTURE_RAMPART &&
-    structureType !== STRUCTURE_CONTAINER
+    structureType !== STRUCTURE_ROAD && structureType !== STRUCTURE_RAMPART && structureType !== STRUCTURE_CONTAINER
   )
 }
 
