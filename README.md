@@ -4,7 +4,7 @@ HarabiBot v2 is an in-progress TypeScript rewrite of HarabiBot for [Screeps](htt
 
 The rewrite is not a line-by-line port. It is being rebuilt around explicit data flow, ordered colony execution, reusable capabilities, and clearer state ownership. The design direction and collaboration rules are documented in [docs/rewrite-context.md](./docs/rewrite-context.md).
 
-> **Status:** active development. The current vertical slice covers owned-room economy plus persistent room intel and the initial Explore scouting foundation, but this is not yet a complete autonomous bot.
+> **Status:** active development. The current vertical slice covers owned-room economy, remote harvesting and reservation, construction and upgrading, persistent room intel, and autonomous Explore scouting, but this is not yet a complete autonomous bot.
 
 ## Current implementation
 
@@ -14,20 +14,26 @@ Implemented so far:
 - Per-tick `TickContext` indexes for owned rooms, colony creeps, and future mission creeps.
 - Exclusive creep ownership through `colony | mission` assignment, with role stored separately.
 - Spawn requests, priority ordering, queueing, and global spawn allocation.
-- Colony harvesting with owned-source miners, a shared hauler pool, source ordering, replacement-aware spawn demand, and cached source-economy estimates.
-- Income-driven upgrading with planned controller chains and logistics-fed upgrade energy.
-- One-tick colony logistics state that matches loaded suppliers to spawn/extension and upgrade-energy requests with storage fallback.
-- Dedicated movement and traffic capabilities.
+- Colony harvesting across owned and remote rooms, with miners, reservers, a shared hauler pool, ordered spawn demand, and sustainable income/spawn-usage estimates.
+- Remote-room assignment and source-path planning, including shared remote trunks and reservation-aware throughput.
+- Separate empty and loaded hauler paths so roadless travel reflects the creep's actual movement cost in each direction.
+- Construction scheduling from the base plan, builder spawning, bootstrap storage containers, configurable rampart build RCL, and automatic eviction of creeps blocking obstacle construction sites.
+- Income-driven upgrading with planned controller chains, storage-aware target WORK, and logistics-fed upgrade energy.
+- Tower energy refill requests and low-frequency road repair.
+- One-tick colony logistics state that matches loaded suppliers to spawn/extension, tower, and upgrade-energy requests with storage fallback.
+- Dedicated movement and traffic capabilities, including default owned-room costs that discourage routine traffic through miner and upgrader working tiles.
 - A runtime base planner with in-game `RoomVisual` output.
 - Base-plan persistence through `RawMemory` segments.
 - Persistent room intel with static segment-backed data, dynamic Memory-backed observations, and visible-room refresh.
 - Colony-relative Explore topology/candidate generation with cached depth-17 BFS, autonomous scout execution, and Source Keeper-aware movement.
+- RCL progress tracking and in-game harvest/economy diagnostics.
+- Domain-owned runtime caches registered through a shared runtime registry with cleanup and cache-size diagnostics.
 - Map/planner primitives including distance transform, Dijkstra maps, flood fill, terrain regions, and min-cut.
-- Console options for enabling and disabling base-plan visuals.
+- Console options for base-plan, harvest, and RCL-progress visuals plus construction-policy overrides.
 
 The base planner currently covers the core layout, controller/upgrader area, resource endpoints and road tree, labs, structure slots, towers, outer ramparts, rampart access roads, and repair roads. Existing manually placed spawns are respected by the planner.
 
-Still under construction are Watch and Resource scouting, remotes, combat, empire resource coordination/market logic, and other late-game systems. A persistent mission framework is intentionally deferred until the first real cross-room mission requires it.
+Still under construction are remote infrastructure deployment such as remote containers and roads, CPU/statistics instrumentation, Watch and Resource scouting, combat and active defense, empire resource coordination/market logic, and other late-game systems. A persistent mission framework is intentionally deferred until the first real cross-room mission requires it.
 
 ## Runtime flow
 
@@ -38,9 +44,14 @@ segmentManager.pretick()
         |
 create TickContext
         |
+update RCL progress
+        |
 preload BasePlan -> HarvestRoomPlan -> RoomIntel segments
         |
-refresh visible room intel when intel is ready
+refresh visible room intel
+and consider newly observed remote harvest rooms
+        |
+run scouting
         |
 run colonies
         |
@@ -48,24 +59,34 @@ allocate spawns
         |
 resolve traffic
         |
+clean runtime caches
+        |
 segmentManager.endTick()
 ```
 
 A colony is the operating unit centered on one owned room. Colony-local responsibilities run in explicit gameplay order rather than through a universal `plan/execute` interface.
 
-The implemented colony economy currently flows explicitly through harvesting, upgrading, and logistics:
+The implemented colony economy currently flows explicitly through harvesting, construction/building, upgrading, towers, and logistics:
 
 ```text
 Colony:<roomName>
 ├─ harvest
-│  ├─ miners
+│  ├─ owned + remote sources
+│  ├─ miners + reservers
 │  ├─ shared hauler pool
-│  └─ sustainable income estimate
+│  └─ sustainable income / spawn-usage estimate
+├─ construction
+│  └─ active construction-site set
+├─ build
+│  └─ builder demand from harvest income
 ├─ upgrade
-│  └─ target WORK from current harvest income
+│  └─ target WORK from income + stored energy
+├─ towers
+│  ├─ refill demand
+│  └─ road repair
 └─ logistics
    ├─ loaded suppliers
-   └─ spawn/extension and upgrade-energy requests
+   └─ spawn/extension, tower, and upgrade-energy requests
 ```
 
 Subsystems pass derived results directly when later colony work depends on earlier work. For example, harvest returns the current sustainable income estimate used by upgrading rather than publishing that value through generic shared state.
@@ -84,7 +105,9 @@ src/kernel/                         Tick context and low-level tick coordination
 src/colony/                         Ordered colony execution
   colonyManager.ts
   harvest/
+  build/
   logistics/
+  tower/
   upgrade/
 src/creeps/                         Creep ownership types
 src/capabilities/basePlanning/      Runtime base planner
@@ -177,13 +200,26 @@ The bot exposes a small console API:
 
 ```js
 bot.help()
+
 bot.options.show()
+bot.options.show("W1N1")
+
 bot.options.setBasePlanVisual(true)
-bot.options.setBasePlanVisual(false)
 bot.options.clearBasePlanVisual()
+
+bot.options.setHarvestVisual(true)
+bot.options.clearHarvestVisual()
+
+bot.options.setRclProgressVisual(true)
+bot.options.clearRclProgressVisual()
+
+bot.options.setRampartBuildRcl(6)
+bot.options.setRampartBuildRcl(6, "W1N1")
+bot.options.clearRampartBuildRcl()
+bot.options.clearRampartBuildRcl("W1N1")
 ```
 
-Base-plan visuals are disabled by default.
+Visuals are disabled by default.
 
 ## Design notes
 
