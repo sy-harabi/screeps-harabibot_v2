@@ -287,7 +287,7 @@ export function createHaulerBody(room: Room): readonly BodyPartConstant[] | unde
   const unit = [CARRY, MOVE]
   const unitCost = unit.reduce((prev, curr) => prev + BODYPART_COST[curr], 0)
 
-  const maxCount = getBotOptions().speedrun ? 1 : Math.floor(MAX_CREEP_SIZE / unit.length)
+  const maxCount = getBotOptions().speedrun ? 2 : Math.floor(MAX_CREEP_SIZE / unit.length)
 
   const carryCount = Math.min(Math.max(1, Math.floor(budget / unitCost)), maxCount)
 

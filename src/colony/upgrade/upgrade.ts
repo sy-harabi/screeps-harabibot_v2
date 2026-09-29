@@ -104,23 +104,26 @@ export function runUpgrade(
   const targetWork = getTargetUpgradeWork(room, income, energy)
 
   if (!construction.active && effectiveWork < targetWork && effectiveUpgraders < layout.area.length) {
-    requestSpawn(
-      {
-        requesterId: `upgrade:${colonyName}`,
-        spawnRoomName: colonyName,
-        assignment: {
-          type: "colony",
-          colonyName,
-        },
-        priorityType: "upgrade",
-        order: 0,
-        rolesByPriority: [UPGRADER_ROLE],
-      },
-      () => createUpgraderSpawnBody(room, targetWork, effectiveWork),
-      UPGRADER_ROLE,
-    )
-  }
+    const body = createUpgraderSpawnBody(room, targetWork, effectiveWork)
 
+    if (body !== undefined) {
+      requestSpawn(
+        {
+          requesterId: `upgrade:${colonyName}`,
+          spawnRoomName: colonyName,
+          assignment: {
+            type: "colony",
+            colonyName,
+          },
+          priorityType: "upgrade",
+          order: 0,
+          rolesByPriority: [UPGRADER_ROLE],
+        },
+        body,
+        UPGRADER_ROLE,
+      )
+    }
+  }
   const energyDepot = getUpgradeEnergyDepot(room, basePlan)
 
   registerUpgradeEnergyRequests(logistics, energyDepot, layout, upgraderByPosition)
