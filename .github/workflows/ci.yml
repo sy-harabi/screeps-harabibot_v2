@@ -4,6 +4,10 @@ on:
   push:
   pull_request:
 
+concurrency:
+  group: ci-${{ github.head_ref || github.ref }}
+  cancel-in-progress: true
+
 jobs:
   check:
     runs-on: ubuntu-latest
@@ -21,6 +25,9 @@ jobs:
       - name: Install dependencies
         run: npm ci
 
+      - name: Check formatting
+        run: npm run format
+
       - name: Typecheck
         run: npm run typecheck
 
@@ -29,6 +36,3 @@ jobs:
 
       - name: Build
         run: npm run build
-
-      - name: Check formatting
-        run: npm run format
