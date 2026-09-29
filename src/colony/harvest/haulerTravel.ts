@@ -1,7 +1,7 @@
 import { type BasePlan } from "../../capabilities/basePlanning/basePlan"
 import { getBaseRoomCostMatrix } from "../../capabilities/movement/roomCostMatrix"
 import { estimatePathTravelTicks } from "../../capabilities/movement/travelTime"
-import { toRoomIndex } from "../../world/map/roomGrid"
+import { fromRoomIndex, toRoomIndex } from "../../world/map/roomGrid"
 import { OBSTACLE_OBJECT_TYPES_SET } from "../../world/obstacles"
 import { harvestRoomPlanStore } from "./harvestRoomPlanStore"
 import { getHarvestRuntime, type HaulerTravelRuntime } from "./harvestRuntime"
@@ -27,7 +27,7 @@ export function getHaulerTravelRuntime(
 
   const origin = new RoomPosition(basePlan.storage.x, basePlan.storage.y, basePlan.roomName)
 
-  const destination = sourcePath[sourcePath.length - 1]
+  const destination = sourcePath[sourcePath.length - 2]
 
   const goal = { pos: destination, range: 0 }
 
@@ -137,8 +137,7 @@ function applyPlannedContainerCosts(
   }
 
   for (const index of containers) {
-    const x = index % 50
-    const y = Math.floor(index / 50)
+    const { x, y } = fromRoomIndex(index)
 
     if (roomName === destination.roomName && x === destination.x && y === destination.y) {
       continue

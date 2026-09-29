@@ -5,6 +5,8 @@ import { registerEnergySupplier } from "../logistics/logistics"
 import type { HarvestSourceState } from "./harvest"
 export const HAULER_ROLE = "hauler"
 
+const SPEEDRUN_HAULER_MAX_CARRY = 3
+
 export function runHaulers(
   colonyName: string,
   haulers: readonly Creep[],
@@ -137,7 +139,7 @@ function runFetch(colonyName: string, hauler: Creep, sourceState: HarvestSourceS
     return
   }
 
-  if (hauler.room.name !== sourcePos.roomName || !hauler.pos.inRangeTo(sourcePos, 3)) {
+  if (hauler.room.name !== sourcePos.roomName || !hauler.pos.inRangeTo(sourcePos, 1)) {
     moveCreepByPath(hauler, sourceState.haulerTravel.emptyPath)
     return
   }
@@ -287,7 +289,7 @@ export function createHaulerBody(room: Room): readonly BodyPartConstant[] | unde
   const unit = [CARRY, MOVE]
   const unitCost = unit.reduce((prev, curr) => prev + BODYPART_COST[curr], 0)
 
-  const maxCount = getBotOptions().speedrun ? 2 : Math.floor(MAX_CREEP_SIZE / unit.length)
+  const maxCount = getBotOptions().speedrun ? SPEEDRUN_HAULER_MAX_CARRY : Math.floor(MAX_CREEP_SIZE / unit.length)
 
   const carryCount = Math.min(Math.max(1, Math.floor(budget / unitCost)), maxCount)
 

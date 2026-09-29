@@ -1,4 +1,5 @@
 import { moveCreep } from "../../capabilities/movement/movement"
+import { setWorkingArea } from "../../capabilities/movement/traffic"
 import { intelStore } from "../../world/intel/intelStore"
 
 export const RESERVER_ROLE = "reserver"
@@ -48,6 +49,8 @@ export function runReserver(reserver: Creep, roomName: string): void {
   if (controller === null || controller.owner !== undefined) {
     return
   }
+
+  setWorkingArea(reserver, controller.pos, 1)
 
   const reservation = controller.reservation
 
