@@ -16,10 +16,7 @@ interface RouteEntry {
   distance: number
 }
 
-export type RoomCostMatrixModifier = (
-  roomName: string,
-  baseMatrix: CostMatrix | undefined,
-) => CostMatrix | undefined
+export type RoomCostMatrixModifier = (roomName: string, baseMatrix: CostMatrix | undefined) => CostMatrix | undefined
 
 interface FindPathOptions {
   useRoomRoute?: boolean
@@ -187,9 +184,7 @@ export function findPath(
         ? getSourceKeeperCostMatrix(roomName)
         : getDefaultRoomCostMatrix(roomName)
 
-      const costs = options.roomCostMatrixModifier
-        ? options.roomCostMatrixModifier(roomName, baseCosts)
-        : baseCosts
+      const costs = options.roomCostMatrixModifier ? options.roomCostMatrixModifier(roomName, baseCosts) : baseCosts
 
       return costs ?? true
     },
