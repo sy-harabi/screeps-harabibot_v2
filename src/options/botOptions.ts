@@ -36,12 +36,12 @@ export interface BotOptionsOverride {
 }
 
 export const DEFAULT_BOT_OPTIONS: BotOptions = {
-  speedrun: false,
+  speedrun: true,
 
   visuals: {
     basePlan: false,
     harvest: false,
-    rclProgress: false,
+    rclProgress: true,
   },
   construction: {
     rampartBuildRcl: 6,
