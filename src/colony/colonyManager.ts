@@ -11,6 +11,7 @@ import { planHarvest } from "./harvest/harvestRoomPlanner"
 import { createLogisticsState, runLogistics } from "./logistics/logistics"
 import { runTowers } from "./tower/tower"
 import { runUpgrade } from "./upgrade/upgrade"
+import { getBotOptions } from "../options/botOptions"
 
 export function runColonies(context: TickContext): void {
   for (const room of context.ownedRooms.values()) {
@@ -25,7 +26,8 @@ function runColony(room: Room, context: TickContext): void {
     return
   }
 
-  if (Memory.options?.visuals?.basePlan) {
+  if (getBotOptions().visuals.basePlan) {
+    console.log(room.name)
     visualizeBasePlanStructures(basePlan.structures, new RoomVisual(room.name))
   }
 

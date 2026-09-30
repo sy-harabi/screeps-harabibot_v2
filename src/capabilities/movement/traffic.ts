@@ -104,6 +104,8 @@ export function run(room: Room, costProvider?: CostProvider, movementCostThresho
 
   let searchId = 0
 
+  const visual = new RoomVisual(room.name)
+
   // Keep the solver one-pass: each creep is processed once as a root request.
   // A later request may replace an earlier assignment only when its root score is
   // strictly higher than the displaced creep's score and the total branch score stays positive.
@@ -162,7 +164,7 @@ export function run(room: Room, costProvider?: CostProvider, movementCostThresho
   }
 
   for (let creepIndex = 0; creepIndex < creeps.length; creepIndex++) {
-    resolveMovement(creeps[creepIndex], matchedCoordinatesScratch[creepIndex])
+    resolveMovement(creeps[creepIndex], matchedCoordinatesScratch[creepIndex], visual)
   }
 }
 
@@ -457,7 +459,7 @@ function vacatesEdgeTile(creep: TrafficCreep): boolean {
   return intendedPackedCoordinate === undefined || intendedPackedCoordinate === packCoordinate(creep.pos)
 }
 
-function resolveMovement(creep: TrafficCreep, matchedPackedCoordinate: number): void {
+function resolveMovement(creep: TrafficCreep, matchedPackedCoordinate: number, visual: RoomVisual): void {
   if (matchedPackedCoordinate === UNASSIGNED) {
     return
   }
@@ -466,7 +468,18 @@ function resolveMovement(creep: TrafficCreep, matchedPackedCoordinate: number): 
 
   if (!creep.pos.isEqualTo(matchedPosition.x, matchedPosition.y)) {
     creep.move(creep.pos.getDirectionTo(matchedPosition.x, matchedPosition.y))
+    return
   }
+
+  const intendedPackedCoordinate = getIntendedPackedCoordinate(creep)
+
+  if (intendedPackedCoordinate === undefined) {
+    return
+  }
+
+  const unPacked = unpackCoordinate(intendedPackedCoordinate)
+
+  visual.arrow(creep.pos, new RoomPosition(unPacked.x, unPacked.y, visual.roomName))
 }
 
 function assignCreepToCoordinate(

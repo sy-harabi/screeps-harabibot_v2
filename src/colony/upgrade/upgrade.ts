@@ -195,9 +195,9 @@ function registerUpgradeEnergyRequests(
   }
 
   if (energyDepot instanceof Structure) {
-    if (energyDepot.structureType === STRUCTURE_CONTAINER) {
-      requestEnergy(logistics, energyDepot, ENERGY_REQUEST_PRIORITY.upgrade)
-    }
+    // if (energyDepot.structureType === STRUCTURE_CONTAINER) {
+    //   requestEnergy(logistics, energyDepot, ENERGY_REQUEST_PRIORITY.upgrade)
+    // }
     return
   }
 
