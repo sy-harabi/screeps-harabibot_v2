@@ -18,8 +18,7 @@ declare global {
     role: string
 
     sourceId?: Id<Source>
-    delivering?: boolean
-    searchingEnergy?: boolean
+    haulerState?: "idle" | "fetching" | "loading" | "delivering"
 
     remoteRoomName?: string
   }

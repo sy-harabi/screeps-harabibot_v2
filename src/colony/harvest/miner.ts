@@ -55,7 +55,7 @@ export function runMiners(
     const result = runMiner(miner, source)
 
     if (result === "harvesting") {
-      source.harvestingPower += miner.getActiveBodyparts(WORK) * HARVEST_POWER
+      source.activeHarvestPower += miner.getActiveBodyparts(WORK) * HARVEST_POWER
       continue
     }
 

@@ -10,7 +10,7 @@ import type { LogisticsState } from "../logistics/logistics"
 import { planHarvest } from "./harvestRoomPlanner"
 import { harvestRoomPlanStore } from "./harvestRoomPlanStore"
 import { getHarvestRuntime, type HaulerTravelRuntime, type RemoteControllerRuntime } from "./harvestRuntime"
-import { createHaulerBody, getRequiredCarryCapacity, HAULER_ROLE, runHaulers } from "./hauler"
+import { createHaulerBody, getRequiredCarryCapacity, HAULER_ROLE, runHaulersPhase1 } from "./hauler"
 import { getMiningPositions, getSourceContainer } from "./miningSite"
 import { createMinerBody, MINER_ROLE, runMiners } from "./miner"
 import { createReserverBody, RESERVER_ROLE, runReserver } from "./reserver"
@@ -53,15 +53,15 @@ export interface HarvestSourceState {
   readonly containerEnergy: number
   readonly droppedEnergy: number
 
-  harvestPower: number
-  harvestingPower: number
+  sustainableHarvestPower: number
+  activeHarvestPower: number
   numMiners: number
 
   carryCapacity: number
   pendingEnergy: number
 }
 
-export interface HaulerCoordinationState {
+export interface HaulerPhase2State {
   readonly haulers: readonly Creep[]
   readonly travelingMiners: readonly Creep[]
   readonly sourceStates: readonly HarvestSourceState[]
@@ -73,7 +73,7 @@ export interface HarvestResult {
   readonly maxIncome: number
   readonly spawnUsage: number
   readonly activeSourcePaths?: readonly (readonly RoomPosition[])[]
-  readonly haulerCoordination?: HaulerCoordinationState
+  readonly haulerPhase2?: HaulerPhase2State
 }
 
 const ROLES_BY_PRIORITY = [MINER_ROLE, HAULER_ROLE, RESERVER_ROLE]
@@ -165,7 +165,7 @@ export function runHarvest(
     }
 
     if ((miner.ticksToLive ?? CREEP_LIFE_TIME) > replacementLeadTime) {
-      source.harvestPower += harvestPower
+      source.sustainableHarvestPower += harvestPower
       source.numMiners++
     }
   }
@@ -250,14 +250,14 @@ export function runHarvest(
       return false
     }
 
-    if (source.roomName === colonyName || source.harvestPower > 0) {
+    if (source.roomName === colonyName || source.sustainableHarvestPower > 0) {
       activeSourcePaths.push(source.path)
     }
 
     source.carryCapacity = Math.min(source.requiredCarryCapacity, carryCapacityLeft)
     carryCapacityLeft -= source.carryCapacity
 
-    const minerRatio = source.harvestPower / source.requiredHarvestPower
+    const minerRatio = source.sustainableHarvestPower / source.requiredHarvestPower
     const haulerRatio = source.carryCapacity / source.requiredCarryCapacity
     const targetMinerWork = getTargetMinerWork(room, source)
     const container = source.container
@@ -351,6 +351,7 @@ export function runHarvest(
           },
           () => createHaulerBody(room),
           HAULER_ROLE,
+          { memory: { haulerState: "idle" } },
         )
 
         spawnRequested = true
@@ -421,7 +422,7 @@ export function runHarvest(
   const storagePos = new RoomPosition(basePlan.storage.x, basePlan.storage.y, colonyName)
 
   runMiners(miners, sourceById, travelingMiners)
-  runHaulers(colonyName, storagePos, haulers, sourceStates, sourceById, logistics)
+  runHaulersPhase1(colonyName, storagePos, haulers, sourceStates, sourceById, logistics)
 
   for (let i = 0; i < visualSourceRows.length; i++) {
     const source = sourceStates[i]
@@ -437,7 +438,7 @@ export function runHarvest(
     maxIncome,
     spawnUsage,
     activeSourcePaths,
-    haulerCoordination: {
+    haulerPhase2: {
       haulers,
       travelingMiners: travelingMiners ?? [],
       sourceStates,
@@ -595,8 +596,8 @@ function prepareHarvestRoomStates(
         containerEnergy: container?.store.getUsedCapacity(RESOURCE_ENERGY) ?? 0,
         droppedEnergy,
 
-        harvestPower: 0,
-        harvestingPower: 0,
+        sustainableHarvestPower: 0,
+        activeHarvestPower: 0,
         numMiners: 0,
 
         carryCapacity: 0,
