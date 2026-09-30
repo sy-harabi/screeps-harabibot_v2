@@ -15,7 +15,7 @@ import type { HarvestSourceState } from "./harvest"
 import { getHaulerRoomCostMatrix } from "./haulerCostMatrix"
 export const HAULER_ROLE = "hauler"
 
-const SPEEDRUN_HAULER_MAX_CARRY = 2
+const SPEEDRUN_HAULER_MAX_CARRY = 3
 const LOGISTICS_ENTRY_RANGE = 6
 
 const HAULER_MOVE_OPTIONS: MoveOptions = {
@@ -393,24 +393,8 @@ export function runHaulerCoordination(
   const sourceHaulerCounts = countSourceHaulers(haulers)
   const relayEnabled = getBotOptions().speedrun
 
-  finishLogisticsDeliveries(
-    logistics,
-    haulers,
-    sourceStates,
-    sourceById,
-    sourceHaulerCounts,
-    relayEnabled,
-  )
-  runDeliveryFallbacks(
-    room,
-    basePlan,
-    logistics,
-    haulers,
-    sourceStates,
-    sourceById,
-    sourceHaulerCounts,
-    relayEnabled,
-  )
+  finishLogisticsDeliveries(logistics, haulers, sourceStates, sourceById, sourceHaulerCounts, relayEnabled)
+  runDeliveryFallbacks(room, basePlan, logistics, haulers, sourceStates, sourceById, sourceHaulerCounts, relayEnabled)
 
   if (!relayEnabled) {
     return
