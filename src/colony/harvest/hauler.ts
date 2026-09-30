@@ -46,8 +46,6 @@ export function runHaulers(
   sourceById: ReadonlyMap<Id<Source>, HarvestSourceState>,
   logistics: LogisticsState,
 ): void {
-  const speedrun = getBotOptions().speedrun
-
   preparePendingEnergy(sourceStates)
 
   for (const hauler of haulers) {
