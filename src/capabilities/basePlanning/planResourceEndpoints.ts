@@ -33,6 +33,7 @@ export function planResourceEndpoints(
   minerals: readonly Mineral[],
   controllerArea: ControllerAreaCandidate,
   corePlan: CorePlan,
+  sourceAvoidanceMask: Uint8Array,
   existingSpawn?: RoomCoordinate,
 ): ResourceEndpointPlanResult | undefined {
   const targets = buildResourceTargets(sources, minerals)
@@ -49,6 +50,7 @@ export function planResourceEndpoints(
     targets,
     [],
     resourceRoadBlockedMask,
+    sourceAvoidanceMask,
     coreRoadMask,
     corePlan.roads,
   )
@@ -127,10 +129,11 @@ function findResourceEndpointPlan(
   remainingTargets: readonly ResourceTarget[],
   plannedEndpoints: readonly ResourceEndpointPlan[],
   resourceRoadBlockedMask: Uint8Array,
+  sourceAvoidanceMask: Uint8Array,
   coreRoadMask: Uint8Array,
   coreRoads: readonly RoomCoordinate[],
 ): ResourceEndpointPlan[] | undefined {
-  const distanceMap = buildResourceDistanceMap(terrain, resourceRoadBlockedMask, coreRoads)
+  const distanceMap = buildResourceDistanceMap(terrain, resourceRoadBlockedMask, coreRoads, sourceAvoidanceMask)
 
   if (!areEndpointsReachable(plannedEndpoints, distanceMap)) {
     return
@@ -182,6 +185,7 @@ function findResourceEndpointPlan(
       nextTargets,
       [...plannedEndpoints, endpoint],
       resourceRoadBlockedMask,
+      sourceAvoidanceMask,
       coreRoadMask,
       coreRoads,
     )

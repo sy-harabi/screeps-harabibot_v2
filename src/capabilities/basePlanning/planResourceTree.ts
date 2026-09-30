@@ -3,7 +3,7 @@ import { fromRoomIndex, isInsideRoom, NEIGHBOR_OFFSETS, ROOM_AREA, toRoomIndex }
 import type { ControllerAreaCandidate } from "./findControllerAreaCandidates"
 import type { CorePlan } from "./findCorePlans"
 import { planResourceEndpoints } from "./planResourceEndpoints"
-import { buildResourceDistanceMap, getResourceRoadCost } from "./resourcePlanningUtils"
+import { buildResourceDistanceMap, buildSourceAvoidanceMask, getResourceRoadCost } from "./resourcePlanningUtils"
 
 const INF = 30000
 
@@ -33,12 +33,14 @@ export function planResourceTree(
   visual: RoomVisual,
   existingSpawn?: RoomCoordinate,
 ): ResourceTreePlan | undefined {
+  const sourceAvoidanceMask = buildSourceAvoidanceMask(terrain, sources)
   const endpointPlanningResult = planResourceEndpoints(
     terrain,
     sources,
     minerals,
     controllerArea,
     corePlan,
+    sourceAvoidanceMask,
     existingSpawn,
   )
 
@@ -47,7 +49,12 @@ export function planResourceTree(
   }
 
   const targets = [...endpointPlanningResult.endpoints].sort((left, right) => left.bit - right.bit)
-  const distanceMap = buildResourceDistanceMap(terrain, endpointPlanningResult.resourceRoadBlockedMask, corePlan.roads)
+  const distanceMap = buildResourceDistanceMap(
+    terrain,
+    endpointPlanningResult.resourceRoadBlockedMask,
+    corePlan.roads,
+    sourceAvoidanceMask,
+  )
 
   if (targets.length === 0) {
     return {
@@ -70,7 +77,7 @@ export function planResourceTree(
       targetMask[toRoomIndex(coordinate.x, coordinate.y)] |= target.bit
     }
 
-    const pathMask = buildShortestPathMask(roadEndpoints, terrain, distanceMap, getResourceRoadCost)
+    const pathMask = buildShortestPathMask(roadEndpoints, terrain, distanceMap, sourceAvoidanceMask)
 
     for (let index = 0; index < ROOM_AREA; index++) {
       if (pathMask[index]) {
@@ -134,7 +141,7 @@ export function planResourceTree(
         }
 
         const terrainType = terrain.get(nextX, nextY)
-        const nextCost = getResourceRoadCost(nextX, nextY, terrainType)
+        const nextCost = getResourceRoadCost(nextX, nextY, terrainType, sourceAvoidanceMask)
 
         if (distanceMap[index] + nextCost !== distanceMap[nextIndex]) {
           continue
@@ -453,7 +460,7 @@ function buildShortestPathMask(
   targetCoordinates: readonly RoomCoordinate[],
   terrain: RoomTerrain,
   distanceMap: Int32Array,
-  getCost: (x: number, y: number, terrainType: number) => number,
+  sourceAvoidanceMask: Uint8Array,
 ): Uint8Array {
   const mask = new Uint8Array(ROOM_AREA)
   const queue: number[] = []
@@ -477,7 +484,7 @@ function buildShortestPathMask(
     }
 
     const terrainType = terrain.get(current.x, current.y)
-    const currentCost = getCost(current.x, current.y, terrainType)
+    const currentCost = getResourceRoadCost(current.x, current.y, terrainType, sourceAvoidanceMask)
 
     for (const offset of NEIGHBOR_OFFSETS) {
       const neighborX = current.x + offset.x
