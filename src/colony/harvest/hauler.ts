@@ -46,6 +46,9 @@ export function runHaulers(
   sourceById: ReadonlyMap<Id<Source>, HarvestSourceState>,
   logistics: LogisticsState,
 ): void {
+  const relayEnabled = getBotOptions().speedrun
+  const sourceHaulerCounts = countSourceHaulers(haulers)
+
   preparePendingEnergy(sourceStates)
 
   for (const hauler of haulers) {
@@ -69,7 +72,7 @@ export function runHaulers(
 
     if (hauler.memory.delivering) {
       if (hauler.store.getUsedCapacity(RESOURCE_ENERGY) === 0) {
-        finishDelivery(hauler, sourceStates, sourceById)
+        finishDelivery(hauler, sourceStates, sourceById, sourceHaulerCounts, relayEnabled)
         continue
       }
 
@@ -90,7 +93,7 @@ export function runHaulers(
     }
 
     if (hauler.memory.sourceId === undefined) {
-      assignHauler(hauler, sourceStates)
+      assignHauler(hauler, sourceStates, sourceHaulerCounts, relayEnabled)
     }
 
     const sourceId = hauler.memory.sourceId
@@ -102,6 +105,7 @@ export function runHaulers(
     const source = sourceById.get(sourceId)
 
     if (source === undefined) {
+      decrementSourceHaulerCount(sourceHaulerCounts, sourceId)
       delete hauler.memory.sourceId
       delete hauler.memory.searchingEnergy
       continue
@@ -131,12 +135,20 @@ function finishDelivery(
   hauler: Creep,
   sourceStates: readonly HarvestSourceState[],
   sourceById: ReadonlyMap<Id<Source>, HarvestSourceState>,
+  sourceHaulerCounts: Map<Id<Source>, number>,
+  relayEnabled: boolean,
 ): void {
+  const previousSourceId = hauler.memory.sourceId
+
+  if (previousSourceId !== undefined) {
+    decrementSourceHaulerCount(sourceHaulerCounts, previousSourceId)
+  }
+
   delete hauler.memory.sourceId
   delete hauler.memory.delivering
   delete hauler.memory.searchingEnergy
 
-  if (!assignHauler(hauler, sourceStates)) {
+  if (!assignHauler(hauler, sourceStates, sourceHaulerCounts, relayEnabled)) {
     return
   }
 
@@ -149,6 +161,7 @@ function finishDelivery(
   const source = sourceById.get(sourceId)
 
   if (source === undefined) {
+    decrementSourceHaulerCount(sourceHaulerCounts, sourceId)
     delete hauler.memory.sourceId
     delete hauler.memory.searchingEnergy
     return
@@ -278,33 +291,40 @@ function preparePendingEnergy(sourceStates: readonly HarvestSourceState[]): void
   for (const sourceState of sourceStates) {
     const source = Game.getObjectById(sourceState.id)
 
-    if (source === null) {
-      sourceState.pendingEnergy = 0
-      continue
-    }
-
-    sourceState.pendingEnergy =
-      sourceState.containerEnergy + sourceState.droppedEnergy + getExpectedEnergyDelta(source, sourceState)
+    sourceState.pendingEnergy = source === null ? 0 : sourceState.containerEnergy + sourceState.droppedEnergy
   }
 }
 
-function assignHauler(hauler: Creep, sourceStates: readonly HarvestSourceState[]): boolean {
+function assignHauler(
+  hauler: Creep,
+  sourceStates: readonly HarvestSourceState[],
+  sourceHaulerCounts: Map<Id<Source>, number>,
+  relayEnabled: boolean,
+): boolean {
   const capacity = hauler.store.getCapacity(RESOURCE_ENERGY)
 
-  for (const source of sourceStates) {
-    if (source.pendingEnergy < capacity) {
+  for (const sourceState of sourceStates) {
+    const source = Game.getObjectById(sourceState.id)
+    const assignedHaulerCount = sourceHaulerCounts.get(sourceState.id) ?? 0
+    const relayTicks = relayEnabled ? assignedHaulerCount : 0
+    const emptyTravelTicks = Math.max(0, sourceState.haulerTravel.emptyTravelTicks - relayTicks)
+    const expectedEnergy =
+      sourceState.pendingEnergy + (source === null ? 0 : getExpectedEnergyDelta(source, sourceState, emptyTravelTicks))
+
+    if (expectedEnergy < capacity) {
       continue
     }
 
-    const travelTicks = source.haulerTravel.cycleTravelTicks
+    const cycleTravelTicks = Math.max(0, sourceState.haulerTravel.cycleTravelTicks - relayTicks)
 
-    if (hauler.ticksToLive !== undefined && hauler.ticksToLive <= travelTicks + 20) {
+    if (hauler.ticksToLive !== undefined && hauler.ticksToLive <= cycleTravelTicks + 20) {
       continue
     }
 
     delete hauler.memory.searchingEnergy
-    hauler.memory.sourceId = source.id
-    source.pendingEnergy -= capacity
+    hauler.memory.sourceId = sourceState.id
+    sourceState.pendingEnergy -= capacity
+    sourceHaulerCounts.set(sourceState.id, assignedHaulerCount + 1)
 
     return true
   }
@@ -312,8 +332,11 @@ function assignHauler(hauler: Creep, sourceStates: readonly HarvestSourceState[]
   return false
 }
 
-function getExpectedEnergyDelta(source: Source, sourceState: HarvestSourceState): number {
-  const travelTicks = sourceState.haulerTravel.emptyTravelTicks
+function getExpectedEnergyDelta(
+  source: Source,
+  sourceState: HarvestSourceState,
+  travelTicks: number,
+): number {
   const regeneration = source.ticksToRegeneration ?? ENERGY_REGEN_TIME
 
   if (travelTicks < regeneration) {
@@ -324,6 +347,31 @@ function getExpectedEnergyDelta(source: Source, sourceState: HarvestSourceState)
     Math.min(source.energy, sourceState.harvestingPower * regeneration) +
     sourceState.harvestingPower * (travelTicks - regeneration)
   )
+}
+
+function countSourceHaulers(haulers: readonly Creep[]): Map<Id<Source>, number> {
+  const result = new Map<Id<Source>, number>()
+
+  for (const hauler of haulers) {
+    const sourceId = hauler.memory.sourceId
+
+    if (sourceId !== undefined) {
+      result.set(sourceId, (result.get(sourceId) ?? 0) + 1)
+    }
+  }
+
+  return result
+}
+
+function decrementSourceHaulerCount(counts: Map<Id<Source>, number>, sourceId: Id<Source>): void {
+  const count = counts.get(sourceId)
+
+  if (count === undefined || count <= 1) {
+    counts.delete(sourceId)
+    return
+  }
+
+  counts.set(sourceId, count - 1)
 }
 
 interface Coordinate {

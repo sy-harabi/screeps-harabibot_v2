@@ -3,6 +3,7 @@ import { estimatePathTravelTicks } from "../../capabilities/movement/travelTime"
 import { getIntendedCoord } from "../../capabilities/movement/traffic"
 import { runtimeRegistry } from "../../runtime/runtimeRegistry"
 import type { HarvestSourceState } from "./harvest"
+import { HAULER_ROLE } from "./hauler"
 
 interface MinerRuntime {
   miningPosition?: RoomPosition
@@ -31,6 +32,8 @@ function getMinerRuntime(creepName: string): MinerRuntime {
 }
 
 export const MINER_ROLE = "miner"
+
+const MINER_MOVE_OPTIONS = { priority: 2 } as const
 
 type RunMinerResult = "harvesting" | "moving"
 
@@ -70,7 +73,7 @@ function runMiner(miner: Creep, sourceState: HarvestSourceState): RunMinerResult
   const pathEnd = path[path.length - 1]
 
   if (pathEnd !== undefined && (miner.pos.roomName !== pathEnd.roomName || !miner.pos.inRangeTo(pathEnd, 3))) {
-    moveCreepByPath(miner, path)
+    moveCreepByPath(miner, path, MINER_MOVE_OPTIONS)
     return "moving"
   }
 
@@ -83,12 +86,12 @@ function runMiner(miner: Creep, sourceState: HarvestSourceState): RunMinerResult
   const source = Game.getObjectById(sourceState.id)
 
   if (source === null) {
-    moveCreep(miner, { pos: miningPos, range: 0 })
+    moveCreep(miner, { pos: miningPos, range: 0 }, MINER_MOVE_OPTIONS)
     return "moving"
   }
 
   if (!miner.pos.isEqualTo(miningPos)) {
-    moveCreep(miner, { pos: miningPos, range: 0 })
+    moveCreep(miner, { pos: miningPos, range: 0 }, MINER_MOVE_OPTIONS)
     return "moving"
   }
 
@@ -131,7 +134,7 @@ function getMiningPosition(miner: Creep, sourceState: HarvestSourceState): RoomP
   const runtime = getMinerRuntime(miner.name)
 
   if (runtime.miningPosition !== undefined) {
-    const primaryOccupied = primaryPos.lookFor(LOOK_CREEPS).some((creep) => creep.name !== miner.name)
+    const primaryOccupied = isMiningPositionBlocked(primaryPos, miner.name)
 
     if (primaryOccupied) {
       return runtime.miningPosition
@@ -145,7 +148,7 @@ function getMiningPosition(miner: Creep, sourceState: HarvestSourceState): RoomP
     return primaryPos
   }
 
-  const primaryOccupied = primaryPos.lookFor(LOOK_CREEPS).some((creep) => creep.name !== miner.name)
+  const primaryOccupied = isMiningPositionBlocked(primaryPos, miner.name)
 
   if (!primaryOccupied) {
     return primaryPos
@@ -160,10 +163,14 @@ function getMiningPosition(miner: Creep, sourceState: HarvestSourceState): RoomP
   return fallback
 }
 
+function isMiningPositionBlocked(pos: RoomPosition, minerName: string): boolean {
+  return pos.lookFor(LOOK_CREEPS).some((creep) => creep.name !== minerName && creep.memory.role !== HAULER_ROLE)
+}
+
 function findFallbackMiningPosition(miner: Creep, sourceState: HarvestSourceState): RoomPosition | undefined {
   for (let i = 1; i < sourceState.miningPositions.length; i++) {
     const pos = sourceState.miningPositions[i]
-    const occupied = pos.lookFor(LOOK_CREEPS).some((creep) => creep.name !== miner.name)
+    const occupied = isMiningPositionBlocked(pos, miner.name)
 
     if (!occupied) {
       return pos
