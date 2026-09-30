@@ -72,12 +72,12 @@ export interface HarvestResult {
   readonly income: number
   readonly maxIncome: number
   readonly spawnUsage: number
-  readonly activeSourcePaths: readonly (readonly RoomPosition[])[]
+  readonly activeSourcePaths?: readonly (readonly RoomPosition[])[]
   readonly haulerCoordination?: HaulerCoordinationState
 }
 
 const ROLES_BY_PRIORITY = [MINER_ROLE, HAULER_ROLE, RESERVER_ROLE]
-const EMPTY_HARVEST_RESULT: HarvestResult = { income: 0, maxIncome: 0, spawnUsage: 0, activeSourcePaths: [] }
+const EMPTY_HARVEST_RESULT: HarvestResult = { income: 0, maxIncome: 0, spawnUsage: 0 }
 
 export function runHarvest(
   room: Room,
@@ -250,7 +250,9 @@ export function runHarvest(
       return false
     }
 
-    activeSourcePaths.push(source.path)
+    if (source.roomName === colonyName || source.harvestPower > 0) {
+      activeSourcePaths.push(source.path)
+    }
 
     source.carryCapacity = Math.min(source.requiredCarryCapacity, carryCapacityLeft)
     carryCapacityLeft -= source.carryCapacity
