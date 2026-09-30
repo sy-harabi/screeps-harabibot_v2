@@ -210,6 +210,9 @@ bot.options.clearBasePlanVisual()
 bot.options.setHarvestVisual(true)
 bot.options.clearHarvestVisual()
 
+bot.options.setHarvestPathVisual(true)
+bot.options.clearHarvestPathVisual()
+
 bot.options.setRclProgressVisual(true)
 bot.options.clearRclProgressVisual()
 

@@ -1,4 +1,4 @@
-import { moveCreep } from "../../capabilities/movement/movement"
+import { moveCreep, type MoveOptions } from "../../capabilities/movement/movement"
 import { clearMoveRequest } from "../../capabilities/movement/traffic"
 import { getBotOptions } from "../../options/botOptions"
 import { getStructuresByType } from "../../world/roomStructures"
@@ -9,6 +9,7 @@ export interface LogisticsState {
   readonly suppliers: Map<string, Creep>
   readonly energyRequests: Map<string, EnergyRequest>
   handledSuppliers?: Set<string>
+  supplierMoveOptions?: Map<string, MoveOptions>
 }
 
 export interface EnergyRequest {
@@ -179,10 +180,14 @@ function runAssignedSuppliers(state: LogisticsState, speedrun: boolean): void {
     state.handledSuppliers?.add(supplier.name)
 
     if (!supplier.pos.isNearTo(request.target)) {
-      moveCreep(supplier, {
-        pos: request.target.pos,
-        range: 1,
-      })
+      moveCreep(
+        supplier,
+        {
+          pos: request.target.pos,
+          range: 1,
+        },
+        state.supplierMoveOptions?.get(supplier.name),
+      )
       continue
     }
 
@@ -254,10 +259,15 @@ export function requestEnergy(
   })
 }
 
-export function registerEnergySupplier(state: LogisticsState, creep: Creep): void {
+export function registerEnergySupplier(state: LogisticsState, creep: Creep, moveOptions?: MoveOptions): void {
   if (creep.spawning || creep.store.getUsedCapacity(RESOURCE_ENERGY) === 0) {
     return
   }
 
   state.suppliers.set(creep.name, creep)
+
+  if (moveOptions !== undefined) {
+    state.supplierMoveOptions ??= new Map()
+    state.supplierMoveOptions.set(creep.name, moveOptions)
+  }
 }

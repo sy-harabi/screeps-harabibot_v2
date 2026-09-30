@@ -7,6 +7,8 @@ import { getBotOptions } from "../../options/botOptions"
 import { intelStore } from "../../world/intel/intelStore"
 import type { RoomIntel } from "../../world/intel/roomIntel"
 import type { LogisticsState } from "../logistics/logistics"
+import { HARVEST_PATH_PLANNER_VERSION } from "./harvestRoomPlan"
+import { planHarvest } from "./harvestRoomPlanner"
 import { harvestRoomPlanStore } from "./harvestRoomPlanStore"
 import { getHarvestRuntime, type HaulerTravelRuntime, type RemoteControllerRuntime } from "./harvestRuntime"
 import { createHaulerBody, getRequiredCarryCapacity, HAULER_ROLE, runHaulers } from "./hauler"
@@ -15,6 +17,7 @@ import { createMinerBody, MINER_ROLE, runMiners } from "./miner"
 import { createReserverBody, RESERVER_ROLE, runReserver } from "./reserver"
 import { getSourceEconomyStats } from "./sourceEconomyStats"
 import { visualizeHarvest, type HarvestVisualReservationRow, type HarvestVisualSourceRow } from "./harvestVisual"
+import { visualizeHarvestPaths } from "./harvestPathVisual"
 import { getHaulerTravelRuntime } from "./haulerTravel"
 
 const SOURCE_CONTAINER_REPAIR_THRESHOLD = 150_000
@@ -86,6 +89,16 @@ export function runHarvest(
   }
 
   const colonyName = room.name
+  const colonyPlan = harvestRoomPlanStore.get(colonyName)
+
+  if (
+    colonyPlan === undefined ||
+    colonyPlan.basePlanRevision !== basePlan.revision ||
+    colonyPlan.plannerVersion !== HARVEST_PATH_PLANNER_VERSION
+  ) {
+    planHarvest(colonyName, basePlan)
+  }
+
   const options = getBotOptions()
   const reserverBody = createReserverBody(room)
   const roomStates = prepareHarvestRoomStates(room, basePlan, reserverBody, options.speedrun)
@@ -403,8 +416,10 @@ export function runHarvest(
 
   const travelingMiners: Creep[] | undefined = options.speedrun ? [] : undefined
 
+  const storagePos = new RoomPosition(basePlan.storage.x, basePlan.storage.y, colonyName)
+
   runMiners(miners, sourceById, travelingMiners)
-  runHaulers(colonyName, haulers, sourceStates, sourceById, logistics)
+  runHaulers(colonyName, storagePos, haulers, sourceStates, sourceById, logistics)
 
   for (let i = 0; i < visualSourceRows.length; i++) {
     const source = sourceStates[i]
@@ -431,6 +446,10 @@ export function runHarvest(
 
   if (options.visuals.harvest) {
     visualizeHarvest(room, visualSourceRows, visualReservationRows, result)
+  }
+
+  if (options.visuals.harvestPath) {
+    visualizeHarvestPaths(sourceStates)
   }
 
   return result
