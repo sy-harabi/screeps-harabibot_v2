@@ -1,12 +1,12 @@
 import { intelStore } from "../../world/intel/intelStore"
 import { getRoomType } from "../../world/map/roomTopology"
 import { getMovementRuntime, type MovementRuntime } from "./movementRuntime"
-import { findPath } from "./navigator"
+import { findPath, type RoomCostMatrixModifier } from "./navigator"
 import { clearMoveRequest, registerMove } from "./traffic"
 
 export type MoveStatus = "arrived" | "pending" | "blocked" | "failed"
 
-interface MoveOptions {
+export interface MoveOptions {
   useRoomRoute?: boolean
 
   // findRoute options
@@ -19,14 +19,18 @@ interface MoveOptions {
 
   // custom options
   avoidSourceKeepers?: boolean
+  roomCostMatrixModifier?: RoomCostMatrixModifier
+  pathPolicy?: string
 
   // move options
   priority?: number
 }
 
-interface MoveByPathOptions {
+export interface MoveByPathOptions {
   reverse?: boolean
   priority?: number
+  roomCostMatrixModifier?: RoomCostMatrixModifier
+  pathPolicy?: string
 }
 
 export interface MoveGoal {
@@ -134,7 +138,12 @@ export function moveCreepByPath(
 
 function rejoinKnownPath(creep: Creep, path: readonly RoomPosition[], options: MoveByPathOptions = {}): MoveStatus {
   const goals = path.map((pos) => ({ pos, range: 0 }))
-  const result = moveCreep(creep, goals, { useRoomRoute: false, priority: options.priority })
+  const result = moveCreep(creep, goals, {
+    useRoomRoute: false,
+    priority: options.priority,
+    roomCostMatrixModifier: options.roomCostMatrixModifier,
+    pathPolicy: options.pathPolicy,
+  })
 
   if (result !== "arrived") {
     return result
@@ -263,7 +272,7 @@ function reconcilePath(
 
   const avoidSourceKeepers = options.avoidSourceKeepers === true
 
-  if (runtime.avoidSourceKeepers !== avoidSourceKeepers) {
+  if (runtime.avoidSourceKeepers !== avoidSourceKeepers || runtime.pathPolicy !== options.pathPolicy) {
     resetStuck(runtime)
     return "repath"
   }
@@ -353,11 +362,13 @@ function setPath(runtime: MovementRuntime, path: readonly RoomPosition[], option
   runtime.pathCreatedAt = Game.time
   runtime.nextPathIndex = 0
   runtime.avoidSourceKeepers = options.avoidSourceKeepers === true
+  runtime.pathPolicy = options.pathPolicy
 }
 
 function clearPath(runtime: MovementRuntime): void {
   runtime.cachedPath = undefined
   runtime.nextPathIndex = undefined
+  runtime.pathPolicy = undefined
 }
 
 function resetStuck(runtime: MovementRuntime): void {
