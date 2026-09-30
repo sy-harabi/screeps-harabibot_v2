@@ -1,6 +1,7 @@
 import { type BasePlan } from "../../capabilities/basePlanning/basePlan"
 import { getBaseRoomCostMatrix } from "../../capabilities/movement/roomCostMatrix"
 import { estimatePathTravelTicks } from "../../capabilities/movement/travelTime"
+import { getBotOptions } from "../../options/botOptions"
 import { fromRoomIndex, toRoomIndex } from "../../world/map/roomGrid"
 import { OBSTACLE_OBJECT_TYPES_SET } from "../../world/obstacles"
 import { harvestRoomPlanStore } from "./harvestRoomPlanStore"
@@ -18,9 +19,30 @@ export function getHaulerTravelRuntime(
   runtime.haulerTravelBySource ??= new Map()
 
   const cached = runtime.haulerTravelBySource.get(sourceId)
+  const speedrun = getBotOptions().speedrun
 
-  if (cached?.sourcePath === sourcePath) {
+  if (cached?.sourcePath === sourcePath && cached.speedrun === speedrun) {
     return cached
+  }
+
+  if (speedrun) {
+    const sharedPath = sourcePath.slice(0, -1)
+    const emptyTravelTicks = sharedPath.length
+    const loadedTravelTicks = estimatePathTravelTicks(sharedPath, 1, 1)
+    const result: HaulerTravelRuntime = {
+      sourcePath,
+      speedrun,
+
+      emptyPath: sharedPath,
+      loadedPath: sharedPath,
+
+      emptyTravelTicks,
+      loadedTravelTicks,
+      cycleTravelTicks: emptyTravelTicks + loadedTravelTicks,
+    }
+
+    runtime.haulerTravelBySource.set(sourceId, result)
+    return result
   }
 
   const containerPositionsByRoom = createContainerPositionsByRoom(basePlan.roomName)
@@ -83,6 +105,7 @@ export function getHaulerTravelRuntime(
 
   const result: HaulerTravelRuntime = {
     sourcePath,
+    speedrun,
 
     emptyPath,
     loadedPath,
