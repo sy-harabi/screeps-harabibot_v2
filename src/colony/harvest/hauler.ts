@@ -376,7 +376,7 @@ function runDeliveryFallbacks(
     if (
       hauler.room.name !== room.name ||
       !isRelaySupplier(hauler) ||
-      logistics.handledSuppliers.has(hauler.name)
+      logistics.handledSuppliers?.has(hauler.name) === true
     ) {
       continue
     }
