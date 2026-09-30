@@ -34,7 +34,9 @@ const COMMIT_RANGE = 5
 const unassignedScratch: Creep[] = []
 
 export function runLogistics(room: Room, state: LogisticsState): void {
-  registerColonyRequests(room, state)
+  const speedrun = getBotOptions().speedrun
+
+  registerColonyRequests(room, state, speedrun)
 
   unassignedScratch.length = 0
   reconcileAssignments(state, unassignedScratch)
@@ -42,7 +44,7 @@ export function runLogistics(room: Room, state: LogisticsState): void {
   matchEnergySuppliers(state.energyRequests, unassignedScratch)
   commitMatchedAssignments(state, unassignedScratch)
 
-  runAssignedSuppliers(state)
+  runAssignedSuppliers(state, speedrun)
 }
 
 function reconcileAssignments(state: LogisticsState, unassigned: Creep[]): void {
@@ -149,7 +151,7 @@ function commitMatchedAssignments(state: LogisticsState, suppliers: readonly Cre
   }
 }
 
-function runAssignedSuppliers(state: LogisticsState): void {
+function runAssignedSuppliers(state: LogisticsState, speedrun: boolean): void {
   for (const supplier of state.suppliers.values()) {
     const runtime = getLogisticsSupplierRuntime(supplier.name)
     const targetId = runtime.targetRequestId
@@ -180,7 +182,9 @@ function runAssignedSuppliers(state: LogisticsState): void {
       continue
     }
 
-    clearMoveRequest(supplier)
+    if (speedrun) {
+      clearMoveRequest(supplier)
+    }
 
     const result = supplier.transfer(request.target, RESOURCE_ENERGY)
 
@@ -203,7 +207,7 @@ export function createLogisticsState(): LogisticsState {
   }
 }
 
-function registerColonyRequests(room: Room, state: LogisticsState): void {
+function registerColonyRequests(room: Room, state: LogisticsState, speedrun: boolean): void {
   if (room.energyAvailable < room.energyCapacityAvailable) {
     for (const spawn of getStructuresByType(room, STRUCTURE_SPAWN)) {
       if (!spawn.my) {
@@ -222,7 +226,7 @@ function registerColonyRequests(room: Room, state: LogisticsState): void {
     }
   }
 
-  if (room.storage && !getBotOptions().speedrun) {
+  if (room.storage && !speedrun) {
     requestEnergy(state, room.storage, ENERGY_REQUEST_PRIORITY.storage)
   }
 }
