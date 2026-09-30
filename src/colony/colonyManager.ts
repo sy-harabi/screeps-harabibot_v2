@@ -6,6 +6,7 @@ import type { TickContext } from "../kernel/tickContext"
 import { runBuild } from "./build/build"
 import { runConstruction } from "./build/construction"
 import { runHarvest } from "./harvest/harvest"
+import { runHaulerCoordination } from "./harvest/hauler"
 import { planHarvest } from "./harvest/harvestRoomPlanner"
 import { createLogisticsState, runLogistics } from "./logistics/logistics"
 import { runTowers } from "./tower/tower"
@@ -41,6 +42,19 @@ function runColony(room: Room, context: TickContext): void {
   runTowers(room, logistics)
 
   runLogistics(room, logistics)
+
+  const haulerCoordination = harvest.haulerCoordination
+
+  if (haulerCoordination !== undefined) {
+    runHaulerCoordination(
+      room,
+      basePlan,
+      logistics,
+      haulerCoordination.haulers,
+      haulerCoordination.travelingMiners,
+      haulerCoordination.sourceById,
+    )
+  }
 }
 
 function ensureBasePlan(room: Room): BasePlan | undefined {
