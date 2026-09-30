@@ -1,4 +1,6 @@
 import { moveCreep } from "../../capabilities/movement/movement"
+import { clearMoveRequest } from "../../capabilities/movement/traffic"
+import { getBotOptions } from "../../options/botOptions"
 import { getStructuresByType } from "../../world/roomStructures"
 import { matchEnergySuppliers } from "./logisticsMatcher"
 import { getLogisticsSupplierRuntime, type LogisticsSupplierRuntime } from "./logisticsRuntime"
@@ -6,6 +8,7 @@ import { getLogisticsSupplierRuntime, type LogisticsSupplierRuntime } from "./lo
 export interface LogisticsState {
   readonly suppliers: Map<string, Creep>
   readonly energyRequests: Map<string, EnergyRequest>
+  readonly handledSuppliers: Set<string>
 }
 
 export interface EnergyRequest {
@@ -167,6 +170,8 @@ function runAssignedSuppliers(state: LogisticsState): void {
       continue
     }
 
+    state.handledSuppliers.add(supplier.name)
+
     if (!supplier.pos.isNearTo(request.target)) {
       moveCreep(supplier, {
         pos: request.target.pos,
@@ -174,6 +179,8 @@ function runAssignedSuppliers(state: LogisticsState): void {
       })
       continue
     }
+
+    clearMoveRequest(supplier)
 
     const result = supplier.transfer(request.target, RESOURCE_ENERGY)
 
@@ -192,6 +199,7 @@ export function createLogisticsState(): LogisticsState {
   return {
     suppliers: new Map(),
     energyRequests: new Map(),
+    handledSuppliers: new Set(),
   }
 }
 
@@ -214,7 +222,7 @@ function registerColonyRequests(room: Room, state: LogisticsState): void {
     }
   }
 
-  if (room.storage) {
+  if (room.storage && !getBotOptions().speedrun) {
     requestEnergy(state, room.storage, ENERGY_REQUEST_PRIORITY.storage)
   }
 }
