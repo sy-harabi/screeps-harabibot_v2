@@ -1,9 +1,11 @@
+import type { BasePlan } from "../../capabilities/basePlanning/basePlan"
 import { moveCreep, moveCreepByPath } from "../../capabilities/movement/movement"
 import { swapKnownPathIndex } from "../../capabilities/movement/movementRuntime"
-import { getIntendedCoord } from "../../capabilities/movement/traffic"
+import { clearMoveRequest, getIntendedCoord } from "../../capabilities/movement/traffic"
 import { getBotOptions } from "../../options/botOptions"
 import type { LogisticsState } from "../logistics/logistics"
 import { registerEnergySupplier } from "../logistics/logistics"
+import { getLogisticsSupplierRuntime, swapLogisticsSupplierRuntime } from "../logistics/logisticsRuntime"
 import type { HarvestSourceState } from "./harvest"
 export const HAULER_ROLE = "hauler"
 
@@ -16,6 +18,8 @@ export function runHaulers(
   sourceById: ReadonlyMap<Id<Source>, HarvestSourceState>,
   logistics: LogisticsState,
 ): void {
+  const speedrun = getBotOptions().speedrun
+
   preparePendingEnergy(sourceStates)
 
   for (const hauler of haulers) {
@@ -40,6 +44,18 @@ export function runHaulers(
     if (hauler.memory.delivering) {
       if (hauler.store.getUsedCapacity(RESOURCE_ENERGY) === 0) {
         finishDelivery(hauler, sourceStates, sourceById)
+        continue
+      }
+
+      if (speedrun) {
+        if (!moveAlongLoadedPath(hauler, sourceById) && hauler.room.name !== colonyName) {
+          moveToColony(colonyName, hauler, sourceById)
+        }
+
+        if (hauler.room.name === colonyName) {
+          registerEnergySupplier(logistics, hauler)
+        }
+
         continue
       }
 
@@ -72,6 +88,21 @@ export function runHaulers(
 
     runFetch(colonyName, hauler, source)
   }
+}
+
+function moveAlongLoadedPath(
+  hauler: Creep,
+  sourceById: ReadonlyMap<Id<Source>, HarvestSourceState>,
+): boolean {
+  const sourceId = hauler.memory.sourceId
+  const source = sourceId === undefined ? undefined : sourceById.get(sourceId)
+
+  if (source === undefined) {
+    return false
+  }
+
+  moveCreepByPath(hauler, source.haulerTravel.loadedPath, { reverse: true })
+  return true
 }
 
 function moveToColony(
@@ -229,7 +260,7 @@ function startDelivering(colonyName: string, hauler: Creep, sourceState: Harvest
   delete hauler.memory.searchingEnergy
   hauler.memory.delivering = true
 
-  if (hauler.room.name !== colonyName) {
+  if (getBotOptions().speedrun || hauler.room.name !== colonyName) {
     moveCreepByPath(hauler, sourceState.haulerTravel.loadedPath, { reverse: true })
   }
 }
