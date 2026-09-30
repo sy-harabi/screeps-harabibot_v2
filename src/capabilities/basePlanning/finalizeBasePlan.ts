@@ -365,10 +365,7 @@ function rankTowersForBuildOrder(
   return result
 }
 
-function buildServiceRoadDistanceMap(
-  structures: readonly PlannedStructure[],
-  storage: RoomCoordinate,
-): Int16Array {
+function buildServiceRoadDistanceMap(structures: readonly PlannedStructure[], storage: RoomCoordinate): Int16Array {
   const roadMask = new Uint8Array(ROOM_AREA)
   const distance = new Int16Array(ROOM_AREA)
   const queue = new Int16Array(ROOM_AREA)
