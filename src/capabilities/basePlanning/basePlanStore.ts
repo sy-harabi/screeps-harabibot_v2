@@ -77,6 +77,10 @@ function get(roomName: string): BasePlanReadResult {
 
   const plan = unpackBasePlan(packed)
 
+  if (!hasStorageDistanceMetadata(plan)) {
+    return { status: "missing" }
+  }
+
   basePlanCache.set(roomName, plan)
 
   return {
@@ -97,4 +101,14 @@ function getBasePlanSegmentId(roomName: string): number {
   }
 
   return BASE_PLAN_SEGMENT_IDS[hash % BASE_PLAN_SEGMENT_IDS.length]
+}
+
+function hasStorageDistanceMetadata(plan: BasePlan): boolean {
+  return plan.structures.every((structure) => {
+    if (structure.structureType !== STRUCTURE_EXTENSION && structure.structureType !== STRUCTURE_TOWER) {
+      return true
+    }
+
+    return structure.storageDistance !== undefined
+  })
 }
