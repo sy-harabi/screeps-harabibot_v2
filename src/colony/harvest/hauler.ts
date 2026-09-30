@@ -317,7 +317,7 @@ function assignHauler(
 
     const cycleTravelTicks = Math.max(0, sourceState.haulerTravel.cycleTravelTicks - relayTicks)
 
-    if (hauler.ticksToLive !== undefined && hauler.ticksToLive <= cycleTravelTicks + 20) {
+    if (!getBotOptions().speedrun && hauler.ticksToLive !== undefined && hauler.ticksToLive <= cycleTravelTicks + 20) {
       continue
     }
 
@@ -621,9 +621,7 @@ function resolveRelays(
 
     const fetcherIntended = context.intendedByCreep.get(fetcher.name)
     const isMutualRelay =
-      fetcherIntended !== undefined &&
-      fetcherIntended.x === supplier.pos.x &&
-      fetcherIntended.y === supplier.pos.y
+      fetcherIntended !== undefined && fetcherIntended.x === supplier.pos.x && fetcherIntended.y === supplier.pos.y
 
     if (isMutualRelay) {
       swapKnownPathIndex(fetcher.name, supplier.name)
