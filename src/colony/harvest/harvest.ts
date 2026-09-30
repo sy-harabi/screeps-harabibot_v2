@@ -9,7 +9,7 @@ import type { RoomIntel } from "../../world/intel/roomIntel"
 import type { LogisticsState } from "../logistics/logistics"
 import { harvestRoomPlanStore } from "./harvestRoomPlanStore"
 import { getHarvestRuntime, type HaulerTravelRuntime, type RemoteControllerRuntime } from "./harvestRuntime"
-import { createHaulerBody, HAULER_ROLE, runHaulers } from "./hauler"
+import { createHaulerBody, HAULER_ROLE, runHaulerCoordination, runHaulers } from "./hauler"
 import { getMiningPositions, getSourceContainer } from "./miningSite"
 import { createMinerBody, MINER_ROLE, runMiners } from "./miner"
 import { createReserverBody, RESERVER_ROLE, runReserver } from "./reserver"
@@ -79,8 +79,9 @@ export function runHarvest(
   }
 
   const colonyName = room.name
+  const options = getBotOptions()
   const reserverBody = createReserverBody(room)
-  const roomStates = prepareHarvestRoomStates(room, basePlan, reserverBody)
+  const roomStates = prepareHarvestRoomStates(room, basePlan, reserverBody, options.speedrun)
 
   const roomByName = new Map<string, HarvestRoomState>()
   const sourceStates: HarvestSourceState[] = []
@@ -392,8 +393,14 @@ export function runHarvest(
     }
   }
 
-  runMiners(miners, sourceById)
+  const travelingMiners: Creep[] | undefined = options.speedrun ? [] : undefined
+
+  runMiners(miners, sourceById, travelingMiners)
   runHaulers(colonyName, haulers, sourceStates, sourceById, logistics)
+
+  if (travelingMiners !== undefined) {
+    runHaulerCoordination(haulers, travelingMiners, sourceById)
+  }
 
   for (let i = 0; i < visualSourceRows.length; i++) {
     const source = sourceStates[i]
@@ -406,7 +413,7 @@ export function runHarvest(
 
   const result = { income, maxIncome, spawnUsage }
 
-  if (getBotOptions().visuals.harvest) {
+  if (options.visuals.harvest) {
     visualizeHarvest(room, visualSourceRows, visualReservationRows, result)
   }
 
@@ -490,6 +497,7 @@ function prepareHarvestRoomStates(
   room: Room,
   basePlan: BasePlan,
   reserverBody: readonly BodyPartConstant[] | undefined,
+  speedrun: boolean,
 ): HarvestRoomState[] {
   const colonyName = room.name
   const username = room.controller?.owner?.username
@@ -518,7 +526,7 @@ function prepareHarvestRoomStates(
         continue
       }
 
-      const haulerTravel = getHaulerTravelRuntime(basePlan, sourceIntel.id, sourcePlan.path)
+      const haulerTravel = getHaulerTravelRuntime(basePlan, sourceIntel.id, sourcePlan.path, speedrun)
 
       const miningPositions = getMiningPositions(roomName, sourceIntel.coordinate, sourcePlan.path)
       const container = getSourceContainer(sourcePlan.path)

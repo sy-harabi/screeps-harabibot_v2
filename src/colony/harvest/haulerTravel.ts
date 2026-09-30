@@ -12,6 +12,7 @@ export function getHaulerTravelRuntime(
   basePlan: BasePlan,
   sourceId: Id<Source>,
   sourcePath: readonly RoomPosition[],
+  speedrun: boolean,
 ): HaulerTravelRuntime {
   const runtime = getHarvestRuntime(basePlan.roomName)
 
@@ -19,8 +20,28 @@ export function getHaulerTravelRuntime(
 
   const cached = runtime.haulerTravelBySource.get(sourceId)
 
-  if (cached?.sourcePath === sourcePath) {
+  if (cached?.sourcePath === sourcePath && cached.speedrun === speedrun) {
     return cached
+  }
+
+  if (speedrun) {
+    const sharedPath = sourcePath.slice(0, -1)
+    const emptyTravelTicks = sharedPath.length
+    const loadedTravelTicks = estimatePathTravelTicks(sharedPath, 1, 1)
+    const result: HaulerTravelRuntime = {
+      sourcePath,
+      speedrun,
+
+      emptyPath: sharedPath,
+      loadedPath: sharedPath,
+
+      emptyTravelTicks,
+      loadedTravelTicks,
+      cycleTravelTicks: emptyTravelTicks + loadedTravelTicks,
+    }
+
+    runtime.haulerTravelBySource.set(sourceId, result)
+    return result
   }
 
   const containerPositionsByRoom = createContainerPositionsByRoom(basePlan.roomName)
@@ -83,6 +104,7 @@ export function getHaulerTravelRuntime(
 
   const result: HaulerTravelRuntime = {
     sourcePath,
+    speedrun,
 
     emptyPath,
     loadedPath,

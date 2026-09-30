@@ -1,4 +1,6 @@
 import { moveCreep, moveCreepByPath } from "../../capabilities/movement/movement"
+import { swapKnownPathIndex } from "../../capabilities/movement/movementRuntime"
+import { getIntendedCoord } from "../../capabilities/movement/traffic"
 import { getBotOptions } from "../../options/botOptions"
 import type { LogisticsState } from "../logistics/logistics"
 import { registerEnergySupplier } from "../logistics/logistics"
@@ -298,6 +300,284 @@ function getExpectedEnergyDelta(source: Source, sourceState: HarvestSourceState)
     Math.min(source.energy, sourceState.harvestingPower * regeneration) +
     sourceState.harvestingPower * (travelTicks - regeneration)
   )
+}
+
+interface Coordinate {
+  readonly x: number
+  readonly y: number
+}
+
+interface HaulerCoordinationContext {
+  readonly occupantByPosition: Map<string, Creep>
+  readonly intendedByCreep: Map<string, Coordinate>
+  readonly turnedAround: Set<string>
+}
+
+export function runHaulerCoordination(
+  haulers: readonly Creep[],
+  travelingMiners: readonly Creep[],
+  sourceById: ReadonlyMap<Id<Source>, HarvestSourceState>,
+): void {
+  if (!getBotOptions().speedrun) {
+    return
+  }
+
+  const context = createHaulerCoordinationContext(haulers, travelingMiners)
+
+  resolveTombstoneTurnarounds(context, haulers, sourceById)
+  resolveRelays(context, haulers, sourceById)
+  resolvePullChains(context, haulers, travelingMiners)
+}
+
+function createHaulerCoordinationContext(
+  haulers: readonly Creep[],
+  travelingMiners: readonly Creep[],
+): HaulerCoordinationContext {
+  const occupantByPosition = new Map<string, Creep>()
+  const intendedByCreep = new Map<string, Coordinate>()
+
+  for (const creep of [...haulers, ...travelingMiners]) {
+    occupantByPosition.set(getPositionKey(creep.room.name, creep.pos.x, creep.pos.y), creep)
+
+    const intended = getIntendedCoord(creep)
+
+    if (intended !== undefined) {
+      intendedByCreep.set(creep.name, intended)
+    }
+  }
+
+  return {
+    occupantByPosition,
+    intendedByCreep,
+    turnedAround: new Set(),
+  }
+}
+
+function resolveTombstoneTurnarounds(
+  context: HaulerCoordinationContext,
+  haulers: readonly Creep[],
+  sourceById: ReadonlyMap<Id<Source>, HarvestSourceState>,
+): void {
+  for (const hauler of haulers) {
+    if (!isEmptyFetcher(hauler)) {
+      continue
+    }
+
+    const intended = context.intendedByCreep.get(hauler.name)
+
+    if (intended === undefined || !isAdjacentCoordinate(hauler.pos, intended)) {
+      continue
+    }
+
+    const tombstone = hauler.room
+      .lookForAt(LOOK_TOMBSTONES, intended.x, intended.y)
+      .find((candidate) => candidate.store.getUsedCapacity(RESOURCE_ENERGY) > 0)
+
+    if (tombstone === undefined) {
+      continue
+    }
+
+    const sourceId = hauler.memory.sourceId
+    const source = sourceId === undefined ? undefined : sourceById.get(sourceId)
+
+    if (source === undefined || hauler.withdraw(tombstone, RESOURCE_ENERGY) !== OK) {
+      continue
+    }
+
+    hauler.memory.delivering = true
+    delete hauler.memory.searchingEnergy
+    context.turnedAround.add(hauler.name)
+
+    requestHaulerTravel(hauler, source)
+    refreshIntended(context, hauler)
+  }
+}
+
+function resolveRelays(
+  context: HaulerCoordinationContext,
+  haulers: readonly Creep[],
+  sourceById: ReadonlyMap<Id<Source>, HarvestSourceState>,
+): void {
+  const relayed = new Set<string>()
+
+  for (const fetcher of haulers) {
+    if (context.turnedAround.has(fetcher.name) || relayed.has(fetcher.name) || !isEmptyFetcher(fetcher)) {
+      continue
+    }
+
+    const intended = context.intendedByCreep.get(fetcher.name)
+
+    if (intended === undefined || !isAdjacentCoordinate(fetcher.pos, intended)) {
+      continue
+    }
+
+    const supplier = context.occupantByPosition.get(getPositionKey(fetcher.room.name, intended.x, intended.y))
+
+    if (
+      supplier === undefined ||
+      supplier.name === fetcher.name ||
+      supplier.memory.role !== HAULER_ROLE ||
+      supplier.room.name !== fetcher.room.name ||
+      !fetcher.pos.isNearTo(supplier) ||
+      context.turnedAround.has(supplier.name) ||
+      relayed.has(supplier.name) ||
+      !isRelaySupplier(supplier) ||
+      supplier.store.getCapacity(RESOURCE_ENERGY) !== fetcher.store.getCapacity(RESOURCE_ENERGY)
+    ) {
+      continue
+    }
+
+    const supplierIntended = context.intendedByCreep.get(supplier.name)
+
+    if (
+      supplierIntended === undefined ||
+      supplierIntended.x !== fetcher.pos.x ||
+      supplierIntended.y !== fetcher.pos.y
+    ) {
+      continue
+    }
+
+    const fetcherSourceId = fetcher.memory.sourceId
+    const supplierSourceId = supplier.memory.sourceId
+
+    if (fetcherSourceId === undefined || supplierSourceId === undefined) {
+      continue
+    }
+
+    const fetcherSource = sourceById.get(fetcherSourceId)
+    const supplierSource = sourceById.get(supplierSourceId)
+
+    if (
+      fetcherSource === undefined ||
+      supplierSource === undefined ||
+      supplier.transfer(fetcher, RESOURCE_ENERGY) !== OK
+    ) {
+      continue
+    }
+
+    fetcher.memory.sourceId = supplierSourceId
+    fetcher.memory.delivering = true
+    delete fetcher.memory.searchingEnergy
+
+    supplier.memory.sourceId = fetcherSourceId
+    delete supplier.memory.delivering
+    delete supplier.memory.searchingEnergy
+
+    swapKnownPathIndex(fetcher.name, supplier.name)
+
+    requestHaulerTravel(fetcher, supplierSource)
+    requestHaulerTravel(supplier, fetcherSource)
+    refreshIntended(context, fetcher)
+    refreshIntended(context, supplier)
+
+    relayed.add(fetcher.name)
+    relayed.add(supplier.name)
+  }
+}
+
+function resolvePullChains(
+  context: HaulerCoordinationContext,
+  haulers: readonly Creep[],
+  travelingMiners: readonly Creep[],
+): void {
+  const travelingMinerNames = new Set(travelingMiners.map((miner) => miner.name))
+  const followerByFront = new Map<string, Creep>()
+
+  for (const hauler of haulers) {
+    if (!isEmptyFetcher(hauler)) {
+      continue
+    }
+
+    const intended = context.intendedByCreep.get(hauler.name)
+
+    if (intended === undefined || !isAdjacentCoordinate(hauler.pos, intended)) {
+      continue
+    }
+
+    const front = context.occupantByPosition.get(getPositionKey(hauler.room.name, intended.x, intended.y))
+
+    if (
+      front === undefined ||
+      front.name === hauler.name ||
+      front.room.name !== hauler.room.name ||
+      !hauler.pos.isNearTo(front) ||
+      (!travelingMinerNames.has(front.name) && !isEmptyFetcher(front))
+    ) {
+      continue
+    }
+
+    const existing = followerByFront.get(front.name)
+
+    if (existing === undefined || hauler.name.localeCompare(existing.name) < 0) {
+      followerByFront.set(front.name, hauler)
+    }
+  }
+
+  for (const miner of travelingMiners) {
+    const visited = new Set<string>()
+    let front: Creep = miner
+
+    while (!visited.has(front.name)) {
+      visited.add(front.name)
+
+      const follower = followerByFront.get(front.name)
+
+      if (follower === undefined) {
+        break
+      }
+
+      front.pull(follower)
+      front = follower
+    }
+  }
+}
+
+function isEmptyFetcher(hauler: Creep): boolean {
+  return (
+    hauler.memory.role === HAULER_ROLE &&
+    !hauler.spawning &&
+    !hauler.memory.delivering &&
+    !hauler.memory.searchingEnergy &&
+    hauler.memory.sourceId !== undefined &&
+    hauler.store.getUsedCapacity() === 0
+  )
+}
+
+function isRelaySupplier(hauler: Creep): boolean {
+  return (
+    !hauler.spawning &&
+    hauler.memory.delivering === true &&
+    hauler.memory.sourceId !== undefined &&
+    hauler.store.getUsedCapacity(RESOURCE_ENERGY) > 0
+  )
+}
+
+function requestHaulerTravel(hauler: Creep, source: HarvestSourceState): void {
+  if (hauler.memory.delivering) {
+    moveCreepByPath(hauler, source.haulerTravel.loadedPath, { reverse: true })
+    return
+  }
+
+  moveCreepByPath(hauler, source.haulerTravel.emptyPath)
+}
+
+function refreshIntended(context: HaulerCoordinationContext, creep: Creep): void {
+  const intended = getIntendedCoord(creep)
+
+  if (intended === undefined) {
+    context.intendedByCreep.delete(creep.name)
+    return
+  }
+
+  context.intendedByCreep.set(creep.name, intended)
+}
+
+function isAdjacentCoordinate(pos: RoomPosition, coordinate: Coordinate): boolean {
+  return Math.max(Math.abs(pos.x - coordinate.x), Math.abs(pos.y - coordinate.y)) <= 1
+}
+
+function getPositionKey(roomName: string, x: number, y: number): string {
+  return `${roomName}:${x}:${y}`
 }
 
 export function createHaulerBody(room: Room): readonly BodyPartConstant[] | undefined {
