@@ -332,11 +332,7 @@ function assignHauler(
   return false
 }
 
-function getExpectedEnergyDelta(
-  source: Source,
-  sourceState: HarvestSourceState,
-  travelTicks: number,
-): number {
+function getExpectedEnergyDelta(source: Source, sourceState: HarvestSourceState, travelTicks: number): number {
   const regeneration = source.ticksToRegeneration ?? ENERGY_REGEN_TIME
 
   if (travelTicks < regeneration) {
