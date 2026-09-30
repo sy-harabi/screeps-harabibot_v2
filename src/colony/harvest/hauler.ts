@@ -390,10 +390,29 @@ export function runHaulerCoordination(
   sourceStates: readonly HarvestSourceState[],
   sourceById: ReadonlyMap<Id<Source>, HarvestSourceState>,
 ): void {
-  finishLogisticsDeliveries(logistics, haulers, sourceStates, sourceById)
-  runDeliveryFallbacks(room, basePlan, logistics, haulers, sourceById)
+  const sourceHaulerCounts = countSourceHaulers(haulers)
+  const relayEnabled = getBotOptions().speedrun
 
-  if (!getBotOptions().speedrun) {
+  finishLogisticsDeliveries(
+    logistics,
+    haulers,
+    sourceStates,
+    sourceById,
+    sourceHaulerCounts,
+    relayEnabled,
+  )
+  runDeliveryFallbacks(
+    room,
+    basePlan,
+    logistics,
+    haulers,
+    sourceStates,
+    sourceById,
+    sourceHaulerCounts,
+    relayEnabled,
+  )
+
+  if (!relayEnabled) {
     return
   }
 
@@ -409,15 +428,14 @@ function finishLogisticsDeliveries(
   haulers: readonly Creep[],
   sourceStates: readonly HarvestSourceState[],
   sourceById: ReadonlyMap<Id<Source>, HarvestSourceState>,
+  sourceHaulerCounts: Map<Id<Source>, number>,
+  relayEnabled: boolean,
 ): void {
   const emptiedSuppliers = logistics.emptiedSuppliers
 
   if (emptiedSuppliers === undefined || emptiedSuppliers.size === 0) {
     return
   }
-
-  const sourceHaulerCounts = countSourceHaulers(haulers)
-  const relayEnabled = getBotOptions().speedrun
 
   for (const hauler of haulers) {
     if (!emptiedSuppliers.has(hauler.name) || !hauler.memory.delivering) {
@@ -433,8 +451,14 @@ function runDeliveryFallbacks(
   basePlan: BasePlan,
   logistics: LogisticsState,
   haulers: readonly Creep[],
+  sourceStates: readonly HarvestSourceState[],
   sourceById: ReadonlyMap<Id<Source>, HarvestSourceState>,
+  sourceHaulerCounts: Map<Id<Source>, number>,
+  relayEnabled: boolean,
 ): void {
+  const fallbackTarget = room.storage ?? getStorageContainer(room, basePlan)
+  let fallbackFreeCapacity = fallbackTarget?.store.getFreeCapacity(RESOURCE_ENERGY)
+
   for (const hauler of haulers) {
     if (
       hauler.room.name !== room.name ||
@@ -457,43 +481,88 @@ function runDeliveryFallbacks(
       continue
     }
 
-    runHomeFallbackAction(room, basePlan, hauler)
+    fallbackFreeCapacity = runHomeFallbackAction(
+      room,
+      basePlan,
+      hauler,
+      sourceStates,
+      sourceById,
+      sourceHaulerCounts,
+      relayEnabled,
+      fallbackFreeCapacity,
+    )
   }
 }
 
-function runHomeFallbackAction(room: Room, basePlan: BasePlan, hauler: Creep): void {
+function runHomeFallbackAction(
+  room: Room,
+  basePlan: BasePlan,
+  hauler: Creep,
+  sourceStates: readonly HarvestSourceState[],
+  sourceById: ReadonlyMap<Id<Source>, HarvestSourceState>,
+  sourceHaulerCounts: Map<Id<Source>, number>,
+  relayEnabled: boolean,
+  fallbackFreeCapacity: number | undefined,
+): number | undefined {
+  const energy = hauler.store.getUsedCapacity(RESOURCE_ENERGY)
   const storage = room.storage
 
   if (storage !== undefined) {
-    if (storage.store.getFreeCapacity(RESOURCE_ENERGY) > 0 && hauler.pos.getRangeTo(storage) <= 1) {
+    const freeCapacity = fallbackFreeCapacity ?? storage.store.getFreeCapacity(RESOURCE_ENERGY)
+
+    if (freeCapacity > 0 && hauler.pos.getRangeTo(storage) <= 1) {
+      const transferAmount = Math.min(energy, freeCapacity)
+
       clearMoveRequest(hauler)
-      hauler.transfer(storage, RESOURCE_ENERGY)
+
+      if (hauler.transfer(storage, RESOURCE_ENERGY, transferAmount) === OK) {
+        if (transferAmount >= energy) {
+          finishDelivery(hauler, sourceStates, sourceById, sourceHaulerCounts, relayEnabled)
+        }
+
+        return freeCapacity - transferAmount
+      }
     }
 
-    return
+    return freeCapacity
   }
 
   const storagePos = new RoomPosition(basePlan.storage.x, basePlan.storage.y, room.name)
   const container = getStorageContainer(room, basePlan)
+  const freeCapacity = fallbackFreeCapacity ?? container?.store.getFreeCapacity(RESOURCE_ENERGY)
 
-  if (container !== undefined && container.store.getFreeCapacity(RESOURCE_ENERGY) > 0) {
+  if (container !== undefined && freeCapacity !== undefined && freeCapacity > 0) {
     if (hauler.pos.getRangeTo(container) <= 1) {
+      const transferAmount = Math.min(energy, freeCapacity)
+
       clearMoveRequest(hauler)
-      hauler.transfer(container, RESOURCE_ENERGY)
+
+      if (hauler.transfer(container, RESOURCE_ENERGY, transferAmount) === OK) {
+        if (transferAmount >= energy) {
+          finishDelivery(hauler, sourceStates, sourceById, sourceHaulerCounts, relayEnabled)
+        }
+
+        return freeCapacity - transferAmount
+      }
     } else {
       moveCreep(hauler, { pos: container.pos, range: 1 }, HAULER_MOVE_OPTIONS)
     }
 
-    return
+    return freeCapacity
   }
 
   if (hauler.pos.isEqualTo(storagePos)) {
     clearMoveRequest(hauler)
-    hauler.drop(RESOURCE_ENERGY)
-    return
+
+    if (hauler.drop(RESOURCE_ENERGY) === OK) {
+      finishDelivery(hauler, sourceStates, sourceById, sourceHaulerCounts, relayEnabled)
+    }
+
+    return freeCapacity
   }
 
   moveCreep(hauler, { pos: storagePos, range: 0 }, HAULER_MOVE_OPTIONS)
+  return freeCapacity
 }
 
 function getStorageContainer(room: Room, basePlan: BasePlan): StructureContainer | undefined {
