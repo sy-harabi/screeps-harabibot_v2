@@ -302,15 +302,21 @@ function getUpgradeEnergyDepot(
     return room.storage
   }
 
+  const droppedEnergy = room
+    .lookForAt(LOOK_RESOURCES, basePlan.storage.x, basePlan.storage.y)
+    .find((resource) => resource.resourceType === RESOURCE_ENERGY)
+
+  if (droppedEnergy) {
+    return droppedEnergy
+  }
+
   for (const container of getStructuresByType(room, STRUCTURE_CONTAINER)) {
     if (container.pos.x === basePlan.storage.x && container.pos.y === basePlan.storage.y) {
       return container
     }
   }
 
-  return room
-    .lookForAt(LOOK_RESOURCES, basePlan.storage.x, basePlan.storage.y)
-    .find((resource) => resource.resourceType === RESOURCE_ENERGY)
+  return
 }
 
 function getUpgradeLayout(basePlan: BasePlan, rcl: number): UpgradeLayout {
