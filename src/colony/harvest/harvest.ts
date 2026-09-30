@@ -9,7 +9,7 @@ import type { RoomIntel } from "../../world/intel/roomIntel"
 import type { LogisticsState } from "../logistics/logistics"
 import { harvestRoomPlanStore } from "./harvestRoomPlanStore"
 import { getHarvestRuntime, type HaulerTravelRuntime, type RemoteControllerRuntime } from "./harvestRuntime"
-import { createHaulerBody, HAULER_ROLE, runHaulerCoordination, runHaulers } from "./hauler"
+import { createHaulerBody, getRequiredCarryCapacity, HAULER_ROLE, runHaulerCoordination, runHaulers } from "./hauler"
 import { getMiningPositions, getSourceContainer } from "./miningSite"
 import { createMinerBody, MINER_ROLE, runMiners } from "./miner"
 import { createReserverBody, RESERVER_ROLE, runReserver } from "./reserver"
@@ -249,6 +249,7 @@ export function runHarvest(
       targetMinerWork,
       container !== undefined,
       source.haulerTravel.cycleTravelTicks,
+      options.speedrun ? source.haulerTravel.emptyPath.length : undefined,
     )
 
     let sourceIncome: number | undefined
@@ -550,7 +551,11 @@ function prepareHarvestRoomStates(
 
         miningPositions,
         requiredHarvestPower,
-        requiredCarryCapacity: haulerTravel.cycleTravelTicks * requiredHarvestPower,
+        requiredCarryCapacity: getRequiredCarryCapacity(
+          requiredHarvestPower,
+          haulerTravel.cycleTravelTicks,
+          speedrun ? haulerTravel.emptyPath.length : undefined,
+        ),
         container,
         containerEnergy: container?.store.getUsedCapacity(RESOURCE_ENERGY) ?? 0,
         droppedEnergy,

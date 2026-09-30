@@ -7,7 +7,7 @@ import { registerEnergySupplier } from "../logistics/logistics"
 import type { HarvestSourceState } from "./harvest"
 export const HAULER_ROLE = "hauler"
 
-const SPEEDRUN_HAULER_MAX_CARRY = 3
+const SPEEDRUN_HAULER_MAX_CARRY = 2
 
 export function runHaulers(
   colonyName: string,
@@ -578,6 +578,24 @@ function isAdjacentCoordinate(pos: RoomPosition, coordinate: Coordinate): boolea
 
 function getPositionKey(roomName: string, x: number, y: number): string {
   return `${roomName}:${x}:${y}`
+}
+
+export function getRequiredCarryCapacity(
+  energyPerTick: number,
+  cycleTravelTicks: number,
+  relayPathLength?: number,
+): number {
+  if (relayPathLength === undefined) {
+    return cycleTravelTicks * energyPerTick
+  }
+
+  if (energyPerTick <= 0 || relayPathLength <= 0) {
+    return 0
+  }
+
+  const haulerCapacity = SPEEDRUN_HAULER_MAX_CARRY * CARRY_CAPACITY
+
+  return (haulerCapacity * relayPathLength * (Math.sqrt(1 + (8 * energyPerTick) / haulerCapacity) - 1)) / 2
 }
 
 export function createHaulerBody(room: Room): readonly BodyPartConstant[] | undefined {
