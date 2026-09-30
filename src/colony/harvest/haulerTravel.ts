@@ -1,7 +1,6 @@
 import { type BasePlan } from "../../capabilities/basePlanning/basePlan"
 import { getBaseRoomCostMatrix } from "../../capabilities/movement/roomCostMatrix"
 import { estimatePathTravelTicks } from "../../capabilities/movement/travelTime"
-import { getBotOptions } from "../../options/botOptions"
 import { fromRoomIndex, toRoomIndex } from "../../world/map/roomGrid"
 import { OBSTACLE_OBJECT_TYPES_SET } from "../../world/obstacles"
 import { harvestRoomPlanStore } from "./harvestRoomPlanStore"
@@ -13,13 +12,13 @@ export function getHaulerTravelRuntime(
   basePlan: BasePlan,
   sourceId: Id<Source>,
   sourcePath: readonly RoomPosition[],
+  speedrun: boolean,
 ): HaulerTravelRuntime {
   const runtime = getHarvestRuntime(basePlan.roomName)
 
   runtime.haulerTravelBySource ??= new Map()
 
   const cached = runtime.haulerTravelBySource.get(sourceId)
-  const speedrun = getBotOptions().speedrun
 
   if (cached?.sourcePath === sourcePath && cached.speedrun === speedrun) {
     return cached
