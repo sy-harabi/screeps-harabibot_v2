@@ -1,5 +1,6 @@
 import { moveCreep, moveCreepByPath } from "../../capabilities/movement/movement"
 import { estimatePathTravelTicks } from "../../capabilities/movement/travelTime"
+import { getIntendedCoord } from "../../capabilities/movement/traffic"
 import { runtimeRegistry } from "../../runtime/runtimeRegistry"
 import type { HarvestSourceState } from "./harvest"
 
@@ -33,7 +34,11 @@ export const MINER_ROLE = "miner"
 
 type RunMinerResult = "harvesting" | "moving"
 
-export function runMiners(miners: readonly Creep[], sourceById: ReadonlyMap<Id<Source>, HarvestSourceState>): void {
+export function runMiners(
+  miners: readonly Creep[],
+  sourceById: ReadonlyMap<Id<Source>, HarvestSourceState>,
+  travelingMiners?: Creep[],
+): void {
   for (const miner of miners) {
     const sourceId = miner.memory.sourceId
 
@@ -47,8 +52,15 @@ export function runMiners(miners: readonly Creep[], sourceById: ReadonlyMap<Id<S
       continue
     }
 
-    if (runMiner(miner, source) === "harvesting") {
+    const result = runMiner(miner, source)
+
+    if (result === "harvesting") {
       source.harvestingPower += miner.getActiveBodyparts(WORK) * HARVEST_POWER
+      continue
+    }
+
+    if (travelingMiners !== undefined && (miner.fatigue > 0 || getIntendedCoord(miner) !== undefined)) {
+      travelingMiners.push(miner)
     }
   }
 }
