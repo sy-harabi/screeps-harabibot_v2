@@ -7,7 +7,6 @@ import { getBotOptions } from "../../options/botOptions"
 import { intelStore } from "../../world/intel/intelStore"
 import type { RoomIntel } from "../../world/intel/roomIntel"
 import type { LogisticsState } from "../logistics/logistics"
-import { HARVEST_PATH_PLANNER_VERSION } from "./harvestRoomPlan"
 import { planHarvest } from "./harvestRoomPlanner"
 import { harvestRoomPlanStore } from "./harvestRoomPlanStore"
 import { getHarvestRuntime, type HaulerTravelRuntime, type RemoteControllerRuntime } from "./harvestRuntime"
@@ -91,11 +90,7 @@ export function runHarvest(
   const colonyName = room.name
   const colonyPlan = harvestRoomPlanStore.get(colonyName)
 
-  if (
-    colonyPlan === undefined ||
-    colonyPlan.basePlanRevision !== basePlan.revision ||
-    colonyPlan.plannerVersion !== HARVEST_PATH_PLANNER_VERSION
-  ) {
+  if (colonyPlan === undefined || colonyPlan.basePlanRevision !== basePlan.revision) {
     planHarvest(colonyName, basePlan)
   }
 
@@ -434,14 +429,11 @@ export function runHarvest(
     income,
     maxIncome,
     spawnUsage,
-    haulerCoordination:
-      travelingMiners === undefined
-        ? undefined
-        : {
-            haulers,
-            travelingMiners,
-            sourceById,
-          },
+    haulerCoordination: {
+      haulers,
+      travelingMiners: travelingMiners ?? [],
+      sourceById,
+    },
   }
 
   if (options.visuals.harvest) {
