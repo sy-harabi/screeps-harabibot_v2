@@ -90,10 +90,7 @@ export function runHaulers(
   }
 }
 
-function moveAlongLoadedPath(
-  hauler: Creep,
-  sourceById: ReadonlyMap<Id<Source>, HarvestSourceState>,
-): boolean {
+function moveAlongLoadedPath(hauler: Creep, sourceById: ReadonlyMap<Id<Source>, HarvestSourceState>): boolean {
   const sourceId = hauler.memory.sourceId
   const source = sourceId === undefined ? undefined : sourceById.get(sourceId)
 
