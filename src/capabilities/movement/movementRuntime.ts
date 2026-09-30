@@ -11,6 +11,7 @@ export interface MovementRuntime {
 
   knownPathIndex?: number
   avoidSourceKeepers?: boolean
+  pathPolicy?: string
 }
 
 const movementRuntimes = runtimeRegistry.createCache<string, MovementRuntime>("movement.creeps", {
