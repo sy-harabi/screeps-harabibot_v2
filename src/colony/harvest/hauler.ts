@@ -534,6 +534,7 @@ function resolvePullChains(
 
 function isEmptyFetcher(hauler: Creep): boolean {
   return (
+    hauler.memory.role === HAULER_ROLE &&
     !hauler.spawning &&
     !hauler.memory.delivering &&
     !hauler.memory.searchingEnergy &&
