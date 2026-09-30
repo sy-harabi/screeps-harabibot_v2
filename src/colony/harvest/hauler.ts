@@ -5,7 +5,7 @@ import {
   type MoveByPathOptions,
   type MoveOptions,
 } from "../../capabilities/movement/movement"
-import { swapKnownPathIndex } from "../../capabilities/movement/movementRuntime"
+import { handoffKnownPathIndex, swapKnownPathIndex } from "../../capabilities/movement/movementRuntime"
 import { clearMoveRequest, getIntendedCoord } from "../../capabilities/movement/traffic"
 import { getBotOptions } from "../../options/botOptions"
 import type { LogisticsState } from "../logistics/logistics"
@@ -567,39 +567,28 @@ function resolveRelays(
 ): void {
   const relayed = new Set<string>()
 
-  for (const fetcher of haulers) {
-    if (context.turnedAround.has(fetcher.name) || relayed.has(fetcher.name) || !isEmptyFetcher(fetcher)) {
+  for (const supplier of haulers) {
+    if (context.turnedAround.has(supplier.name) || relayed.has(supplier.name) || !isRelaySupplier(supplier)) {
       continue
     }
 
-    const intended = context.intendedByCreep.get(fetcher.name)
+    const intended = context.intendedByCreep.get(supplier.name)
 
-    if (intended === undefined || !isAdjacentCoordinate(fetcher.pos, intended)) {
+    if (intended === undefined || !isAdjacentCoordinate(supplier.pos, intended)) {
       continue
     }
 
-    const supplier = context.occupantByPosition.get(getPositionKey(fetcher.room.name, intended.x, intended.y))
+    const fetcher = context.occupantByPosition.get(getPositionKey(supplier.room.name, intended.x, intended.y))
 
     if (
-      supplier === undefined ||
-      supplier.name === fetcher.name ||
-      supplier.memory.role !== HAULER_ROLE ||
-      supplier.room.name !== fetcher.room.name ||
-      !fetcher.pos.isNearTo(supplier) ||
-      context.turnedAround.has(supplier.name) ||
-      relayed.has(supplier.name) ||
-      !isRelaySupplier(supplier) ||
+      fetcher === undefined ||
+      fetcher.name === supplier.name ||
+      fetcher.room.name !== supplier.room.name ||
+      !supplier.pos.isNearTo(fetcher) ||
+      context.turnedAround.has(fetcher.name) ||
+      relayed.has(fetcher.name) ||
+      !isEmptyFetcher(fetcher) ||
       supplier.store.getCapacity(RESOURCE_ENERGY) !== fetcher.store.getCapacity(RESOURCE_ENERGY)
-    ) {
-      continue
-    }
-
-    const supplierIntended = context.intendedByCreep.get(supplier.name)
-
-    if (
-      supplierIntended === undefined ||
-      supplierIntended.x !== fetcher.pos.x ||
-      supplierIntended.y !== fetcher.pos.y
     ) {
       continue
     }
@@ -630,7 +619,18 @@ function resolveRelays(
     delete supplier.memory.delivering
     delete supplier.memory.searchingEnergy
 
-    swapKnownPathIndex(fetcher.name, supplier.name)
+    const fetcherIntended = context.intendedByCreep.get(fetcher.name)
+    const isMutualRelay =
+      fetcherIntended !== undefined &&
+      fetcherIntended.x === supplier.pos.x &&
+      fetcherIntended.y === supplier.pos.y
+
+    if (isMutualRelay) {
+      swapKnownPathIndex(fetcher.name, supplier.name)
+    } else {
+      handoffKnownPathIndex(supplier.name, fetcher.name)
+    }
+
     swapLogisticsSupplierRuntime(fetcher.name, supplier.name)
 
     requestHaulerMovement(room, basePlan, logistics, fetcher, supplierSource)
