@@ -57,8 +57,14 @@ export function applyHaulerSourceCosts(matrix: CostMatrix, roomName: string): vo
     return
   }
 
+  const terrain = Game.map.getRoomTerrain(roomName)
+
   for (const source of intel.sources) {
     forEachCoordinateAtRange(source.coordinate, 1, (x, y) => {
+      if (terrain.get(x, y) === TERRAIN_MASK_WALL) {
+        return
+      }
+
       const currentCost = matrix.get(x, y)
 
       if (currentCost === 255 || currentCost >= SOURCE_ADJACENT_COST) {

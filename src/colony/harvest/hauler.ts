@@ -345,11 +345,11 @@ export function runHaulerCoordination(
   travelingMiners: readonly Creep[],
   sourceById: ReadonlyMap<Id<Source>, HarvestSourceState>,
 ): void {
+  runDeliveryFallbacks(room, basePlan, logistics, haulers, sourceById)
+
   if (!getBotOptions().speedrun) {
     return
   }
-
-  runDeliveryFallbacks(room, basePlan, logistics, haulers, sourceById)
 
   const context = createHaulerCoordinationContext(haulers, travelingMiners)
 
