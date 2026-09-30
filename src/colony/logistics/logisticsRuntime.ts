@@ -3,6 +3,7 @@ import { runtimeRegistry } from "../../runtime/runtimeRegistry"
 export interface LogisticsSupplierRuntime {
   targetRequestId?: string
   committed?: boolean
+  committedAmount?: number
 }
 
 const supplierRuntimes = runtimeRegistry.createCache<string, LogisticsSupplierRuntime>("logistics.suppliers", {
@@ -33,10 +34,13 @@ export function swapLogisticsSupplierRuntime(firstName: string, secondName: stri
 
   const firstTargetRequestId = first.targetRequestId
   const firstCommitted = first.committed
+  const firstCommittedAmount = first.committedAmount
 
   first.targetRequestId = second.targetRequestId
   first.committed = second.committed
+  first.committedAmount = second.committedAmount
 
   second.targetRequestId = firstTargetRequestId
   second.committed = firstCommitted
+  second.committedAmount = firstCommittedAmount
 }

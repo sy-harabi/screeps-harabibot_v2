@@ -387,8 +387,10 @@ export function runHaulerCoordination(
   logistics: LogisticsState,
   haulers: readonly Creep[],
   travelingMiners: readonly Creep[],
+  sourceStates: readonly HarvestSourceState[],
   sourceById: ReadonlyMap<Id<Source>, HarvestSourceState>,
 ): void {
+  finishLogisticsDeliveries(logistics, haulers, sourceStates, sourceById)
   runDeliveryFallbacks(room, basePlan, logistics, haulers, sourceById)
 
   if (!getBotOptions().speedrun) {
@@ -400,6 +402,30 @@ export function runHaulerCoordination(
   resolveTombstoneTurnarounds(context, room, basePlan, logistics, haulers, sourceById)
   resolveRelays(context, room, basePlan, logistics, haulers, sourceById)
   resolvePullChains(context, haulers, travelingMiners)
+}
+
+function finishLogisticsDeliveries(
+  logistics: LogisticsState,
+  haulers: readonly Creep[],
+  sourceStates: readonly HarvestSourceState[],
+  sourceById: ReadonlyMap<Id<Source>, HarvestSourceState>,
+): void {
+  const emptiedSuppliers = logistics.emptiedSuppliers
+
+  if (emptiedSuppliers === undefined || emptiedSuppliers.size === 0) {
+    return
+  }
+
+  const sourceHaulerCounts = countSourceHaulers(haulers)
+  const relayEnabled = getBotOptions().speedrun
+
+  for (const hauler of haulers) {
+    if (!emptiedSuppliers.has(hauler.name) || !hauler.memory.delivering) {
+      continue
+    }
+
+    finishDelivery(hauler, sourceStates, sourceById, sourceHaulerCounts, relayEnabled)
+  }
 }
 
 function runDeliveryFallbacks(

@@ -54,6 +54,7 @@ function runColony(room: Room, context: TickContext): void {
       logistics,
       haulerCoordination.haulers,
       haulerCoordination.travelingMiners,
+      haulerCoordination.sourceStates,
       haulerCoordination.sourceById,
     )
   }

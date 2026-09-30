@@ -64,6 +64,7 @@ export interface HarvestSourceState {
 export interface HaulerCoordinationState {
   readonly haulers: readonly Creep[]
   readonly travelingMiners: readonly Creep[]
+  readonly sourceStates: readonly HarvestSourceState[]
   readonly sourceById: ReadonlyMap<Id<Source>, HarvestSourceState>
 }
 
@@ -432,6 +433,7 @@ export function runHarvest(
     haulerCoordination: {
       haulers,
       travelingMiners: travelingMiners ?? [],
+      sourceStates,
       sourceById,
     },
   }

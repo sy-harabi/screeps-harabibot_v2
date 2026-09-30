@@ -152,6 +152,7 @@ function writeAssignments(suppliers: readonly Creep[], supplierCount: number): v
 
     runtime.targetRequestId = request.id
     runtime.committed = false
+    runtime.committedAmount = undefined
   }
 }
 

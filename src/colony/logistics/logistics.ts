@@ -8,6 +8,7 @@ export interface LogisticsState {
   readonly suppliers: Map<string, Creep>
   readonly energyRequests: Map<string, EnergyRequest>
   handledSuppliers?: Set<string>
+  emptiedSuppliers?: Set<string>
   supplierMoveOptions?: Map<string, MoveOptions>
 }
 
@@ -34,6 +35,7 @@ const unassignedScratch: Creep[] = []
 
 export function runLogistics(room: Room, state: LogisticsState): void {
   state.handledSuppliers = new Set()
+  state.emptiedSuppliers = new Set()
 
   registerColonyRequests(room, state)
 
@@ -70,6 +72,7 @@ function reconcileAssignments(state: LogisticsState, unassigned: Creep[]): void 
       continue
     }
 
+    runtime.committedAmount = reserved
     request.remainingAmount -= reserved
   }
 
@@ -106,8 +109,11 @@ function reconcileAssignments(state: LogisticsState, unassigned: Creep[]): void 
       supplier.pos.roomName === request.target.pos.roomName &&
       supplier.pos.getRangeTo(request.target.pos) <= COMMIT_RANGE
     ) {
+      const reserved = Math.min(energy, request.remainingAmount)
+
       runtime.committed = true
-      request.remainingAmount -= Math.min(energy, request.remainingAmount)
+      runtime.committedAmount = reserved
+      request.remainingAmount -= reserved
       continue
     }
 
@@ -146,6 +152,7 @@ function commitMatchedAssignments(state: LogisticsState, suppliers: readonly Cre
     }
 
     runtime.committed = true
+    runtime.committedAmount = reserved
     request.remainingAmount -= reserved
   }
 }
@@ -187,9 +194,18 @@ function runAssignedSuppliers(state: LogisticsState): void {
 
     clearMoveRequest(supplier)
 
-    const result = supplier.transfer(request.target, RESOURCE_ENERGY)
+    const energy = supplier.store.getUsedCapacity(RESOURCE_ENERGY)
+    const transferAmount = runtime.committedAmount
+    const result =
+      transferAmount === undefined
+        ? supplier.transfer(request.target, RESOURCE_ENERGY)
+        : supplier.transfer(request.target, RESOURCE_ENERGY, transferAmount)
 
     if (result === OK) {
+      if (transferAmount !== undefined && transferAmount >= energy) {
+        state.emptiedSuppliers?.add(supplier.name)
+      }
+
       clearAssignment(runtime)
     }
   }
@@ -198,6 +214,7 @@ function runAssignedSuppliers(state: LogisticsState): void {
 function clearAssignment(runtime: LogisticsSupplierRuntime): void {
   runtime.targetRequestId = undefined
   runtime.committed = false
+  runtime.committedAmount = undefined
 }
 
 export function createLogisticsState(): LogisticsState {
