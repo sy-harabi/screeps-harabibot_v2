@@ -44,3 +44,11 @@ export function swapKnownPathIndex(firstName: string, secondName: string): void 
   first.knownPathIndex = second.knownPathIndex
   second.knownPathIndex = firstIndex
 }
+
+export function handoffKnownPathIndex(fromName: string, toName: string): void {
+  const from = getMovementRuntime(fromName)
+  const to = getMovementRuntime(toName)
+
+  to.knownPathIndex = from.knownPathIndex
+  from.knownPathIndex = undefined
+}
