@@ -1,10 +1,10 @@
-import { type BasePlan } from "../../capabilities/basePlanning/basePlan"
+import { type BasePlan, type PlannedStructure } from "../../capabilities/basePlanning/basePlan"
 import { hasConstructionSiteBudget, tryCreateConstructionSite } from "../../capabilities/construction/constructionSite"
 import { getBaseRoomCostMatrix } from "../../capabilities/movement/roomCostMatrix"
 import { registerMove } from "../../capabilities/movement/traffic"
 import { getBotOptions, getRampartBuildRcl } from "../../options/botOptions"
 import { runtimeRegistry } from "../../runtime/runtimeRegistry"
-import { NEIGHBOR_OFFSETS } from "../../world/map/roomGrid"
+import { isInsideRoom, NEIGHBOR_OFFSETS, ROOM_AREA, toRoomIndex } from "../../world/map/roomGrid"
 import { OBSTACLE_OBJECT_TYPES_SET } from "../../world/obstacles"
 import { getRoomStructures, getStructuresByType } from "../../world/roomStructures"
 
@@ -18,12 +18,14 @@ interface ConstructionCandidate {
   x: number
   y: number
   priority: number
+  order: number
   bootstrap?: "storageContainer"
 }
 
 const MAX_ACTIVE_SITES = 3
 const COMPLETE_RECHECK_INTERVAL = 500
 const RETRY_INTERVAL = 20
+const SOURCE_PATH_EXTENSION_BONUS = 4
 
 const BUILD_PRIORITY: Partial<Record<BuildableStructureConstant, number>> = {
   [STRUCTURE_SPAWN]: 0,
@@ -63,7 +65,11 @@ const constructionRuntimes = runtimeRegistry.createCache<string, ConstructionRun
   },
 })
 
-export function runConstruction(room: Room, basePlan: BasePlan): ConstructionState {
+export function runConstruction(
+  room: Room,
+  basePlan: BasePlan,
+  activeSourcePaths: readonly (readonly RoomPosition[])[] | undefined,
+): ConstructionState {
   const controller = room.controller
 
   if (!controller) {
@@ -106,12 +112,13 @@ export function runConstruction(room: Room, basePlan: BasePlan): ConstructionSta
     }
   }
 
-  return reconcileConstruction(room, basePlan, runtime, rampartBuildRcl)
+  return reconcileConstruction(room, basePlan, activeSourcePaths, runtime, rampartBuildRcl)
 }
 
 function reconcileConstruction(
   room: Room,
   basePlan: BasePlan,
+  activeSourcePaths: readonly (readonly RoomPosition[])[] | undefined,
   runtime: ConstructionRuntime,
   rampartBuildRcl: number,
 ): ConstructionState {
@@ -145,10 +152,47 @@ function reconcileConstruction(
   const candidates: ConstructionCandidate[] = []
 
   const hasSpawn = getStructuresByType(room, STRUCTURE_SPAWN).some((spawn) => spawn.my)
+  const options = getBotOptions()
+  const constructionRcl = options.speedrun ? Math.min(controller.level, 3) : controller.level
+  const extensionLimit = (CONTROLLER_STRUCTURES[STRUCTURE_EXTENSION] as Record<number, number>)[constructionRcl] ?? 0
+  const existingExtensionCount = structures.filter(
+    (structure) => structure.structureType === STRUCTURE_EXTENSION,
+  ).length
+  const extensionSiteCount = sites.filter((site) => site.structureType === STRUCTURE_EXTENSION).length
+  const extensionsToAdd = Math.max(0, extensionLimit - existingExtensionCount - extensionSiteCount)
+  const waitingForExtensionPaths = extensionsToAdd > 0 && constructionRcl < 4 && activeSourcePaths === undefined
+
+  if (extensionsToAdd > 0 && !waitingForExtensionPaths) {
+    const extensionPlans = basePlan.structures.filter((planned) => {
+      if (planned.structureType !== STRUCTURE_EXTENSION || planned.rcl > constructionRcl) {
+        return false
+      }
+
+      const key = structureKey(planned.coordinate.x, planned.coordinate.y, planned.structureType)
+      return !existingStructures.has(key) && !existingSites.has(key)
+    })
+    const rankedExtensions = rankExtensionPlans(basePlan, extensionPlans, constructionRcl, activeSourcePaths ?? [])
+
+    for (let index = 0; index < Math.min(extensionsToAdd, rankedExtensions.length); index++) {
+      const planned = rankedExtensions[index]
+
+      candidates.push({
+        structureType: STRUCTURE_EXTENSION,
+        x: planned.coordinate.x,
+        y: planned.coordinate.y,
+        priority: getConstructionPriority(room, STRUCTURE_EXTENSION, hasSpawn),
+        order: index,
+      })
+    }
+  }
 
   for (const planned of basePlan.structures) {
+    if (planned.structureType === STRUCTURE_EXTENSION) {
+      continue
+    }
+
     if (
-      getBotOptions().speedrun &&
+      options.speedrun &&
       (planned.rcl > 3 || planned.structureType === STRUCTURE_ROAD || planned.structureType === STRUCTURE_TOWER)
     ) {
       continue
@@ -173,6 +217,7 @@ function reconcileConstruction(
       x: planned.coordinate.x,
       y: planned.coordinate.y,
       priority: getConstructionPriority(room, planned.structureType, hasSpawn),
+      order: 0,
     })
   }
 
@@ -187,12 +232,13 @@ function reconcileConstruction(
         x,
         y,
         priority: getBootstrapStoragePriority(room),
+        order: 0,
         bootstrap: "storageContainer",
       })
     }
   }
 
-  runtime.hasPendingWork = sites.length > 0 || candidates.length > 0
+  runtime.hasPendingWork = sites.length > 0 || candidates.length > 0 || waitingForExtensionPaths
 
   if (!runtime.hasPendingWork) {
     runtime.rcl = controller.level
@@ -207,7 +253,7 @@ function reconcileConstruction(
   }
 
   candidates.sort((a, b) => {
-    return a.priority - b.priority
+    return a.priority - b.priority || a.order - b.order
   })
 
   let slots = Math.max(0, MAX_ACTIVE_SITES - sites.length)
@@ -253,7 +299,7 @@ function reconcileConstruction(
     }
   }
 
-  if (created > 0) {
+  if (created > 0 || waitingForExtensionPaths) {
     runtime.nextCheckTick = Game.time + 1
   } else if (candidates.length > 0 && sites.length < MAX_ACTIVE_SITES) {
     runtime.nextCheckTick = Game.time + RETRY_INTERVAL
@@ -264,9 +310,120 @@ function reconcileConstruction(
   runtime.rcl = controller.level
   runtime.rampartBuildRcl = rampartBuildRcl
   runtime.siteIds = sites.map((site) => site.id)
-  runtime.hasPendingWork = sites.length > 0 || candidates.length > 0 || created > 0
+  runtime.hasPendingWork = sites.length > 0 || candidates.length > 0 || created > 0 || waitingForExtensionPaths
 
   return { active: true, sites: sortConstructionSites(room, sites) }
+}
+
+function rankExtensionPlans(
+  basePlan: BasePlan,
+  extensions: readonly PlannedStructure[],
+  constructionRcl: number,
+  activeSourcePaths: readonly (readonly RoomPosition[])[],
+): PlannedStructure[] {
+  const ranked = [...extensions]
+
+  if (constructionRcl >= 4) {
+    return ranked.sort(compareExtensionStorageDistance)
+  }
+
+  const serviceRoadMask = buildServiceRoadMask(basePlan)
+  const sourcePathUsage = buildSourcePathUsage(basePlan.roomName, serviceRoadMask, activeSourcePaths)
+
+  return ranked.sort((left, right) => {
+    const leftDistance = left.storageDistance ?? ROOM_AREA
+    const rightDistance = right.storageDistance ?? ROOM_AREA
+    const leftOverlap = getAdjacentSourcePathOverlap(left, serviceRoadMask, sourcePathUsage)
+    const rightOverlap = getAdjacentSourcePathOverlap(right, serviceRoadMask, sourcePathUsage)
+    const leftScore = leftDistance - SOURCE_PATH_EXTENSION_BONUS * leftOverlap
+    const rightScore = rightDistance - SOURCE_PATH_EXTENSION_BONUS * rightOverlap
+
+    if (leftScore !== rightScore) {
+      return leftScore - rightScore
+    }
+
+    return compareExtensionStorageDistance(left, right)
+  })
+}
+
+function compareExtensionStorageDistance(left: PlannedStructure, right: PlannedStructure): number {
+  const leftDistance = left.storageDistance ?? ROOM_AREA
+  const rightDistance = right.storageDistance ?? ROOM_AREA
+
+  return (
+    leftDistance - rightDistance ||
+    toRoomIndex(left.coordinate.x, left.coordinate.y) - toRoomIndex(right.coordinate.x, right.coordinate.y)
+  )
+}
+
+function buildServiceRoadMask(basePlan: BasePlan): Uint8Array {
+  const mask = new Uint8Array(ROOM_AREA)
+
+  for (const structure of basePlan.structures) {
+    if (structure.structureType !== STRUCTURE_ROAD || structure.tag?.kind === "rampartBuild") {
+      continue
+    }
+
+    const { x, y } = structure.coordinate
+    mask[toRoomIndex(x, y)] = 1
+  }
+
+  return mask
+}
+
+function buildSourcePathUsage(
+  roomName: string,
+  serviceRoadMask: Uint8Array,
+  activeSourcePaths: readonly (readonly RoomPosition[])[],
+): Uint16Array {
+  const usage = new Uint16Array(ROOM_AREA)
+
+  for (const path of activeSourcePaths) {
+    const seen = new Set<number>()
+
+    for (const pos of path) {
+      if (pos.roomName !== roomName) {
+        continue
+      }
+
+      const index = toRoomIndex(pos.x, pos.y)
+
+      if (serviceRoadMask[index]) {
+        seen.add(index)
+      }
+    }
+
+    for (const index of seen) {
+      usage[index]++
+    }
+  }
+
+  return usage
+}
+
+function getAdjacentSourcePathOverlap(
+  extension: PlannedStructure,
+  serviceRoadMask: Uint8Array,
+  sourcePathUsage: Uint16Array,
+): number {
+  let bestOverlap = 0
+
+  for (const offset of NEIGHBOR_OFFSETS) {
+    const x = extension.coordinate.x + offset.x
+    const y = extension.coordinate.y + offset.y
+
+    if (!isInsideRoom(x, y)) {
+      continue
+    }
+
+    const index = toRoomIndex(x, y)
+
+    if (serviceRoadMask[index]) {
+      bestOverlap = Math.max(bestOverlap, sourcePathUsage[index])
+    }
+  }
+
+  return bestOverlap
 }
 
 function vacateBlockingConstructionSites(room: Room, sites: readonly ConstructionSite[]): void {

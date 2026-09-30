@@ -1,6 +1,7 @@
 import type { RoomCoordinate } from "../../world/map/roomCoordinate"
 import { fromRoomIndex, isInsideRoom, NEIGHBOR_OFFSETS, ROOM_AREA, toRoomIndex } from "../../world/map/roomGrid"
 import type { PlannedStructure } from "./basePlan"
+import { getStructureRcl } from "./structureRcl"
 
 const MIN_CIVIL_ROAD_RCL = 3
 const MINERAL_ROAD_RCL = 6
@@ -11,6 +12,7 @@ export function assignRoadRcls(
   coreRoads: readonly RoomCoordinate[],
 ): PlannedStructure[] {
   const roadMask = buildCivilRoadMask(structures)
+  const extensionTargetRcls = buildExtensionTargetRcls(structures)
   const distance = new Int16Array(ROOM_AREA)
   const parent = new Int16Array(ROOM_AREA)
   const roadRcls = new Uint8Array(ROOM_AREA)
@@ -76,7 +78,7 @@ export function assignRoadRcls(
       continue
     }
 
-    const requiredRcl = getRoadTargetRcl(structure)
+    const requiredRcl = getRoadTargetRcl(structure, extensionTargetRcls)
     let currentIndex = targetRoadIndex
 
     while (currentIndex >= 0) {
@@ -134,7 +136,13 @@ function isRoadServiceTarget(structure: PlannedStructure): boolean {
   return structure.structureType !== STRUCTURE_ROAD && structure.structureType !== STRUCTURE_RAMPART
 }
 
-function getRoadTargetRcl(structure: PlannedStructure): number {
+function getRoadTargetRcl(structure: PlannedStructure, extensionTargetRcls: Uint8Array): number {
+  if (structure.structureType === STRUCTURE_EXTENSION) {
+    const { x, y } = structure.coordinate
+    const targetRcl = extensionTargetRcls[toRoomIndex(x, y)]
+    return Math.max(MIN_CIVIL_ROAD_RCL, targetRcl || 8)
+  }
+
   switch (structure.tag?.kind) {
     case "source":
       return MIN_CIVIL_ROAD_RCL
@@ -145,6 +153,37 @@ function getRoadTargetRcl(structure: PlannedStructure): number {
     default:
       return Math.max(MIN_CIVIL_ROAD_RCL, structure.rcl)
   }
+}
+
+function buildExtensionTargetRcls(structures: readonly PlannedStructure[]): Uint8Array {
+  const targetRcls = new Uint8Array(ROOM_AREA)
+  const remaining = structures
+    .filter((structure) => structure.structureType === STRUCTURE_EXTENSION)
+    .sort((left, right) => {
+      const leftDistance = left.storageDistance ?? ROOM_AREA
+      const rightDistance = right.storageDistance ?? ROOM_AREA
+      const leftIndex = toRoomIndex(left.coordinate.x, left.coordinate.y)
+      const rightIndex = toRoomIndex(right.coordinate.x, right.coordinate.y)
+
+      return leftDistance - rightDistance || leftIndex - rightIndex
+    })
+
+  const extensionCount = remaining.length
+
+  for (let ordinal = 0; ordinal < extensionCount; ordinal++) {
+    const targetRcl = getStructureRcl(STRUCTURE_EXTENSION, ordinal)
+    const candidateIndex = remaining.findIndex((structure) => structure.rcl <= targetRcl)
+
+    if (candidateIndex < 0) {
+      break
+    }
+
+    const [structure] = remaining.splice(candidateIndex, 1)
+    const { x, y } = structure.coordinate
+    targetRcls[toRoomIndex(x, y)] = targetRcl
+  }
+
+  return targetRcls
 }
 
 function findClosestReachableRoad(coordinate: RoomCoordinate, roadMask: Uint8Array, distance: Int16Array): number {

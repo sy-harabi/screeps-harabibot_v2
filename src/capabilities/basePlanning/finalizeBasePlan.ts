@@ -1,5 +1,5 @@
 import type { RoomCoordinate } from "../../world/map/roomCoordinate"
-import { NEIGHBOR_OFFSETS, ROOM_AREA, toRoomIndex } from "../../world/map/roomGrid"
+import { fromRoomIndex, isInsideRoom, NEIGHBOR_OFFSETS, ROOM_AREA, toRoomIndex } from "../../world/map/roomGrid"
 import { assignRoadRcls } from "./assignRoadRcls"
 import type { PlannedStructure, PlannedStructureTag } from "./basePlan"
 import type { ControllerAreaCandidate } from "./findControllerAreaCandidates"
@@ -32,6 +32,13 @@ interface AssignedSlotStructures {
   readonly observer: RankedSlot
   readonly nuker: RankedSlot
   readonly extensions: RankedSlot[]
+}
+
+interface RankedTower {
+  readonly coordinate: RoomCoordinate
+  readonly minBlockingRcl: number
+  readonly roomIndex: number
+  readonly storageDistance: number
 }
 
 export function buildProvisionalBasePlanStructures(
@@ -112,6 +119,7 @@ export function finalizeBasePlanStructures(
     return !slotMask[toRoomIndex(x, y)]
   })
   const roadMask = buildRoadMask(structures)
+  const serviceRoadDistance = buildServiceRoadDistanceMap(structures, controllerArea.storage)
   const assigned = assignStructureSlots(
     slotPlan,
     controllerArea,
@@ -129,7 +137,12 @@ export function finalizeBasePlanStructures(
     structures.map(({ structureType, coordinate }) => `${structureType}:${coordinate.x}:${coordinate.y}`),
   )
 
-  const addStructure = (structureType: BuildableStructureConstant, coordinate: RoomCoordinate, rcl: number): void => {
+  const addStructure = (
+    structureType: BuildableStructureConstant,
+    coordinate: RoomCoordinate,
+    rcl: number,
+    storageDistance?: number,
+  ): void => {
     const key = `${structureType}:${coordinate.x}:${coordinate.y}`
 
     if (seen.has(key)) {
@@ -137,19 +150,17 @@ export function finalizeBasePlanStructures(
     }
 
     seen.add(key)
-    structures.push({ structureType, coordinate, rcl })
+    structures.push({ structureType, coordinate, rcl, storageDistance })
   }
 
-  const upgradeTileMinRcl = buildUpgradeTileMinRclMask(controllerArea, corePlan)
-  const rankedTowers = [...towers].sort((left, right) => {
-    const leftIndex = toRoomIndex(left.x, left.y)
-    const rightIndex = toRoomIndex(right.x, right.y)
+  const rankedTowers = rankTowersForBuildOrder(towers, controllerArea, corePlan, serviceRoadDistance)
 
-    return upgradeTileMinRcl[leftIndex] - upgradeTileMinRcl[rightIndex] || leftIndex - rightIndex
-  })
+  if (!rankedTowers) {
+    return
+  }
 
-  rankedTowers.forEach((coordinate, index) =>
-    addStructure(STRUCTURE_TOWER, coordinate, getStructureRcl(STRUCTURE_TOWER, index)),
+  rankedTowers.forEach(({ coordinate, storageDistance }, index) =>
+    addStructure(STRUCTURE_TOWER, coordinate, getStructureRcl(STRUCTURE_TOWER, index), storageDistance),
   )
 
   assigned.spawns.forEach((rankedSlot, index) =>
@@ -163,8 +174,13 @@ export function finalizeBasePlanStructures(
   addStructure(STRUCTURE_OBSERVER, assigned.observer.slot.coordinate, getStructureRcl(STRUCTURE_OBSERVER, 0))
   addStructure(STRUCTURE_NUKER, assigned.nuker.slot.coordinate, getStructureRcl(STRUCTURE_NUKER, 0))
 
-  assigned.extensions.forEach((rankedSlot, index) =>
-    addStructure(STRUCTURE_EXTENSION, rankedSlot.slot.coordinate, getStructureRcl(STRUCTURE_EXTENSION, index)),
+  assigned.extensions.forEach(({ slot }) =>
+    addStructure(
+      STRUCTURE_EXTENSION,
+      slot.coordinate,
+      getStructureRcl(STRUCTURE_EXTENSION, 0),
+      getStorageDistance(slot.coordinate, serviceRoadDistance),
+    ),
   )
 
   const constrainedStructures = applyUpgradeTileRclConstraints(structures, controllerArea, corePlan)
@@ -310,6 +326,127 @@ function compareRankedSlots(left: RankedSlot, right: RankedSlot): number {
   }
 
   return left.slot.serviceDistance - right.slot.serviceDistance || left.roomIndex - right.roomIndex
+}
+
+function rankTowersForBuildOrder(
+  towers: readonly RoomCoordinate[],
+  controllerArea: ControllerAreaCandidate,
+  corePlan: CorePlan,
+  serviceRoadDistance: Int16Array,
+): RankedTower[] | undefined {
+  const upgradeTileMinRcl = buildUpgradeTileMinRclMask(controllerArea, corePlan)
+  const remaining = towers
+    .map((coordinate) => {
+      const roomIndex = toRoomIndex(coordinate.x, coordinate.y)
+
+      return {
+        coordinate,
+        minBlockingRcl: upgradeTileMinRcl[roomIndex],
+        roomIndex,
+        storageDistance: getStorageDistance(coordinate, serviceRoadDistance),
+      }
+    })
+    .sort((left, right) => left.storageDistance - right.storageDistance || left.roomIndex - right.roomIndex)
+  const result: RankedTower[] = []
+
+  for (let index = 0; index < towers.length; index++) {
+    const targetRcl = getStructureRcl(STRUCTURE_TOWER, index)
+    const candidateIndex = remaining.findIndex(
+      ({ minBlockingRcl }) => minBlockingRcl === 0 || minBlockingRcl <= targetRcl,
+    )
+
+    if (candidateIndex < 0) {
+      return
+    }
+
+    result.push(remaining.splice(candidateIndex, 1)[0])
+  }
+
+  return result
+}
+
+function buildServiceRoadDistanceMap(structures: readonly PlannedStructure[], storage: RoomCoordinate): Int16Array {
+  const roadMask = new Uint8Array(ROOM_AREA)
+  const distance = new Int16Array(ROOM_AREA)
+  const queue = new Int16Array(ROOM_AREA)
+
+  distance.fill(-1)
+
+  for (const structure of structures) {
+    if (structure.structureType !== STRUCTURE_ROAD || structure.tag?.kind === "rampartBuild") {
+      continue
+    }
+
+    const { x, y } = structure.coordinate
+    roadMask[toRoomIndex(x, y)] = 1
+  }
+
+  let queueHead = 0
+  let queueTail = 0
+
+  for (const offset of NEIGHBOR_OFFSETS) {
+    const x = storage.x + offset.x
+    const y = storage.y + offset.y
+
+    if (!isInsideRoom(x, y)) {
+      continue
+    }
+
+    const index = toRoomIndex(x, y)
+
+    if (!roadMask[index] || distance[index] >= 0) {
+      continue
+    }
+
+    distance[index] = 1
+    queue[queueTail++] = index
+  }
+
+  while (queueHead < queueTail) {
+    const currentIndex = queue[queueHead++]
+    const current = fromRoomIndex(currentIndex)
+
+    for (const offset of NEIGHBOR_OFFSETS) {
+      const x = current.x + offset.x
+      const y = current.y + offset.y
+
+      if (!isInsideRoom(x, y)) {
+        continue
+      }
+
+      const nextIndex = toRoomIndex(x, y)
+
+      if (!roadMask[nextIndex] || distance[nextIndex] >= 0) {
+        continue
+      }
+
+      distance[nextIndex] = distance[currentIndex] + 1
+      queue[queueTail++] = nextIndex
+    }
+  }
+
+  return distance
+}
+
+function getStorageDistance(coordinate: RoomCoordinate, serviceRoadDistance: Int16Array): number {
+  let bestDistance = ROOM_AREA
+
+  for (const offset of NEIGHBOR_OFFSETS) {
+    const x = coordinate.x + offset.x
+    const y = coordinate.y + offset.y
+
+    if (!isInsideRoom(x, y)) {
+      continue
+    }
+
+    const roadDistance = serviceRoadDistance[toRoomIndex(x, y)]
+
+    if (roadDistance >= 0) {
+      bestDistance = Math.min(bestDistance, roadDistance + 1)
+    }
+  }
+
+  return bestDistance
 }
 
 function buildRoadMask(structures: readonly PlannedStructure[]): Uint8Array {

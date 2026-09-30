@@ -2,7 +2,7 @@ import type { RoomCoordinate } from "../../world/map/roomCoordinate"
 import { fromRoomIndex, toRoomIndex } from "../../world/map/roomGrid"
 import type { BasePlan, PlannedStructure, PlannedStructureTag } from "./basePlan"
 
-type PackedPlannedStructure = [BuildableStructureConstant, number, number, PackedStructureTag?]
+type PackedPlannedStructure = [BuildableStructureConstant, number, number, (PackedStructureTag | null)?, number?]
 type PackedCore = [manager: number, parking: number[]]
 type PackedUpgradeChains = [left: number[], middle: number[], right: number[]]
 
@@ -72,26 +72,32 @@ function unpackStructure(packed: PackedPlannedStructure): PlannedStructure {
     structureType: packed[0],
     coordinate: fromRoomIndex(packed[1]),
     rcl: packed[2],
+    storageDistance: packed[4],
     tag: unpackTag(packed[3]),
   }
 }
 
 function packStructure(structure: PlannedStructure): PackedPlannedStructure {
   const tag = packTag(structure.tag)
+  const coordinate = packCoordinate(structure.coordinate)
 
-  if (tag === undefined) {
-    return [structure.structureType, packCoordinate(structure.coordinate), structure.rcl]
+  if (structure.storageDistance !== undefined) {
+    return [structure.structureType, coordinate, structure.rcl, tag ?? null, structure.storageDistance]
   }
 
-  return [structure.structureType, packCoordinate(structure.coordinate), structure.rcl, tag]
+  if (tag === undefined) {
+    return [structure.structureType, coordinate, structure.rcl]
+  }
+
+  return [structure.structureType, coordinate, structure.rcl, tag]
 }
 
 function packCoordinate(coordinate: RoomCoordinate): number {
   return toRoomIndex(coordinate.x, coordinate.y)
 }
 
-function unpackTag(tag: PackedStructureTag | undefined): PlannedStructureTag | undefined {
-  if (tag === undefined) {
+function unpackTag(tag: PackedStructureTag | null | undefined): PlannedStructureTag | undefined {
+  if (tag == null) {
     return undefined
   }
 
