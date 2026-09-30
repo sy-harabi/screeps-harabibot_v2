@@ -1,5 +1,10 @@
 import type { BasePlan } from "../../capabilities/basePlanning/basePlan"
-import { moveCreep, moveCreepByPath } from "../../capabilities/movement/movement"
+import {
+  moveCreep,
+  moveCreepByPath,
+  type MoveByPathOptions,
+  type MoveOptions,
+} from "../../capabilities/movement/movement"
 import { swapKnownPathIndex } from "../../capabilities/movement/movementRuntime"
 import { clearMoveRequest, getIntendedCoord } from "../../capabilities/movement/traffic"
 import { getBotOptions } from "../../options/botOptions"
@@ -7,12 +12,35 @@ import type { LogisticsState } from "../logistics/logistics"
 import { registerEnergySupplier } from "../logistics/logistics"
 import { getLogisticsSupplierRuntime, swapLogisticsSupplierRuntime } from "../logistics/logisticsRuntime"
 import type { HarvestSourceState } from "./harvest"
+import { getHaulerRoomCostMatrix } from "./haulerCostMatrix"
 export const HAULER_ROLE = "hauler"
 
 const SPEEDRUN_HAULER_MAX_CARRY = 2
+const LOGISTICS_ENTRY_RANGE = 6
+
+const HAULER_MOVE_OPTIONS: MoveOptions = {
+  roomCostMatrixModifier: getHaulerRoomCostMatrix,
+  pathPolicy: "hauler",
+}
+
+const HAULER_ROUTE_MOVE_OPTIONS: MoveOptions = {
+  ...HAULER_MOVE_OPTIONS,
+  useRoomRoute: true,
+}
+
+const HAULER_PATH_OPTIONS: MoveByPathOptions = {
+  roomCostMatrixModifier: getHaulerRoomCostMatrix,
+  pathPolicy: "hauler",
+}
+
+const HAULER_REVERSE_PATH_OPTIONS: MoveByPathOptions = {
+  ...HAULER_PATH_OPTIONS,
+  reverse: true,
+}
 
 export function runHaulers(
   colonyName: string,
+  storagePos: RoomPosition,
   haulers: readonly Creep[],
   sourceStates: readonly HarvestSourceState[],
   sourceById: ReadonlyMap<Id<Source>, HarvestSourceState>,
@@ -47,24 +75,19 @@ export function runHaulers(
         continue
       }
 
-      if (speedrun) {
-        if (!moveAlongLoadedPath(hauler, sourceById) && hauler.room.name !== colonyName) {
-          moveToColony(colonyName, hauler, sourceById)
-        }
-
-        if (hauler.room.name === colonyName) {
-          registerEnergySupplier(logistics, hauler)
-        }
-
-        continue
+      if (!moveAlongLoadedPath(hauler, sourceById) && !hauler.pos.inRangeTo(storagePos, LOGISTICS_ENTRY_RANGE)) {
+        moveCreep(hauler, { pos: storagePos, range: LOGISTICS_ENTRY_RANGE }, HAULER_ROUTE_MOVE_OPTIONS)
       }
 
-      if (hauler.room.name !== colonyName) {
-        moveToColony(colonyName, hauler, sourceById)
-        continue
+      const logisticsRuntime = getLogisticsSupplierRuntime(hauler.name)
+      const shouldRegisterLogistics =
+        logisticsRuntime.targetRequestId !== undefined ||
+        (hauler.room.name === colonyName && hauler.pos.inRangeTo(storagePos, LOGISTICS_ENTRY_RANGE))
+
+      if (shouldRegisterLogistics) {
+        registerEnergySupplier(logistics, hauler, HAULER_MOVE_OPTIONS)
       }
 
-      registerEnergySupplier(logistics, hauler)
       continue
     }
 
@@ -86,7 +109,7 @@ export function runHaulers(
       continue
     }
 
-    runFetch(colonyName, hauler, source)
+    runFetch(hauler, source)
   }
 }
 
@@ -98,40 +121,12 @@ function moveAlongLoadedPath(hauler: Creep, sourceById: ReadonlyMap<Id<Source>, 
     return false
   }
 
-  moveCreepByPath(hauler, source.haulerTravel.loadedPath, { reverse: true })
+  moveCreepByPath(hauler, source.haulerTravel.loadedPath, HAULER_REVERSE_PATH_OPTIONS)
   return true
 }
 
-function moveToColony(
-  colonyName: string,
-  hauler: Creep,
-  sourceById: ReadonlyMap<Id<Source>, HarvestSourceState>,
-): void {
-  const sourceId = hauler.memory.sourceId
-  const source = sourceId === undefined ? undefined : sourceById.get(sourceId)
-
-  if (source !== undefined) {
-    const result = moveCreepByPath(hauler, source.haulerTravel.loadedPath, { reverse: true })
-
-    if (result === "pending") {
-      return
-    }
-  }
-
-  moveCreep(
-    hauler,
-    {
-      pos: new RoomPosition(25, 25, colonyName),
-      range: 20,
-    },
-    {
-      useRoomRoute: true,
-    },
-  )
-}
-
 function moveToSource(hauler: Creep, source: HarvestSourceState): void {
-  moveCreepByPath(hauler, source.haulerTravel.emptyPath)
+  moveCreepByPath(hauler, source.haulerTravel.emptyPath, HAULER_PATH_OPTIONS)
 }
 
 function finishDelivery(
@@ -164,7 +159,7 @@ function finishDelivery(
   moveToSource(hauler, source)
 }
 
-function runFetch(colonyName: string, hauler: Creep, sourceState: HarvestSourceState): void {
+function runFetch(hauler: Creep, sourceState: HarvestSourceState): void {
   const path = sourceState.path
   const sourcePos = path[path.length - 1]
 
@@ -174,7 +169,7 @@ function runFetch(colonyName: string, hauler: Creep, sourceState: HarvestSourceS
 
   if (!hauler.memory.searchingEnergy) {
     if (hauler.room.name !== sourcePos.roomName || !hauler.pos.inRangeTo(sourcePos, 1)) {
-      moveCreepByPath(hauler, sourceState.haulerTravel.emptyPath)
+      moveCreepByPath(hauler, sourceState.haulerTravel.emptyPath, HAULER_PATH_OPTIONS)
       return
     }
 
@@ -186,9 +181,7 @@ function runFetch(colonyName: string, hauler: Creep, sourceState: HarvestSourceS
         pos: new RoomPosition(25, 25, sourcePos.roomName),
         range: 20,
       },
-      {
-        useRoomRoute: true,
-      },
+      HAULER_ROUTE_MOVE_OPTIONS,
     )
     return
   }
@@ -196,7 +189,7 @@ function runFetch(colonyName: string, hauler: Creep, sourceState: HarvestSourceS
   const source = Game.getObjectById(sourceState.id)
 
   if (source === null) {
-    moveCreep(hauler, { pos: sourcePos, range: 1 })
+    moveCreep(hauler, { pos: sourcePos, range: 1 }, HAULER_MOVE_OPTIONS)
     return
   }
 
@@ -204,22 +197,26 @@ function runFetch(colonyName: string, hauler: Creep, sourceState: HarvestSourceS
   const freeCapacity = hauler.store.getFreeCapacity(RESOURCE_ENERGY)
 
   if (freeCapacity === 0) {
-    startDelivering(colonyName, hauler, sourceState)
+    startDelivering(hauler, sourceState)
     return
   }
 
   if (droppedEnergy !== undefined) {
     if (!hauler.pos.isNearTo(droppedEnergy)) {
-      moveCreep(hauler, {
-        pos: droppedEnergy.pos,
-        range: 1,
-      })
+      moveCreep(
+        hauler,
+        {
+          pos: droppedEnergy.pos,
+          range: 1,
+        },
+        HAULER_MOVE_OPTIONS,
+      )
       return
     }
 
     if (hauler.pickup(droppedEnergy) === OK) {
       if (droppedEnergy.amount >= freeCapacity || source.energy === 0) {
-        startDelivering(colonyName, hauler, sourceState)
+        startDelivering(hauler, sourceState)
       }
     }
 
@@ -230,10 +227,14 @@ function runFetch(colonyName: string, hauler: Creep, sourceState: HarvestSourceS
 
   if (container !== undefined) {
     if (!hauler.pos.isNearTo(container)) {
-      moveCreep(hauler, {
-        pos: container.pos,
-        range: 1,
-      })
+      moveCreep(
+        hauler,
+        {
+          pos: container.pos,
+          range: 1,
+        },
+        HAULER_MOVE_OPTIONS,
+      )
       return
     }
 
@@ -241,7 +242,7 @@ function runFetch(colonyName: string, hauler: Creep, sourceState: HarvestSourceS
 
     if (amount >= freeCapacity || (amount > 0 && source.energy === 0)) {
       if (hauler.withdraw(container, RESOURCE_ENERGY) === OK) {
-        startDelivering(colonyName, hauler, sourceState)
+        startDelivering(hauler, sourceState)
       }
 
       return
@@ -249,17 +250,14 @@ function runFetch(colonyName: string, hauler: Creep, sourceState: HarvestSourceS
   }
 
   if (!hauler.pos.inRangeTo(sourcePos, 1)) {
-    moveCreep(hauler, { pos: sourcePos, range: 1 })
+    moveCreep(hauler, { pos: sourcePos, range: 1 }, HAULER_MOVE_OPTIONS)
   }
 }
 
-function startDelivering(colonyName: string, hauler: Creep, sourceState: HarvestSourceState): void {
+function startDelivering(hauler: Creep, sourceState: HarvestSourceState): void {
   delete hauler.memory.searchingEnergy
   hauler.memory.delivering = true
-
-  if (getBotOptions().speedrun || hauler.room.name !== colonyName) {
-    moveCreepByPath(hauler, sourceState.haulerTravel.loadedPath, { reverse: true })
-  }
+  moveCreepByPath(hauler, sourceState.haulerTravel.loadedPath, HAULER_REVERSE_PATH_OPTIONS)
 }
 
 function getDroppedEnergy(source: Source): Resource<ResourceConstant> | undefined {
@@ -415,7 +413,7 @@ function runHomeFallbackAction(room: Room, basePlan: BasePlan, hauler: Creep): v
       clearMoveRequest(hauler)
       hauler.transfer(container, RESOURCE_ENERGY)
     } else {
-      moveCreep(hauler, { pos: container.pos, range: 1 })
+      moveCreep(hauler, { pos: container.pos, range: 1 }, HAULER_MOVE_OPTIONS)
     }
 
     return
@@ -427,7 +425,7 @@ function runHomeFallbackAction(room: Room, basePlan: BasePlan, hauler: Creep): v
     return
   }
 
-  moveCreep(hauler, { pos: storagePos, range: 0 })
+  moveCreep(hauler, { pos: storagePos, range: 0 }, HAULER_MOVE_OPTIONS)
 }
 
 function getStorageContainer(room: Room, basePlan: BasePlan): StructureContainer | undefined {
@@ -688,7 +686,7 @@ function requestHaulerMovement(
   source: HarvestSourceState,
 ): void {
   if (!hauler.memory.delivering) {
-    moveCreepByPath(hauler, source.haulerTravel.emptyPath)
+    moveCreepByPath(hauler, source.haulerTravel.emptyPath, HAULER_PATH_OPTIONS)
     return
   }
 
@@ -700,10 +698,14 @@ function requestHaulerMovement(
     if (hauler.pos.isNearTo(request.target)) {
       clearMoveRequest(hauler)
     } else {
-      moveCreep(hauler, {
-        pos: request.target.pos,
-        range: 1,
-      })
+      moveCreep(
+        hauler,
+        {
+          pos: request.target.pos,
+          range: 1,
+        },
+        HAULER_MOVE_OPTIONS,
+      )
     }
 
     return
@@ -714,7 +716,7 @@ function requestHaulerMovement(
     return
   }
 
-  moveCreepByPath(hauler, source.haulerTravel.loadedPath, { reverse: true })
+  moveCreepByPath(hauler, source.haulerTravel.loadedPath, HAULER_REVERSE_PATH_OPTIONS)
 }
 
 function requestHomeFallbackMovement(room: Room, basePlan: BasePlan, hauler: Creep): void {
@@ -742,7 +744,7 @@ function requestHomeFallbackMovement(room: Room, basePlan: BasePlan, hauler: Cre
     return
   }
 
-  moveCreep(hauler, { pos: storagePos, range: 0 })
+  moveCreep(hauler, { pos: storagePos, range: 0 }, HAULER_MOVE_OPTIONS)
 }
 
 function refreshIntended(context: HaulerCoordinationContext, creep: Creep): void {
