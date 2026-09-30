@@ -8,7 +8,7 @@ import { getLogisticsSupplierRuntime, type LogisticsSupplierRuntime } from "./lo
 export interface LogisticsState {
   readonly suppliers: Map<string, Creep>
   readonly energyRequests: Map<string, EnergyRequest>
-  readonly handledSuppliers: Set<string>
+  handledSuppliers?: Set<string>
 }
 
 export interface EnergyRequest {
@@ -35,6 +35,10 @@ const unassignedScratch: Creep[] = []
 
 export function runLogistics(room: Room, state: LogisticsState): void {
   const speedrun = getBotOptions().speedrun
+
+  if (speedrun) {
+    state.handledSuppliers = new Set()
+  }
 
   registerColonyRequests(room, state, speedrun)
 
@@ -172,7 +176,7 @@ function runAssignedSuppliers(state: LogisticsState, speedrun: boolean): void {
       continue
     }
 
-    state.handledSuppliers.add(supplier.name)
+    state.handledSuppliers?.add(supplier.name)
 
     if (!supplier.pos.isNearTo(request.target)) {
       moveCreep(supplier, {
@@ -203,7 +207,6 @@ export function createLogisticsState(): LogisticsState {
   return {
     suppliers: new Map(),
     energyRequests: new Map(),
-    handledSuppliers: new Set(),
   }
 }
 
