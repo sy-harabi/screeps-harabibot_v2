@@ -18,10 +18,7 @@ const cache = runtimeRegistry.createCache<string, HaulerCostMatrixCacheEntry>("h
   cleanup: cleanupHaulerCostMatrixCache,
 })
 
-export function getHaulerRoomCostMatrix(
-  roomName: string,
-  baseMatrix: CostMatrix | undefined,
-): CostMatrix | undefined {
+export function getHaulerRoomCostMatrix(roomName: string, baseMatrix: CostMatrix | undefined): CostMatrix | undefined {
   const intel = intelStore.get(roomName)
 
   if (intel === undefined || intel.sources.length === 0) {
