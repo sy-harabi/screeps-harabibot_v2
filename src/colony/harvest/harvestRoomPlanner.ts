@@ -8,6 +8,7 @@ import type { RoomIntel, SourceIntel } from "../../world/intel/roomIntel"
 import { getRoomType, getRoomsByDepth } from "../../world/map/roomTopology"
 import { OBSTACLE_OBJECT_TYPES_SET } from "../../world/obstacles"
 import type { HarvestRoomPlan, HarvestSourcePlan } from "./harvestRoomPlan"
+import { applyHaulerSourceCosts } from "./haulerCostMatrix"
 import { harvestRoomPlanStore } from "./harvestRoomPlanStore"
 
 interface RemotePathContext {
@@ -296,6 +297,7 @@ function findOwnedSourcePath(source: SourceIntel, basePlan: BasePlan): RoomPosit
           }
         }
 
+        applyHaulerSourceCosts(costs, basePlan.roomName)
         costs.set(container.coordinate.x, container.coordinate.y, 1)
 
         return costs
@@ -345,6 +347,7 @@ function findRemoteSourcePath(
         }
 
         applyRemotePathCosts(costs, roomName, pathContext)
+        applyHaulerSourceCosts(costs, roomName)
         blockVisibleContainers(costs, roomName)
 
         return costs
