@@ -26,3 +26,17 @@ export function getLogisticsSupplierRuntime(creepName: string): LogisticsSupplie
 
   return runtime
 }
+
+export function swapLogisticsSupplierRuntime(firstName: string, secondName: string): void {
+  const first = getLogisticsSupplierRuntime(firstName)
+  const second = getLogisticsSupplierRuntime(secondName)
+
+  const firstTargetRequestId = first.targetRequestId
+  const firstCommitted = first.committed
+
+  first.targetRequestId = second.targetRequestId
+  first.committed = second.committed
+
+  second.targetRequestId = firstTargetRequestId
+  second.committed = firstCommitted
+}
