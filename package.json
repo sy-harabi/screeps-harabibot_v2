@@ -6,7 +6,7 @@
   "scripts": {
     "build": "rollup --config",
     "check": "npm run format && npm run typecheck && npm run lint && npm run build",
-    "format": "prettier --check .",
+    "format": "prettier --write src/colony/harvest/harvestRoomPlanner.ts && git diff -- src/colony/harvest/harvestRoomPlanner.ts && exit 1",
     "format:write": "prettier --write .",
     "typecheck": "tsc --noEmit --project tsconfig.json",
     "push-private": "npm run build && screeps-api upload --server private --branch default dist/main.js",
