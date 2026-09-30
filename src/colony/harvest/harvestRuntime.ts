@@ -10,6 +10,7 @@ export interface HarvestRuntime {
 export interface HaulerTravelRuntime {
   // cache validity check
   readonly sourcePath: readonly RoomPosition[]
+  readonly speedrun: boolean
 
   // Both paths are stored colony -> source.
   readonly emptyPath: readonly RoomPosition[]
