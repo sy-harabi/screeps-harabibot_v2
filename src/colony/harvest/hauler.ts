@@ -6,7 +6,7 @@ import {
   type MoveOptions,
 } from "../../capabilities/movement/movement"
 import { handoffKnownPathIndex, swapKnownPathIndex } from "../../capabilities/movement/movementRuntime"
-import { clearMoveRequest, getIntendedCoord } from "../../capabilities/movement/traffic"
+import { clearMoveRequest, getIntendedCoord, registerMove } from "../../capabilities/movement/traffic"
 import { getBotOptions } from "../../options/botOptions"
 import type { LogisticsState } from "../logistics/logistics"
 import { registerEnergySupplier } from "../logistics/logistics"
@@ -858,7 +858,7 @@ function requestHomeFallbackMovement(room: Room, basePlan: BasePlan, hauler: Cre
   const storage = room.storage
 
   if (storage !== undefined) {
-    clearMoveRequest(hauler)
+    registerMove(hauler, hauler.pos)
     return
   }
 
@@ -870,12 +870,12 @@ function requestHomeFallbackMovement(room: Room, basePlan: BasePlan, hauler: Cre
     container.store.getFreeCapacity(RESOURCE_ENERGY) > 0 &&
     hauler.pos.getRangeTo(container) <= 1
   ) {
-    clearMoveRequest(hauler)
+    registerMove(hauler, hauler.pos)
     return
   }
 
   if (hauler.pos.isEqualTo(storagePos)) {
-    clearMoveRequest(hauler)
+    registerMove(hauler, hauler.pos)
     return
   }
 
