@@ -9,7 +9,7 @@ import type { RoomIntel } from "../../world/intel/roomIntel"
 import type { LogisticsState } from "../logistics/logistics"
 import { harvestRoomPlanStore } from "./harvestRoomPlanStore"
 import { getHarvestRuntime, type HaulerTravelRuntime, type RemoteControllerRuntime } from "./harvestRuntime"
-import { createHaulerBody, getRequiredCarryCapacity, HAULER_ROLE, runHaulerCoordination, runHaulers } from "./hauler"
+import { createHaulerBody, getRequiredCarryCapacity, HAULER_ROLE, runHaulers } from "./hauler"
 import { getMiningPositions, getSourceContainer } from "./miningSite"
 import { createMinerBody, MINER_ROLE, runMiners } from "./miner"
 import { createReserverBody, RESERVER_ROLE, runReserver } from "./reserver"
@@ -59,10 +59,17 @@ export interface HarvestSourceState {
   pendingEnergy: number
 }
 
+export interface HaulerCoordinationState {
+  readonly haulers: readonly Creep[]
+  readonly travelingMiners: readonly Creep[]
+  readonly sourceById: ReadonlyMap<Id<Source>, HarvestSourceState>
+}
+
 export interface HarvestResult {
   readonly income: number
   readonly maxIncome: number
   readonly spawnUsage: number
+  readonly haulerCoordination?: HaulerCoordinationState
 }
 
 const ROLES_BY_PRIORITY = [MINER_ROLE, HAULER_ROLE, RESERVER_ROLE]
@@ -399,10 +406,6 @@ export function runHarvest(
   runMiners(miners, sourceById, travelingMiners)
   runHaulers(colonyName, haulers, sourceStates, sourceById, logistics)
 
-  if (travelingMiners !== undefined) {
-    runHaulerCoordination(haulers, travelingMiners, sourceById)
-  }
-
   for (let i = 0; i < visualSourceRows.length; i++) {
     const source = sourceStates[i]
 
@@ -412,7 +415,19 @@ export function runHarvest(
     }
   }
 
-  const result = { income, maxIncome, spawnUsage }
+  const result: HarvestResult = {
+    income,
+    maxIncome,
+    spawnUsage,
+    haulerCoordination:
+      travelingMiners === undefined
+        ? undefined
+        : {
+            haulers,
+            travelingMiners,
+            sourceById,
+          },
+  }
 
   if (options.visuals.harvest) {
     visualizeHarvest(room, visualSourceRows, visualReservationRows, result)

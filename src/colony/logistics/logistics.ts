@@ -1,4 +1,6 @@
 import { moveCreep } from "../../capabilities/movement/movement"
+import { clearMoveRequest } from "../../capabilities/movement/traffic"
+import { getBotOptions } from "../../options/botOptions"
 import { getStructuresByType } from "../../world/roomStructures"
 import { matchEnergySuppliers } from "./logisticsMatcher"
 import { getLogisticsSupplierRuntime, type LogisticsSupplierRuntime } from "./logisticsRuntime"
@@ -6,6 +8,7 @@ import { getLogisticsSupplierRuntime, type LogisticsSupplierRuntime } from "./lo
 export interface LogisticsState {
   readonly suppliers: Map<string, Creep>
   readonly energyRequests: Map<string, EnergyRequest>
+  handledSuppliers?: Set<string>
 }
 
 export interface EnergyRequest {
@@ -31,7 +34,13 @@ const COMMIT_RANGE = 5
 const unassignedScratch: Creep[] = []
 
 export function runLogistics(room: Room, state: LogisticsState): void {
-  registerColonyRequests(room, state)
+  const speedrun = getBotOptions().speedrun
+
+  if (speedrun) {
+    state.handledSuppliers = new Set()
+  }
+
+  registerColonyRequests(room, state, speedrun)
 
   unassignedScratch.length = 0
   reconcileAssignments(state, unassignedScratch)
@@ -39,7 +48,7 @@ export function runLogistics(room: Room, state: LogisticsState): void {
   matchEnergySuppliers(state.energyRequests, unassignedScratch)
   commitMatchedAssignments(state, unassignedScratch)
 
-  runAssignedSuppliers(state)
+  runAssignedSuppliers(state, speedrun)
 }
 
 function reconcileAssignments(state: LogisticsState, unassigned: Creep[]): void {
@@ -146,7 +155,7 @@ function commitMatchedAssignments(state: LogisticsState, suppliers: readonly Cre
   }
 }
 
-function runAssignedSuppliers(state: LogisticsState): void {
+function runAssignedSuppliers(state: LogisticsState, speedrun: boolean): void {
   for (const supplier of state.suppliers.values()) {
     const runtime = getLogisticsSupplierRuntime(supplier.name)
     const targetId = runtime.targetRequestId
@@ -167,12 +176,18 @@ function runAssignedSuppliers(state: LogisticsState): void {
       continue
     }
 
+    state.handledSuppliers?.add(supplier.name)
+
     if (!supplier.pos.isNearTo(request.target)) {
       moveCreep(supplier, {
         pos: request.target.pos,
         range: 1,
       })
       continue
+    }
+
+    if (speedrun) {
+      clearMoveRequest(supplier)
     }
 
     const result = supplier.transfer(request.target, RESOURCE_ENERGY)
@@ -195,7 +210,7 @@ export function createLogisticsState(): LogisticsState {
   }
 }
 
-function registerColonyRequests(room: Room, state: LogisticsState): void {
+function registerColonyRequests(room: Room, state: LogisticsState, speedrun: boolean): void {
   if (room.energyAvailable < room.energyCapacityAvailable) {
     for (const spawn of getStructuresByType(room, STRUCTURE_SPAWN)) {
       if (!spawn.my) {
@@ -214,7 +229,7 @@ function registerColonyRequests(room: Room, state: LogisticsState): void {
     }
   }
 
-  if (room.storage) {
+  if (room.storage && !speedrun) {
     requestEnergy(state, room.storage, ENERGY_REQUEST_PRIORITY.storage)
   }
 }

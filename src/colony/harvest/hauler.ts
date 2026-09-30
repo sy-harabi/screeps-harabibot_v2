@@ -1,9 +1,11 @@
+import type { BasePlan } from "../../capabilities/basePlanning/basePlan"
 import { moveCreep, moveCreepByPath } from "../../capabilities/movement/movement"
 import { swapKnownPathIndex } from "../../capabilities/movement/movementRuntime"
-import { getIntendedCoord } from "../../capabilities/movement/traffic"
+import { clearMoveRequest, getIntendedCoord } from "../../capabilities/movement/traffic"
 import { getBotOptions } from "../../options/botOptions"
 import type { LogisticsState } from "../logistics/logistics"
 import { registerEnergySupplier } from "../logistics/logistics"
+import { getLogisticsSupplierRuntime, swapLogisticsSupplierRuntime } from "../logistics/logisticsRuntime"
 import type { HarvestSourceState } from "./harvest"
 export const HAULER_ROLE = "hauler"
 
@@ -16,6 +18,8 @@ export function runHaulers(
   sourceById: ReadonlyMap<Id<Source>, HarvestSourceState>,
   logistics: LogisticsState,
 ): void {
+  const speedrun = getBotOptions().speedrun
+
   preparePendingEnergy(sourceStates)
 
   for (const hauler of haulers) {
@@ -40,6 +44,18 @@ export function runHaulers(
     if (hauler.memory.delivering) {
       if (hauler.store.getUsedCapacity(RESOURCE_ENERGY) === 0) {
         finishDelivery(hauler, sourceStates, sourceById)
+        continue
+      }
+
+      if (speedrun) {
+        if (!moveAlongLoadedPath(hauler, sourceById) && hauler.room.name !== colonyName) {
+          moveToColony(colonyName, hauler, sourceById)
+        }
+
+        if (hauler.room.name === colonyName) {
+          registerEnergySupplier(logistics, hauler)
+        }
+
         continue
       }
 
@@ -72,6 +88,18 @@ export function runHaulers(
 
     runFetch(colonyName, hauler, source)
   }
+}
+
+function moveAlongLoadedPath(hauler: Creep, sourceById: ReadonlyMap<Id<Source>, HarvestSourceState>): boolean {
+  const sourceId = hauler.memory.sourceId
+  const source = sourceId === undefined ? undefined : sourceById.get(sourceId)
+
+  if (source === undefined) {
+    return false
+  }
+
+  moveCreepByPath(hauler, source.haulerTravel.loadedPath, { reverse: true })
+  return true
 }
 
 function moveToColony(
@@ -229,7 +257,7 @@ function startDelivering(colonyName: string, hauler: Creep, sourceState: Harvest
   delete hauler.memory.searchingEnergy
   hauler.memory.delivering = true
 
-  if (hauler.room.name !== colonyName) {
+  if (getBotOptions().speedrun || hauler.room.name !== colonyName) {
     moveCreepByPath(hauler, sourceState.haulerTravel.loadedPath, { reverse: true })
   }
 }
@@ -314,6 +342,9 @@ interface HaulerCoordinationContext {
 }
 
 export function runHaulerCoordination(
+  room: Room,
+  basePlan: BasePlan,
+  logistics: LogisticsState,
   haulers: readonly Creep[],
   travelingMiners: readonly Creep[],
   sourceById: ReadonlyMap<Id<Source>, HarvestSourceState>,
@@ -322,11 +353,101 @@ export function runHaulerCoordination(
     return
   }
 
+  runDeliveryFallbacks(room, basePlan, logistics, haulers, sourceById)
+
   const context = createHaulerCoordinationContext(haulers, travelingMiners)
 
-  resolveTombstoneTurnarounds(context, haulers, sourceById)
-  resolveRelays(context, haulers, sourceById)
+  resolveTombstoneTurnarounds(context, room, basePlan, logistics, haulers, sourceById)
+  resolveRelays(context, room, basePlan, logistics, haulers, sourceById)
   resolvePullChains(context, haulers, travelingMiners)
+}
+
+function runDeliveryFallbacks(
+  room: Room,
+  basePlan: BasePlan,
+  logistics: LogisticsState,
+  haulers: readonly Creep[],
+  sourceById: ReadonlyMap<Id<Source>, HarvestSourceState>,
+): void {
+  for (const hauler of haulers) {
+    if (
+      hauler.room.name !== room.name ||
+      !isRelaySupplier(hauler) ||
+      logistics.handledSuppliers?.has(hauler.name) === true
+    ) {
+      continue
+    }
+
+    const logisticsRuntime = getLogisticsSupplierRuntime(hauler.name)
+
+    if (logisticsRuntime.targetRequestId !== undefined) {
+      continue
+    }
+
+    const sourceId = hauler.memory.sourceId
+    const source = sourceId === undefined ? undefined : sourceById.get(sourceId)
+
+    if (source === undefined || !isAtDeliveryHome(hauler, basePlan, source)) {
+      continue
+    }
+
+    runHomeFallbackAction(room, basePlan, hauler)
+  }
+}
+
+function runHomeFallbackAction(room: Room, basePlan: BasePlan, hauler: Creep): void {
+  const storage = room.storage
+
+  if (storage !== undefined) {
+    if (storage.store.getFreeCapacity(RESOURCE_ENERGY) > 0 && hauler.pos.getRangeTo(storage) <= 1) {
+      clearMoveRequest(hauler)
+      hauler.transfer(storage, RESOURCE_ENERGY)
+    }
+
+    return
+  }
+
+  const storagePos = new RoomPosition(basePlan.storage.x, basePlan.storage.y, room.name)
+  const container = getStorageContainer(room, basePlan)
+
+  if (container !== undefined && container.store.getFreeCapacity(RESOURCE_ENERGY) > 0) {
+    if (hauler.pos.getRangeTo(container) <= 1) {
+      clearMoveRequest(hauler)
+      hauler.transfer(container, RESOURCE_ENERGY)
+    } else {
+      moveCreep(hauler, { pos: container.pos, range: 1 })
+    }
+
+    return
+  }
+
+  if (hauler.pos.isEqualTo(storagePos)) {
+    clearMoveRequest(hauler)
+    hauler.drop(RESOURCE_ENERGY)
+    return
+  }
+
+  moveCreep(hauler, { pos: storagePos, range: 0 })
+}
+
+function getStorageContainer(room: Room, basePlan: BasePlan): StructureContainer | undefined {
+  return room
+    .lookForAt(LOOK_STRUCTURES, basePlan.storage.x, basePlan.storage.y)
+    .find((structure): structure is StructureContainer => structure.structureType === STRUCTURE_CONTAINER)
+}
+
+function isAtDeliveryHome(hauler: Creep, basePlan: BasePlan, source: HarvestSourceState): boolean {
+  const pathStart = source.haulerTravel.loadedPath[0]
+
+  if (pathStart !== undefined && hauler.pos.isEqualTo(pathStart)) {
+    return true
+  }
+
+  return (
+    hauler.pos.roomName === basePlan.roomName &&
+    hauler.pos.x === basePlan.storage.x &&
+    hauler.pos.y === basePlan.storage.y
+  )
 }
 
 function createHaulerCoordinationContext(
@@ -355,6 +476,9 @@ function createHaulerCoordinationContext(
 
 function resolveTombstoneTurnarounds(
   context: HaulerCoordinationContext,
+  room: Room,
+  basePlan: BasePlan,
+  logistics: LogisticsState,
   haulers: readonly Creep[],
   sourceById: ReadonlyMap<Id<Source>, HarvestSourceState>,
 ): void {
@@ -388,13 +512,16 @@ function resolveTombstoneTurnarounds(
     delete hauler.memory.searchingEnergy
     context.turnedAround.add(hauler.name)
 
-    requestHaulerTravel(hauler, source)
+    requestHaulerMovement(room, basePlan, logistics, hauler, source)
     refreshIntended(context, hauler)
   }
 }
 
 function resolveRelays(
   context: HaulerCoordinationContext,
+  room: Room,
+  basePlan: BasePlan,
+  logistics: LogisticsState,
   haulers: readonly Creep[],
   sourceById: ReadonlyMap<Id<Source>, HarvestSourceState>,
 ): void {
@@ -464,9 +591,10 @@ function resolveRelays(
     delete supplier.memory.searchingEnergy
 
     swapKnownPathIndex(fetcher.name, supplier.name)
+    swapLogisticsSupplierRuntime(fetcher.name, supplier.name)
 
-    requestHaulerTravel(fetcher, supplierSource)
-    requestHaulerTravel(supplier, fetcherSource)
+    requestHaulerMovement(room, basePlan, logistics, fetcher, supplierSource)
+    requestHaulerMovement(room, basePlan, logistics, supplier, fetcherSource)
     refreshIntended(context, fetcher)
     refreshIntended(context, supplier)
 
@@ -552,13 +680,69 @@ function isRelaySupplier(hauler: Creep): boolean {
   )
 }
 
-function requestHaulerTravel(hauler: Creep, source: HarvestSourceState): void {
-  if (hauler.memory.delivering) {
-    moveCreepByPath(hauler, source.haulerTravel.loadedPath, { reverse: true })
+function requestHaulerMovement(
+  room: Room,
+  basePlan: BasePlan,
+  logistics: LogisticsState,
+  hauler: Creep,
+  source: HarvestSourceState,
+): void {
+  if (!hauler.memory.delivering) {
+    moveCreepByPath(hauler, source.haulerTravel.emptyPath)
     return
   }
 
-  moveCreepByPath(hauler, source.haulerTravel.emptyPath)
+  const logisticsRuntime = getLogisticsSupplierRuntime(hauler.name)
+  const targetRequestId = logisticsRuntime.targetRequestId
+  const request = targetRequestId === undefined ? undefined : logistics.energyRequests.get(targetRequestId)
+
+  if (request !== undefined) {
+    if (hauler.pos.isNearTo(request.target)) {
+      clearMoveRequest(hauler)
+    } else {
+      moveCreep(hauler, {
+        pos: request.target.pos,
+        range: 1,
+      })
+    }
+
+    return
+  }
+
+  if (hauler.room.name === room.name && isAtDeliveryHome(hauler, basePlan, source)) {
+    requestHomeFallbackMovement(room, basePlan, hauler)
+    return
+  }
+
+  moveCreepByPath(hauler, source.haulerTravel.loadedPath, { reverse: true })
+}
+
+function requestHomeFallbackMovement(room: Room, basePlan: BasePlan, hauler: Creep): void {
+  const storage = room.storage
+
+  if (storage !== undefined) {
+    clearMoveRequest(hauler)
+    return
+  }
+
+  const storagePos = new RoomPosition(basePlan.storage.x, basePlan.storage.y, room.name)
+  const container = getStorageContainer(room, basePlan)
+
+  if (
+    container !== undefined &&
+    container.store.getFreeCapacity(RESOURCE_ENERGY) > 0 &&
+    hauler.pos.getRangeTo(container) <= 1
+  ) {
+    clearMoveRequest(hauler)
+    return
+  }
+
+  if (hauler.pos.isEqualTo(storagePos)) {
+    clearMoveRequest(hauler)
+    return
+  }
+
+  moveCreep(hauler, { pos: storagePos, range: 0 })
 }
 
 function refreshIntended(context: HaulerCoordinationContext, creep: Creep): void {
