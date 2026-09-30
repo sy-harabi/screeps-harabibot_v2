@@ -9,6 +9,7 @@ export interface PlannedStructure {
   readonly structureType: BuildableStructureConstant
   readonly coordinate: RoomCoordinate
   readonly rcl: number
+  readonly storageDistance?: number
   readonly tag?: PlannedStructureTag
 }
 
