@@ -81,7 +81,7 @@ export function runHarvest(
   const colonyName = room.name
   const options = getBotOptions()
   const reserverBody = createReserverBody(room)
-  const roomStates = prepareHarvestRoomStates(room, basePlan, reserverBody)
+  const roomStates = prepareHarvestRoomStates(room, basePlan, reserverBody, options.speedrun)
 
   const roomByName = new Map<string, HarvestRoomState>()
   const sourceStates: HarvestSourceState[] = []
@@ -497,6 +497,7 @@ function prepareHarvestRoomStates(
   room: Room,
   basePlan: BasePlan,
   reserverBody: readonly BodyPartConstant[] | undefined,
+  speedrun: boolean,
 ): HarvestRoomState[] {
   const colonyName = room.name
   const username = room.controller?.owner?.username
@@ -525,7 +526,7 @@ function prepareHarvestRoomStates(
         continue
       }
 
-      const haulerTravel = getHaulerTravelRuntime(basePlan, sourceIntel.id, sourcePlan.path)
+      const haulerTravel = getHaulerTravelRuntime(basePlan, sourceIntel.id, sourcePlan.path, speedrun)
 
       const miningPositions = getMiningPositions(roomName, sourceIntel.coordinate, sourcePlan.path)
       const container = getSourceContainer(sourcePlan.path)
