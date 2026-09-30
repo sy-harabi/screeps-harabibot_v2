@@ -160,8 +160,9 @@ function reconcileConstruction(
   ).length
   const extensionSiteCount = sites.filter((site) => site.structureType === STRUCTURE_EXTENSION).length
   const extensionsToAdd = Math.max(0, extensionLimit - existingExtensionCount - extensionSiteCount)
+  const waitingForExtensionPaths = extensionsToAdd > 0 && constructionRcl < 4 && activeSourcePaths === undefined
 
-  if (extensionsToAdd > 0 && (constructionRcl >= 4 || activeSourcePaths !== undefined)) {
+  if (extensionsToAdd > 0 && !waitingForExtensionPaths) {
     const extensionPlans = basePlan.structures.filter((planned) => {
       if (planned.structureType !== STRUCTURE_EXTENSION || planned.rcl > constructionRcl) {
         return false
@@ -237,7 +238,7 @@ function reconcileConstruction(
     }
   }
 
-  runtime.hasPendingWork = sites.length > 0 || candidates.length > 0
+  runtime.hasPendingWork = sites.length > 0 || candidates.length > 0 || waitingForExtensionPaths
 
   if (!runtime.hasPendingWork) {
     runtime.rcl = controller.level
@@ -298,7 +299,7 @@ function reconcileConstruction(
     }
   }
 
-  if (created > 0) {
+  if (created > 0 || waitingForExtensionPaths) {
     runtime.nextCheckTick = Game.time + 1
   } else if (candidates.length > 0 && sites.length < MAX_ACTIVE_SITES) {
     runtime.nextCheckTick = Game.time + RETRY_INTERVAL
@@ -309,7 +310,7 @@ function reconcileConstruction(
   runtime.rcl = controller.level
   runtime.rampartBuildRcl = rampartBuildRcl
   runtime.siteIds = sites.map((site) => site.id)
-  runtime.hasPendingWork = sites.length > 0 || candidates.length > 0 || created > 0
+  runtime.hasPendingWork = sites.length > 0 || candidates.length > 0 || created > 0 || waitingForExtensionPaths
 
   return { active: true, sites: sortConstructionSites(room, sites) }
 }
