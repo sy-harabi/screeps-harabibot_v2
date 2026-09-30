@@ -710,7 +710,12 @@ function resolveRelays(
 
     swapLogisticsSupplierRuntime(fetcher.name, supplier.name)
 
-    requestHaulerMovement(room, basePlan, logistics, fetcher, supplierSource)
+    if (shouldHoldRelayFetcher(room, basePlan, logistics, fetcher)) {
+      registerMove(fetcher, fetcher.pos)
+    } else {
+      requestHaulerMovement(room, basePlan, logistics, fetcher, supplierSource)
+    }
+
     requestHaulerMovement(room, basePlan, logistics, supplier, fetcherSource)
     refreshIntended(context, fetcher)
     refreshIntended(context, supplier)
@@ -842,7 +847,7 @@ function requestHomeFallbackMovement(room: Room, basePlan: BasePlan, hauler: Cre
   const storage = room.storage
 
   if (storage !== undefined) {
-    registerMove(hauler, hauler.pos)
+    clearMoveRequest(hauler)
     return
   }
 
@@ -854,16 +859,46 @@ function requestHomeFallbackMovement(room: Room, basePlan: BasePlan, hauler: Cre
     container.store.getFreeCapacity(RESOURCE_ENERGY) > 0 &&
     hauler.pos.getRangeTo(container) <= 1
   ) {
-    registerMove(hauler, hauler.pos)
+    clearMoveRequest(hauler)
     return
   }
 
   if (hauler.pos.isEqualTo(storagePos)) {
-    registerMove(hauler, hauler.pos)
+    clearMoveRequest(hauler)
     return
   }
 
   moveCreep(hauler, { pos: storagePos, range: 0 }, HAULER_MOVE_OPTIONS)
+}
+
+function shouldHoldRelayFetcher(
+  room: Room,
+  basePlan: BasePlan,
+  logistics: LogisticsState,
+  fetcher: Creep,
+): boolean {
+  const logisticsRuntime = getLogisticsSupplierRuntime(fetcher.name)
+  const targetRequestId = logisticsRuntime.targetRequestId
+  const request = targetRequestId === undefined ? undefined : logistics.energyRequests.get(targetRequestId)
+
+  if (request !== undefined) {
+    return false
+  }
+
+  const storage = room.storage
+
+  if (storage !== undefined) {
+    return storage.store.getFreeCapacity(RESOURCE_ENERGY) > 0 && fetcher.pos.isNearTo(storage)
+  }
+
+  const storagePos = new RoomPosition(basePlan.storage.x, basePlan.storage.y, room.name)
+  const container = getStorageContainer(room, basePlan)
+
+  if (container !== undefined && container.store.getFreeCapacity(RESOURCE_ENERGY) > 0) {
+    return fetcher.pos.inRangeTo(container, 1)
+  }
+
+  return fetcher.pos.isEqualTo(storagePos)
 }
 
 function refreshIntended(context: HaulerCoordinationContext, creep: Creep): void {
