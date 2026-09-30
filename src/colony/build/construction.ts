@@ -68,7 +68,7 @@ const constructionRuntimes = runtimeRegistry.createCache<string, ConstructionRun
 export function runConstruction(
   room: Room,
   basePlan: BasePlan,
-  activeSourcePaths: readonly (readonly RoomPosition[])[],
+  activeSourcePaths: readonly (readonly RoomPosition[])[] | undefined,
 ): ConstructionState {
   const controller = room.controller
 
@@ -118,7 +118,7 @@ export function runConstruction(
 function reconcileConstruction(
   room: Room,
   basePlan: BasePlan,
-  activeSourcePaths: readonly (readonly RoomPosition[])[],
+  activeSourcePaths: readonly (readonly RoomPosition[])[] | undefined,
   runtime: ConstructionRuntime,
   rampartBuildRcl: number,
 ): ConstructionState {
@@ -162,7 +162,7 @@ function reconcileConstruction(
   const extensionSiteCount = sites.filter((site) => site.structureType === STRUCTURE_EXTENSION).length
   const extensionsToAdd = Math.max(0, extensionLimit - existingExtensionCount - extensionSiteCount)
 
-  if (extensionsToAdd > 0) {
+  if (extensionsToAdd > 0 && (constructionRcl >= 4 || activeSourcePaths !== undefined)) {
     const extensionPlans = basePlan.structures.filter((planned) => {
       if (planned.structureType !== STRUCTURE_EXTENSION || planned.rcl > constructionRcl) {
         return false
@@ -171,7 +171,7 @@ function reconcileConstruction(
       const key = structureKey(planned.coordinate.x, planned.coordinate.y, planned.structureType)
       return !existingStructures.has(key) && !existingSites.has(key)
     })
-    const rankedExtensions = rankExtensionPlans(basePlan, extensionPlans, constructionRcl, activeSourcePaths)
+    const rankedExtensions = rankExtensionPlans(basePlan, extensionPlans, constructionRcl, activeSourcePaths ?? [])
 
     for (let index = 0; index < Math.min(extensionsToAdd, rankedExtensions.length); index++) {
       const planned = rankedExtensions[index]
