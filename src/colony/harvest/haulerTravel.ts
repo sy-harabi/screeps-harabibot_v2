@@ -1,5 +1,5 @@
 import { type BasePlan } from "../../capabilities/basePlanning/basePlan"
-import { getBaseRoomCostMatrix } from "../../capabilities/movement/roomCostMatrix"
+import { getDefaultRoomCostMatrix } from "../../capabilities/movement/defaultRoomCostMatrix"
 import { estimatePathTravelTicks } from "../../capabilities/movement/travelTime"
 import { fromRoomIndex, toRoomIndex } from "../../world/map/roomGrid"
 import { OBSTACLE_OBJECT_TYPES_SET } from "../../world/obstacles"
@@ -125,7 +125,7 @@ function getHaulerCostMatrix(
   destination: RoomPosition,
   containerPositionsByRoom: ContainerPositionsByRoom,
 ): CostMatrix | boolean {
-  const base = getBaseRoomCostMatrix(roomName)
+  const base = getDefaultRoomCostMatrix(roomName)
 
   if (roomName === basePlan.roomName) {
     const costs = base?.clone() ?? new PathFinder.CostMatrix()

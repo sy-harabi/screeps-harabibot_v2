@@ -1,7 +1,6 @@
 import type { BasePlan } from "../../capabilities/basePlanning/basePlan"
 import { basePlanStore } from "../../capabilities/basePlanning/basePlanStore"
 import { findRoute } from "../../capabilities/movement/navigator"
-import { getBaseRoomCostMatrix } from "../../capabilities/movement/roomCostMatrix"
 import type { TickContext } from "../../kernel/tickContext"
 import { intelStore } from "../../world/intel/intelStore"
 import type { RoomIntel, SourceIntel } from "../../world/intel/roomIntel"
@@ -10,6 +9,7 @@ import { OBSTACLE_OBJECT_TYPES_SET } from "../../world/obstacles"
 import type { HarvestRoomPlan, HarvestSourcePlan } from "./harvestRoomPlan"
 import { applyHaulerSourceCosts } from "./haulerCostMatrix"
 import { harvestRoomPlanStore } from "./harvestRoomPlanStore"
+import { getDefaultRoomCostMatrix } from "../../capabilities/movement/defaultRoomCostMatrix"
 
 interface RemotePathContext {
   readonly roadPositionsByRoom: Map<string, Set<number>>
@@ -337,7 +337,7 @@ function findRemoteSourcePath(
           return false
         }
 
-        const base = getBaseRoomCostMatrix(roomName)
+        const base = getDefaultRoomCostMatrix(roomName)
         const costs = base?.clone() ?? new PathFinder.CostMatrix()
 
         normalizeExistingRoadCosts(costs, roomName)
