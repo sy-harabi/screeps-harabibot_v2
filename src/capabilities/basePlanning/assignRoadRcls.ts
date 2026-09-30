@@ -168,7 +168,9 @@ function buildExtensionTargetRcls(structures: readonly PlannedStructure[]): Uint
       return leftDistance - rightDistance || leftIndex - rightIndex
     })
 
-  for (let ordinal = 0; ordinal < remaining.length; ordinal++) {
+  const extensionCount = remaining.length
+
+  for (let ordinal = 0; ordinal < extensionCount; ordinal++) {
     const targetRcl = getStructureRcl(STRUCTURE_EXTENSION, ordinal)
     const candidateIndex = remaining.findIndex((structure) => structure.rcl <= targetRcl)
 
