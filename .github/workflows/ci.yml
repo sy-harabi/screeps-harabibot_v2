@@ -25,31 +25,8 @@ jobs:
       - name: Install dependencies
         run: npm ci
 
-      - name: Format changed files
-        run: >
-          npm exec -- prettier --write
-          src/capabilities/basePlanning/assignRoadRcls.ts
-          src/capabilities/basePlanning/basePlan.ts
-          src/capabilities/basePlanning/basePlanCodec.ts
-          src/capabilities/basePlanning/basePlanStore.ts
-          src/capabilities/basePlanning/finalizeBasePlan.ts
-          src/colony/build/construction.ts
-          src/colony/colonyManager.ts
-          src/colony/harvest/harvest.ts
-
-      - name: Upload formatted files
-        uses: actions/upload-artifact@v4
-        with:
-          name: formatted-source
-          path: |
-            src/capabilities/basePlanning/assignRoadRcls.ts
-            src/capabilities/basePlanning/basePlan.ts
-            src/capabilities/basePlanning/basePlanCodec.ts
-            src/capabilities/basePlanning/basePlanStore.ts
-            src/capabilities/basePlanning/finalizeBasePlan.ts
-            src/colony/build/construction.ts
-            src/colony/colonyManager.ts
-            src/colony/harvest/harvest.ts
+      - name: Check formatting
+        run: npm run format
 
       - name: Typecheck
         run: npm run typecheck
