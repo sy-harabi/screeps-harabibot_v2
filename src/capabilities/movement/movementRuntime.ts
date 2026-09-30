@@ -34,3 +34,12 @@ export function getMovementRuntime(creepName: string): MovementRuntime {
 
   return runtime
 }
+
+export function swapKnownPathIndex(firstName: string, secondName: string): void {
+  const first = getMovementRuntime(firstName)
+  const second = getMovementRuntime(secondName)
+  const firstIndex = first.knownPathIndex
+
+  first.knownPathIndex = second.knownPathIndex
+  second.knownPathIndex = firstIndex
+}
