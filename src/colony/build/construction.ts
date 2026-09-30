@@ -154,8 +154,7 @@ function reconcileConstruction(
   const hasSpawn = getStructuresByType(room, STRUCTURE_SPAWN).some((spawn) => spawn.my)
   const options = getBotOptions()
   const constructionRcl = options.speedrun ? Math.min(controller.level, 3) : controller.level
-  const extensionLimit =
-    (CONTROLLER_STRUCTURES[STRUCTURE_EXTENSION] as Record<number, number>)[constructionRcl] ?? 0
+  const extensionLimit = (CONTROLLER_STRUCTURES[STRUCTURE_EXTENSION] as Record<number, number>)[constructionRcl] ?? 0
   const existingExtensionCount = structures.filter(
     (structure) => structure.structureType === STRUCTURE_EXTENSION,
   ).length
