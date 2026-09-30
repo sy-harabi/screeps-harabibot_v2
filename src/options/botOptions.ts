@@ -8,6 +8,7 @@ export interface BotOptions {
   visuals: {
     basePlan: boolean
     harvest: boolean
+    harvestPath: boolean
     rclProgress: boolean
   }
   construction: {
@@ -27,6 +28,7 @@ export interface BotOptionsOverride {
   visuals?: {
     basePlan?: boolean
     harvest?: boolean
+    harvestPath?: boolean
     rclProgress?: boolean
   }
   construction?: {
@@ -41,6 +43,7 @@ export const DEFAULT_BOT_OPTIONS: BotOptions = {
   visuals: {
     basePlan: false,
     harvest: false,
+    harvestPath: false,
     rclProgress: true,
   },
   construction: {
@@ -58,6 +61,7 @@ export function getBotOptions(): BotOptions {
     visuals: {
       basePlan: Memory.options?.visuals?.basePlan ?? DEFAULT_BOT_OPTIONS.visuals.basePlan,
       harvest: Memory.options?.visuals?.harvest ?? DEFAULT_BOT_OPTIONS.visuals.harvest,
+      harvestPath: Memory.options?.visuals?.harvestPath ?? DEFAULT_BOT_OPTIONS.visuals.harvestPath,
       rclProgress: Memory.options?.visuals?.rclProgress ?? DEFAULT_BOT_OPTIONS.visuals.rclProgress,
     },
     construction: {

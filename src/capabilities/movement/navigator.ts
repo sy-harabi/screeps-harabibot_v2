@@ -16,6 +16,8 @@ interface RouteEntry {
   distance: number
 }
 
+export type RoomCostMatrixModifier = (roomName: string, baseMatrix: CostMatrix | undefined) => CostMatrix | undefined
+
 interface FindPathOptions {
   useRoomRoute?: boolean
 
@@ -29,6 +31,7 @@ interface FindPathOptions {
 
   // custom options
   avoidSourceKeepers?: boolean
+  roomCostMatrixModifier?: RoomCostMatrixModifier
 }
 
 const DEFAULT_MAX_ROOM_HOPS = 16
@@ -177,9 +180,11 @@ export function findPath(
         return false
       }
 
-      const costs = options.avoidSourceKeepers
+      const baseCosts = options.avoidSourceKeepers
         ? getSourceKeeperCostMatrix(roomName)
         : getDefaultRoomCostMatrix(roomName)
+
+      const costs = options.roomCostMatrixModifier ? options.roomCostMatrixModifier(roomName, baseCosts) : baseCosts
 
       return costs ?? true
     },

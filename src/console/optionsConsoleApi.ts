@@ -8,6 +8,8 @@ export interface BotOptionsConsoleApi {
   clearBasePlanVisual(): void
   setHarvestVisual(value: boolean): void
   clearHarvestVisual(): void
+  setHarvestPathVisual(value: boolean): void
+  clearHarvestPathVisual(): void
   setRclProgressVisual(value: boolean): void
   clearRclProgressVisual(): void
   setRampartBuildRcl(value: number, roomName?: string): void
@@ -77,6 +79,20 @@ export const botOptionsConsoleApi: BotOptionsConsoleApi = {
     delete Memory.options?.visuals?.harvest
 
     console.log(`harvest visual reset to default = ${DEFAULT_BOT_OPTIONS.visuals.harvest}`)
+  },
+
+  setHarvestPathVisual(value: boolean): void {
+    Memory.options ??= {}
+    Memory.options.visuals ??= {}
+    Memory.options.visuals.harvestPath = value
+
+    console.log(`harvestPath visual = ${value}`)
+  },
+
+  clearHarvestPathVisual(): void {
+    delete Memory.options?.visuals?.harvestPath
+
+    console.log(`harvestPath visual reset to default = ${DEFAULT_BOT_OPTIONS.visuals.harvestPath}`)
   },
 
   setRclProgressVisual(value: boolean): void {
