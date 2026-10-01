@@ -43,7 +43,7 @@ export const DEFAULT_BOT_OPTIONS: BotOptions = {
   visuals: {
     basePlan: false,
     harvest: false,
-    harvestPath: true,
+    harvestPath: false,
     rclProgress: true,
   },
   construction: {
