@@ -67,6 +67,9 @@ export interface HarvestSourceState {
   remoteBuilderWorkNeeded?: number
   remoteConstructionTarget?: RoomPosition
 
+  builderCarryEquivalent?: number
+  remoteBuilderCarryCapacity?: number
+
   carryCapacity: number
   pendingEnergy: number
 }
@@ -116,7 +119,7 @@ export function runHarvest(
   const sourceById = new Map<Id<Source>, HarvestSourceState>()
   const sourceIndexById = new Map<Id<Source>, number>()
 
-  const remoteBuilderWorkBySource = new Map<Id<Source>, number>()
+  const remoteBuildersBySource = new Map<Id<Source>, Creep[]>()
 
   for (const roomState of roomStates) {
     roomByName.set(roomState.roomName, roomState)
@@ -203,13 +206,16 @@ export function runHarvest(
 
     const source = sourceById.get(sourceId)
 
-    if (source === undefined) {
+    if (source === undefined || !sourceById.has(sourceId)) {
       continue
     }
+    const builders = remoteBuildersBySource.get(sourceId)
 
-    const work = builder.getActiveBodyparts(WORK)
-
-    remoteBuilderWorkBySource.set(sourceId, (remoteBuilderWorkBySource.get(sourceId) ?? 0) + work)
+    if (builders === undefined) {
+      remoteBuildersBySource.set(sourceId, [builder])
+    } else {
+      builders.push(builder)
+    }
   }
 
   let carryCapacityLeft = totalCarryCapacity
@@ -449,7 +455,12 @@ export function runHarvest(
           if (remoteConstruction.active) {
             source.remoteConstructionTarget = remoteConstruction.target
 
-            const currentWork = remoteBuilderWorkBySource.get(source.id) ?? 0
+            const builders = remoteBuildersBySource.get(source.id) ?? []
+
+            const currentWork = builders.reduce(
+              (sum, builder) => sum + builder.body.filter((part) => part.type === WORK).length,
+              0,
+            )
 
             const missingWork = REMOTE_BUILDER_TARGET_WORK - currentWork
 
