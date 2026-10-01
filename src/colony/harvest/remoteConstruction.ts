@@ -125,11 +125,12 @@ export function runRemoteConstructionSource(
   if (index < 0) {
     delete sourceMemory.nextRoadIndex
   }
+  const target = findRemoteConstructionTarget(path) ?? (index >= 0 ? path[index] : undefined)
 
   return {
     active: activeSites > 0 || index >= 0,
     complete: index < 0 && activeSites === 0,
-    target: findRemoteConstructionTarget(path),
+    target,
   }
 }
 

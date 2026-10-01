@@ -23,5 +23,7 @@ declare global {
     haulerState?: "idle" | "fetching" | "loading" | "delivering"
 
     remoteRoomName?: string
+
+    remoteBuilderState?: "fetching" | "building"
   }
 }

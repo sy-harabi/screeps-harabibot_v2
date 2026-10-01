@@ -17,7 +17,12 @@ import { getSourceEconomyStats } from "./sourceEconomyStats"
 import { visualizeHarvest, type HarvestVisualReservationRow, type HarvestVisualSourceRow } from "./harvestVisual"
 import { visualizeHarvestPaths } from "./harvestPathVisual"
 import { getHaulerTravelRuntime } from "./haulerTravel"
-import { createRemoteBuilderBody, REMOTE_BUILDER_ROLE, REMOTE_BUILDER_TARGET_WORK } from "./remoteBuilder"
+import {
+  createRemoteBuilderBody,
+  REMOTE_BUILDER_ROLE,
+  REMOTE_BUILDER_TARGET_WORK,
+  runRemoteBuilders,
+} from "./remoteBuilder"
 import { runRemoteConstructionSource } from "./remoteConstruction"
 import { type RoomIntel } from "../../world/intel/roomIntel"
 
@@ -60,6 +65,7 @@ export interface HarvestSourceState {
   numMiners: number
 
   remoteBuilderWorkNeeded?: number
+  remoteConstructionTarget?: RoomPosition
 
   carryCapacity: number
   pendingEnergy: number
@@ -441,6 +447,8 @@ export function runHarvest(
           const remoteConstruction = runRemoteConstructionSource(room, source.id, source.path)
 
           if (remoteConstruction.active) {
+            source.remoteConstructionTarget = remoteConstruction.target
+
             const currentWork = remoteBuilderWorkBySource.get(source.id) ?? 0
 
             const missingWork = REMOTE_BUILDER_TARGET_WORK - currentWork
@@ -476,6 +484,9 @@ export function runHarvest(
   const storagePos = new RoomPosition(basePlan.storage.x, basePlan.storage.y, colonyName)
 
   runMiners(miners, sourceById, travelingMiners)
+
+  runRemoteBuilders(remoteBuilders, sourceById)
+
   runHaulersPhase1(colonyName, storagePos, haulers, sourceStates, sourceById, logistics)
 
   for (let i = 0; i < visualSourceRows.length; i++) {
