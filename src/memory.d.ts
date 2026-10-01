@@ -25,10 +25,3 @@ declare global {
     remoteRoomName?: string
   }
 }
-
-interface RemoteConstructionSourceMemory {
-  useRoad: boolean
-  nextRoadIndex?: number
-  roadsEstablished?: boolean
-  nextMaintenanceTick?: number
-}
