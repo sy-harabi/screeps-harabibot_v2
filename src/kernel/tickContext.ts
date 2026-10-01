@@ -49,7 +49,14 @@ export function createTickContext(): TickContext {
   const creepsByColony = new Map<string, MutableCreepsByRole>()
   const creepsByMission = new Map<string, MutableCreepsByRole>()
 
-  for (const creep of Object.values(Game.creeps)) {
+  for (const creepName in Memory.creeps) {
+    const creep = Game.creeps[creepName]
+
+    if (creep === undefined) {
+      delete Memory.creeps[creepName]
+      continue
+    }
+
     const { assignment, role } = creep.memory
 
     switch (assignment.type) {
