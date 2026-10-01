@@ -27,7 +27,6 @@ function runColony(room: Room, context: TickContext): void {
   }
 
   if (getBotOptions().visuals.basePlan) {
-    console.log(room.name)
     visualizeBasePlanStructures(basePlan.structures, new RoomVisual(room.name))
   }
 
