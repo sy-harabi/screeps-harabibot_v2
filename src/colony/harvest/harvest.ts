@@ -146,7 +146,7 @@ export function runHarvest(
     }
   }
 
-  const haulerProfile = getPreferredHaulerProfile(sourceStates, options.speedrun)
+  const haulerProfile: HaulerProfile = !options.speedrun && room.memory.use21Hauler ? "2:1" : "1:1"
 
   const miners = getColonyCreeps(context, colonyName, MINER_ROLE)
   const haulers = getColonyCreeps(context, colonyName, HAULER_ROLE)
@@ -284,6 +284,9 @@ export function runHarvest(
   const visualSourceRows: HarvestVisualSourceRow[] = []
   const visualReservationRows: HarvestVisualReservationRow[] = []
   const remoteConstructionCandidates: HarvestSourceState[] = []
+  let haulerScore11 = 0
+  let haulerScore21 = 0
+  let hasHaulerProfileScore = false
 
   const requestReserver = (roomState: HarvestRoomState): void => {
     if (spawnRequested || reserverBody === undefined || !needsReserver(roomState)) {
@@ -352,6 +355,16 @@ export function runHarvest(
     const minerRatio = source.sustainableHarvestPower / source.requiredHarvestPower
     const haulerNeedRatio = requiredHaulerCarryCapacity <= 0 ? 1 : source.carryCapacity / requiredHaulerCarryCapacity
     const haulerRatio = source.requiredCarryCapacity <= 0 ? 1 : source.carryCapacity / source.requiredCarryCapacity
+
+    if (!options.speedrun && !room.memory.use21Hauler && requiredHaulerCarryCapacity > 0 && haulerNeedRatio > 0) {
+      const cycle11 = source.haulerCycleTravelTicks
+      const cycle21 = source.useRoadPath ? source.haulerCycleTravelTicks : source.haulerTravel.cycleTravelTicks21
+
+      haulerScore11 += source.requiredHarvestPower * cycle11 * 2
+      haulerScore21 += source.requiredHarvestPower * cycle21 * 1.5
+      hasHaulerProfileScore = true
+    }
+
     const targetMinerWork = getTargetMinerWork(room, source)
     const container = source.container
 
@@ -568,6 +581,10 @@ export function runHarvest(
     }
   }
 
+  if (!room.memory.use21Hauler && hasHaulerProfileScore && haulerScore21 < haulerScore11) {
+    room.memory.use21Hauler = true
+  }
+
   if (areRemoteRoadsEnabled(room) && !hasActiveRemoteConstruction) {
     for (let i = 0; i < Math.min(REMOTE_CONSTRUCTION_BATCH_SIZE, remoteConstructionCandidates.length); i++) {
       const source = remoteConstructionCandidates[i]
@@ -639,29 +656,6 @@ function getRemoteBuilderWork(builders: readonly Creep[]): number {
   }
 
   return result
-}
-
-function getPreferredHaulerProfile(sourceStates: readonly HarvestSourceState[], speedrun: boolean): HaulerProfile {
-  if (speedrun) {
-    return "1:1"
-  }
-
-  let score11 = 0
-  let score21 = 0
-
-  for (const source of sourceStates) {
-    if (source.requiredHarvestPower <= 0) {
-      continue
-    }
-
-    const cycle11 = source.haulerCycleTravelTicks
-    const cycle21 = source.useRoadPath ? source.haulerCycleTravelTicks : source.haulerTravel.cycleTravelTicks21
-
-    score11 += source.requiredHarvestPower * cycle11 * 2
-    score21 += source.requiredHarvestPower * cycle21 * 1.5
-  }
-
-  return score21 < score11 ? "2:1" : "1:1"
 }
 
 function getReservationState(intel: RoomIntel, username: string): ReservationState {

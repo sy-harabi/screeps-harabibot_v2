@@ -13,6 +13,7 @@ declare global {
   interface RoomMemory {
     rclProgress?: RclProgressMemory
     remoteConstruction?: RemoteConstructionMemory
+    use21Hauler?: boolean
   }
 
   interface CreepMemory {
