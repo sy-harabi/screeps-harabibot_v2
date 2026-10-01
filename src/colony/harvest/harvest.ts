@@ -30,6 +30,7 @@ import {
   areRemoteRoadsEnabled,
   getRemoteConstructionSourceMemory,
   runRemoteConstructionSource,
+  type RemoteConstructionSourceState,
 } from "./remoteConstruction"
 import { type RoomIntel } from "../../world/intel/roomIntel"
 
@@ -128,6 +129,9 @@ export function runHarvest(
   const sourceIndexById = new Map<Id<Source>, number>()
 
   const remoteBuildersBySource = new Map<Id<Source>, Creep[]>()
+  const unassignedRemoteBuilders: Creep[] = []
+  const remoteConstructionBySource = new Map<Id<Source>, RemoteConstructionSourceState>()
+  let hasActiveRemoteConstruction = false
 
   for (const roomState of roomStates) {
     roomByName.set(roomState.roomName, roomState)
@@ -209,10 +213,13 @@ export function runHarvest(
     const sourceId = builder.memory.sourceId
 
     if (sourceId === undefined) {
+      unassignedRemoteBuilders.push(builder)
       continue
     }
 
     if (!sourceById.has(sourceId)) {
+      delete builder.memory.sourceId
+      unassignedRemoteBuilders.push(builder)
       continue
     }
 
@@ -222,6 +229,39 @@ export function runHarvest(
       remoteBuildersBySource.set(sourceId, [builder])
     } else {
       builders.push(builder)
+    }
+  }
+
+  for (const roomState of roomStates) {
+    if (roomState.reservationState !== "ours") {
+      continue
+    }
+
+    for (const source of roomState.sources) {
+      const remoteConstruction = runRemoteConstructionSource(room, source.id, source.path)
+
+      remoteConstructionBySource.set(source.id, remoteConstruction)
+
+      if (remoteConstruction.active) {
+        hasActiveRemoteConstruction = true
+      }
+
+      if (!remoteConstruction.complete) {
+        continue
+      }
+
+      const builders = remoteBuildersBySource.get(source.id)
+
+      if (builders === undefined) {
+        continue
+      }
+
+      for (const builder of builders) {
+        delete builder.memory.sourceId
+        unassignedRemoteBuilders.push(builder)
+      }
+
+      remoteBuildersBySource.delete(source.id)
     }
   }
 
@@ -240,7 +280,6 @@ export function runHarvest(
   const visualSourceRows: HarvestVisualSourceRow[] = []
   const visualReservationRows: HarvestVisualReservationRow[] = []
   const remoteConstructionCandidates: HarvestSourceState[] = []
-  let hasActiveRemoteConstruction = false
 
   const requestReserver = (roomState: HarvestRoomState): void => {
     if (spawnRequested || reserverBody === undefined || !needsReserver(roomState)) {
@@ -462,18 +501,29 @@ export function runHarvest(
         applyReservationUpkeep(roomState)
 
         for (const source of roomState.sources) {
-          const remoteConstruction = runRemoteConstructionSource(room, source.id, source.path)
+          const remoteConstruction = remoteConstructionBySource.get(source.id)
 
-          if (remoteConstruction.active) {
-            hasActiveRemoteConstruction = true
+          if (remoteConstruction?.active) {
             source.remoteConstructionTarget = remoteConstruction.target
 
             const builders = remoteBuildersBySource.get(source.id) ?? []
+            let currentWork = getRemoteBuilderWork(builders)
 
-            const currentWork = builders.reduce(
-              (sum, builder) => sum + builder.body.filter((part) => part.type === WORK).length,
-              0,
-            )
+            while (currentWork < REMOTE_BUILDER_TARGET_WORK && unassignedRemoteBuilders.length > 0) {
+              const builder = unassignedRemoteBuilders.pop()
+
+              if (builder === undefined) {
+                break
+              }
+
+              builder.memory.sourceId = source.id
+              builders.push(builder)
+              currentWork += getRemoteBuilderWork([builder])
+            }
+
+            if (builders.length > 0) {
+              remoteBuildersBySource.set(source.id, builders)
+            }
 
             const missingWork = REMOTE_BUILDER_TARGET_WORK - currentWork
 
@@ -567,6 +617,20 @@ export function runHarvest(
 
   if (options.visuals.harvestPath) {
     visualizeHarvestPaths(sourceStates)
+  }
+
+  return result
+}
+
+function getRemoteBuilderWork(builders: readonly Creep[]): number {
+  let result = 0
+
+  for (const builder of builders) {
+    for (const part of builder.body) {
+      if (part.type === WORK) {
+        result++
+      }
+    }
   }
 
   return result
