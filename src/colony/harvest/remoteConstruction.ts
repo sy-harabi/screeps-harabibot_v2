@@ -151,6 +151,8 @@ function findRemoteConstructionTarget(path: readonly RoomPosition[]): RoomPositi
       return site.pos
     }
   }
+
+  return undefined
 }
 
 function countRoadConstructionSites(path: readonly RoomPosition[]): number {

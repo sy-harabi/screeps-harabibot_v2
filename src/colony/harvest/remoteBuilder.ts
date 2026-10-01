@@ -206,6 +206,8 @@ function findBuildPathIndex(path: readonly RoomPosition[], target: RoomPosition)
       return i
     }
   }
+
+  return undefined
 }
 
 export function createRemoteBuilderBody(room: Room, missingWork: number): readonly BodyPartConstant[] | undefined {
