@@ -21,6 +21,7 @@ declare global {
 
     sourceId?: Id<Source>
     haulerState?: "idle" | "fetching" | "loading" | "delivering"
+    haulerProfile?: "1:1" | "2:1"
 
     remoteRoomName?: string
 

@@ -10,6 +10,9 @@ export interface RemoteConstructionSourceMemory {
   // Road construction progresses from source -> base.
   nextRoadIndex?: number
 
+  // Initial container and road construction is complete.
+  roadsEstablished?: boolean
+
   // Used later for periodic maintenance.
   nextMaintenanceTick?: number
 }
@@ -49,6 +52,7 @@ export function activateRemoteConstructionSource(
 
   sourceMemory.useRoad = true
   sourceMemory.nextRoadIndex = path.length - 2
+  delete sourceMemory.roadsEstablished
 }
 
 export function runRemoteConstructionSource(
@@ -60,6 +64,10 @@ export function runRemoteConstructionSource(
 
   if (!sourceMemory.useRoad) {
     return { active: false, complete: false }
+  }
+
+  if (sourceMemory.roadsEstablished) {
+    return { active: false, complete: true }
   }
 
   const containerPos = path[path.length - 1]
@@ -83,9 +91,14 @@ export function runRemoteConstructionSource(
   if (nextRoadIndex === undefined) {
     const target = findRemoteConstructionTarget(path)
 
+    if (target === undefined) {
+      sourceMemory.roadsEstablished = true
+      return { active: false, complete: true }
+    }
+
     return {
-      active: target !== undefined,
-      complete: target === undefined,
+      active: true,
+      complete: false,
       target,
     }
   }
@@ -137,10 +150,15 @@ export function runRemoteConstructionSource(
     delete sourceMemory.nextRoadIndex
   }
   const target = findRemoteConstructionTarget(path) ?? (index >= 0 ? path[index] : undefined)
+  const complete = index < 0 && activeSites === 0
+
+  if (complete) {
+    sourceMemory.roadsEstablished = true
+  }
 
   return {
-    active: activeSites > 0 || index >= 0,
-    complete: index < 0 && activeSites === 0,
+    active: !complete,
+    complete,
     target,
   }
 }

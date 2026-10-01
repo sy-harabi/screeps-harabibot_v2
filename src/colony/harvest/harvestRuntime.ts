@@ -19,6 +19,9 @@ export interface HaulerTravelRuntime {
   readonly emptyTravelTicks: number
   readonly loadedTravelTicks: number
   readonly cycleTravelTicks: number
+
+  readonly loadedTravelTicks21: number
+  readonly cycleTravelTicks21: number
 }
 
 export interface RemoteControllerRuntime {

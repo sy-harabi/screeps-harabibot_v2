@@ -71,6 +71,10 @@ function runRemoteBuilderBuild(builder: Creep, source: HarvestSourceState): void
     return
   }
 
+  if (isRoomEdge(builder.pos)) {
+    moveCreepByPath(builder, source.path, { reverse: true })
+  }
+
   const targetRoom = Game.rooms[target.roomName]
 
   if (targetRoom === undefined) {
@@ -195,7 +199,11 @@ export function getRemoteBuilderCarryEquivalent(
 
   const localConsumption = Math.min(source.requiredHarvestPower, builderEnergyPerTick)
 
-  return Math.min(source.requiredCarryCapacity, localConsumption * source.haulerTravel.cycleTravelTicks)
+  return Math.min(source.requiredCarryCapacity, localConsumption * source.haulerCycleTravelTicks)
+}
+
+function isRoomEdge(pos: RoomPosition): boolean {
+  return pos.x === 0 || pos.x === 49 || pos.y === 0 || pos.y === 49
 }
 
 function findBuildPathIndex(path: readonly RoomPosition[], target: RoomPosition): number | undefined {
