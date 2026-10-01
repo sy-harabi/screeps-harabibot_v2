@@ -1,5 +1,5 @@
 import { estimatePathTravelTicks } from "../../capabilities/movement/travelTime"
-import { getRequiredCarryCapacity } from "./hauler"
+import { getRequiredCarryCapacity, type HaulerProfile } from "./hauler"
 import { getHarvestRuntime } from "./harvestRuntime"
 import { createMinerBody } from "./miner"
 
@@ -7,6 +7,7 @@ export interface SourceEconomyStats {
   readonly key: number
   readonly path: readonly RoomPosition[]
   readonly haulerCycleTravelTicks: number
+  readonly haulerProfile: HaulerProfile
   readonly relayPathLength?: number
 
   readonly numMiningPositions: number
@@ -31,6 +32,7 @@ export function getSourceEconomyStats(
   targetWork: number,
   hasContainer: boolean,
   haulerCycleTravelTicks: number,
+  haulerProfile: HaulerProfile,
   relayPathLength?: number,
 ): SourceEconomyStats {
   const runtime = getHarvestRuntime(room.name)
@@ -48,6 +50,7 @@ export function getSourceEconomyStats(
     cached.targetWork === targetWork &&
     cached.hasContainer === hasContainer &&
     cached.haulerCycleTravelTicks === haulerCycleTravelTicks &&
+    cached.haulerProfile === haulerProfile &&
     cached.relayPathLength === relayPathLength
   ) {
     return cached
@@ -61,6 +64,7 @@ export function getSourceEconomyStats(
     targetWork,
     hasContainer,
     haulerCycleTravelTicks,
+    haulerProfile,
     relayPathLength,
   )
 
@@ -77,6 +81,7 @@ function calculateSourceEconomyStats(
   targetWork: number,
   hasContainer: boolean,
   haulerCycleTravelTicks: number,
+  haulerProfile: HaulerProfile,
   relayPathLength?: number,
 ): SourceEconomyStats {
   const key = room.energyCapacityAvailable
@@ -87,6 +92,7 @@ function calculateSourceEconomyStats(
       key,
       path,
       haulerCycleTravelTicks,
+      haulerProfile,
       relayPathLength,
       numMiningPositions,
       grossIncome,
@@ -122,7 +128,12 @@ function calculateSourceEconomyStats(
   const minerUpkeep = (minerCount * bodyCost) / productiveLifetime
   const requiredCarryCapacity = getRequiredCarryCapacity(harvestIncome, haulerCycleTravelTicks, relayPathLength)
   const carryParts = requiredCarryCapacity / CARRY_CAPACITY
-  const haulerUpkeep = (carryParts * (BODYPART_COST[CARRY] + BODYPART_COST[MOVE])) / CREEP_LIFE_TIME
+  const haulerPartsPerCarry = haulerProfile === "2:1" ? 1.5 : 2
+  const haulerEnergyPerCarry =
+    haulerProfile === "2:1"
+      ? BODYPART_COST[CARRY] + BODYPART_COST[MOVE] / 2
+      : BODYPART_COST[CARRY] + BODYPART_COST[MOVE]
+  const haulerUpkeep = (carryParts * haulerEnergyPerCarry) / CREEP_LIFE_TIME
   const sourceRoomName = path[path.length - 1]?.roomName
   const infrastructureUpkeep = hasContainer
     ? (CONTAINER_DECAY * REPAIR_COST) /
@@ -133,6 +144,7 @@ function calculateSourceEconomyStats(
     key,
     path,
     haulerCycleTravelTicks,
+    haulerProfile,
     relayPathLength,
     numMiningPositions,
     grossIncome,
@@ -143,6 +155,6 @@ function calculateSourceEconomyStats(
     haulerUpkeep,
     infrastructureUpkeep,
     minerSpawnUsage: (minerCount * minerBody.length * CREEP_SPAWN_TIME) / productiveLifetime,
-    haulerSpawnUsage: (carryParts * 2 * CREEP_SPAWN_TIME) / CREEP_LIFE_TIME,
+    haulerSpawnUsage: (carryParts * haulerPartsPerCarry * CREEP_SPAWN_TIME) / CREEP_LIFE_TIME,
   }
 }

@@ -38,6 +38,8 @@ export function getHaulerTravelRuntime(
       emptyTravelTicks,
       loadedTravelTicks,
       cycleTravelTicks: emptyTravelTicks + loadedTravelTicks,
+      loadedTravelTicks21: loadedTravelTicks,
+      cycleTravelTicks21: emptyTravelTicks + loadedTravelTicks,
     }
 
     runtime.haulerTravelBySource.set(sourceId, result)
@@ -99,8 +101,10 @@ export function getHaulerTravelRuntime(
   const loadedPath = loadedResult.incomplete ? sourcePath : loadedResult.path
 
   const loadedTravelTicks = loadedResult.incomplete ? estimatePathTravelTicks(sourcePath, 1, 1) : loadedResult.cost
+  const loadedTravelTicks21 = estimatePathTravelTicks(loadedPath, 1, 2)
 
   const cycleTravelTicks = emptyTravelTicks + loadedTravelTicks
+  const cycleTravelTicks21 = emptyTravelTicks + loadedTravelTicks21
 
   const result: HaulerTravelRuntime = {
     sourcePath,
@@ -112,6 +116,8 @@ export function getHaulerTravelRuntime(
     emptyTravelTicks,
     loadedTravelTicks,
     cycleTravelTicks,
+    loadedTravelTicks21,
+    cycleTravelTicks21,
   }
 
   runtime.haulerTravelBySource.set(sourceId, result)

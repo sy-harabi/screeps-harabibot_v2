@@ -9,7 +9,7 @@ import type { LogisticsState } from "../logistics/logistics"
 import { planHarvest } from "./harvestRoomPlanner"
 import { harvestRoomPlanStore } from "./harvestRoomPlanStore"
 import { getHarvestRuntime, type HaulerTravelRuntime, type RemoteControllerRuntime } from "./harvestRuntime"
-import { createHaulerBody, getRequiredCarryCapacity, HAULER_ROLE, runHaulersPhase1 } from "./hauler"
+import { createHaulerBody, getRequiredCarryCapacity, HAULER_ROLE, runHaulersPhase1, type HaulerProfile } from "./hauler"
 import { getMiningPositions, getSourceContainer } from "./miningSite"
 import { createMinerBody, MINER_ROLE, runMiners } from "./miner"
 import { createReserverBody, RESERVER_ROLE, runReserver } from "./reserver"
@@ -61,6 +61,8 @@ export interface HarvestSourceState {
 
   readonly path: readonly RoomPosition[]
   readonly haulerTravel: HaulerTravelRuntime
+  readonly useRoadPath: boolean
+  readonly haulerCycleTravelTicks: number
   readonly miningPositions: readonly RoomPosition[]
 
   readonly requiredHarvestPower: number
@@ -143,6 +145,8 @@ export function runHarvest(
       sourceIndexById.set(source.id, i)
     }
   }
+
+  const haulerProfile = getPreferredHaulerProfile(sourceStates, options.speedrun)
 
   const miners = getColonyCreeps(context, colonyName, MINER_ROLE)
   const haulers = getColonyCreeps(context, colonyName, HAULER_ROLE)
@@ -359,7 +363,8 @@ export function runHarvest(
       source.requiredHarvestPower,
       targetMinerWork,
       container !== undefined,
-      source.haulerTravel.cycleTravelTicks,
+      source.haulerCycleTravelTicks,
+      haulerProfile,
       options.speedrun ? source.haulerTravel.emptyPath.length : undefined,
     )
 
@@ -438,9 +443,9 @@ export function runHarvest(
             order: source.path.length,
             rolesByPriority: ROLES_BY_PRIORITY,
           },
-          () => createHaulerBody(room),
+          () => createHaulerBody(room, haulerProfile),
           HAULER_ROLE,
-          { memory: { haulerState: "idle" } },
+          { memory: { haulerState: "idle", haulerProfile } },
         )
 
         spawnRequested = true
@@ -463,7 +468,7 @@ export function runHarvest(
       }
     }
 
-    return minerRatio >= 1 && haulerNeedRatio >= 1
+    return haulerNeedRatio >= 1
   }
 
   for (const roomState of roomStates) {
@@ -481,13 +486,13 @@ export function runHarvest(
           break
         }
 
-        const firstSourceReady = processSource(firstSource)
+        const firstSourceHaulerReady = processSource(firstSource)
 
-        if (firstSourceReady) {
+        if (firstSourceHaulerReady) {
           requestReserver(roomState)
         }
 
-        applyReservationUpkeep(roomState, firstSourceReady)
+        applyReservationUpkeep(roomState, firstSourceHaulerReady)
 
         for (let i = 1; i < roomState.sources.length; i++) {
           processSource(roomState.sources[i])
@@ -636,6 +641,29 @@ function getRemoteBuilderWork(builders: readonly Creep[]): number {
   return result
 }
 
+function getPreferredHaulerProfile(sourceStates: readonly HarvestSourceState[], speedrun: boolean): HaulerProfile {
+  if (speedrun) {
+    return "1:1"
+  }
+
+  let score11 = 0
+  let score21 = 0
+
+  for (const source of sourceStates) {
+    if (source.requiredHarvestPower <= 0) {
+      continue
+    }
+
+    const cycle11 = source.haulerCycleTravelTicks
+    const cycle21 = source.useRoadPath ? source.haulerCycleTravelTicks : source.haulerTravel.cycleTravelTicks21
+
+    score11 += source.requiredHarvestPower * cycle11 * 2
+    score21 += source.requiredHarvestPower * cycle21 * 1.5
+  }
+
+  return score21 < score11 ? "2:1" : "1:1"
+}
+
 function getReservationState(intel: RoomIntel, username: string): ReservationState {
   if (intel.controller?.owner?.username === username) {
     return "owned"
@@ -758,17 +786,28 @@ function prepareHarvestRoomStates(
         }
       }
 
+      const useRoadPath =
+        !speedrun &&
+        (roomName === colonyName
+          ? (room.controller?.level ?? 0) >= 3
+          : getRemoteConstructionSourceMemory(room, sourceIntel.id).roadsEstablished === true)
+      const haulerCycleTravelTicks = useRoadPath
+        ? haulerTravel.emptyTravelTicks + sourcePlan.path.length
+        : haulerTravel.cycleTravelTicks
+
       sources.push({
         id: sourceIntel.id,
         roomName,
         path: sourcePlan.path,
         haulerTravel,
+        useRoadPath,
+        haulerCycleTravelTicks,
 
         miningPositions,
         requiredHarvestPower,
         requiredCarryCapacity: getRequiredCarryCapacity(
           requiredHarvestPower,
-          haulerTravel.cycleTravelTicks,
+          haulerCycleTravelTicks,
           speedrun ? haulerTravel.emptyPath.length : undefined,
         ),
         container,

@@ -12,6 +12,8 @@ import type { HarvestSourceState } from "./harvest"
 import { getHaulerRoomCostMatrix } from "./haulerCostMatrix"
 export const HAULER_ROLE = "hauler"
 
+export type HaulerProfile = "1:1" | "2:1"
+
 const SPEEDRUN_HAULER_MAX_CARRY = 3
 const LOGISTICS_ENTRY_RANGE = 6
 
@@ -154,8 +156,16 @@ function moveAlongLoadedPath(hauler: Creep, sourceById: ReadonlyMap<Id<Source>, 
     return false
   }
 
-  moveCreepByPath(hauler, source.haulerTravel.loadedPath, HAULER_REVERSE_PATH_OPTIONS)
+  moveCreepByPath(hauler, getLoadedPath(hauler, source), HAULER_REVERSE_PATH_OPTIONS)
   return true
+}
+
+function getLoadedPath(hauler: Creep, source: HarvestSourceState): readonly RoomPosition[] {
+  if (hauler.memory.haulerProfile === "2:1" && source.useRoadPath) {
+    return source.path
+  }
+
+  return source.haulerTravel.loadedPath
 }
 
 function moveToSource(hauler: Creep, source: HarvestSourceState): void {
@@ -304,7 +314,7 @@ function runFetch(hauler: Creep, sourceState: HarvestSourceState): void {
 
 function startDelivering(hauler: Creep, sourceState: HarvestSourceState): void {
   hauler.memory.haulerState = "delivering"
-  moveCreepByPath(hauler, sourceState.haulerTravel.loadedPath, HAULER_REVERSE_PATH_OPTIONS)
+  moveCreepByPath(hauler, getLoadedPath(hauler, sourceState), HAULER_REVERSE_PATH_OPTIONS)
 }
 
 function getDroppedEnergy(source: Source): Resource<ResourceConstant> | undefined {
@@ -353,7 +363,7 @@ function assignHauler(
       continue
     }
 
-    const cycleTravelTicks = Math.max(0, sourceState.haulerTravel.cycleTravelTicks - relayTicks)
+    const cycleTravelTicks = Math.max(0, sourceState.haulerCycleTravelTicks - relayTicks)
 
     if (!getBotOptions().speedrun && hauler.ticksToLive !== undefined && hauler.ticksToLive <= cycleTravelTicks + 20) {
       continue
@@ -426,23 +436,22 @@ export function getRequiredCarryCapacity(
   return (haulerCapacity * relayPathLength * (Math.sqrt(1 + (8 * energyPerTick) / haulerCapacity) - 1)) / 2
 }
 
-export function createHaulerBody(room: Room): readonly BodyPartConstant[] | undefined {
+export function createHaulerBody(room: Room, profile: HaulerProfile = "1:1"): readonly BodyPartConstant[] | undefined {
   const budget = room.energyAvailable
+  const speedrun = getBotOptions().speedrun
+  const unit = speedrun || profile === "1:1" ? [CARRY, MOVE] : [CARRY, CARRY, MOVE]
+  const unitCost = unit.reduce((prev, curr) => prev + BODYPART_COST[curr], 0)
 
-  if (budget < 100) {
+  if (budget < unitCost) {
     return undefined
   }
 
-  const unit = [CARRY, MOVE]
-  const unitCost = unit.reduce((prev, curr) => prev + BODYPART_COST[curr], 0)
-
-  const maxCount = getBotOptions().speedrun ? SPEEDRUN_HAULER_MAX_CARRY : Math.floor(MAX_CREEP_SIZE / unit.length)
-
-  const carryCount = Math.min(Math.max(1, Math.floor(budget / unitCost)), maxCount)
+  const maxUnits = speedrun ? SPEEDRUN_HAULER_MAX_CARRY : Math.floor(MAX_CREEP_SIZE / unit.length)
+  const unitCount = Math.min(Math.floor(budget / unitCost), maxUnits)
 
   const result: BodyPartConstant[] = []
 
-  for (let i = 0; i < carryCount; i++) {
+  for (let i = 0; i < unitCount; i++) {
     result.push(...unit)
   }
 
