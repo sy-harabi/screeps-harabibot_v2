@@ -70,12 +70,17 @@ export function runRemoteConstructionSource(
   const nextRoadIndex = sourceMemory.nextRoadIndex
 
   if (nextRoadIndex === undefined) {
-    return { active: false, complete: true }
+    const target = findRemoteConstructionTarget(path)
+
+    return {
+      active: target !== undefined,
+      complete: target === undefined,
+      target,
+    }
   }
 
   let index = nextRoadIndex
   let activeSites = countRoadConstructionSites(path)
-  let target = undefined
 
   while (index >= 0 && activeSites < MAX_REMOTE_CONSTRUCTION_SITES) {
     const pos = path[index]
@@ -100,9 +105,6 @@ export function runRemoteConstructionSource(
     const roadSite = room.lookForAt(LOOK_CONSTRUCTION_SITES, pos).find((site) => site.structureType === STRUCTURE_ROAD)
 
     if (roadSite) {
-      if (target === undefined) {
-        target = roadSite
-      }
       index--
       continue
     }
@@ -127,7 +129,7 @@ export function runRemoteConstructionSource(
   return {
     active: activeSites > 0 || index >= 0,
     complete: index < 0 && activeSites === 0,
-    target: target?.pos,
+    target: findRemoteConstructionTarget(path),
   }
 }
 

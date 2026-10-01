@@ -5,7 +5,6 @@ import { requestSpawn } from "../../capabilities/spawning/spawnQueue"
 import { getColonyCreeps, type TickContext } from "../../kernel/tickContext"
 import { getBotOptions } from "../../options/botOptions"
 import { intelStore } from "../../world/intel/intelStore"
-import type { RoomIntel } from "../../world/intel/roomIntel"
 import type { LogisticsState } from "../logistics/logistics"
 import { planHarvest } from "./harvestRoomPlanner"
 import { harvestRoomPlanStore } from "./harvestRoomPlanStore"
@@ -18,6 +17,9 @@ import { getSourceEconomyStats } from "./sourceEconomyStats"
 import { visualizeHarvest, type HarvestVisualReservationRow, type HarvestVisualSourceRow } from "./harvestVisual"
 import { visualizeHarvestPaths } from "./harvestPathVisual"
 import { getHaulerTravelRuntime } from "./haulerTravel"
+import { createRemoteBuilderBody, REMOTE_BUILDER_ROLE, REMOTE_BUILDER_TARGET_WORK } from "./remoteBuilder"
+import { runRemoteConstructionSource } from "./remoteConstruction"
+import { type RoomIntel } from "../../world/intel/roomIntel"
 
 const SOURCE_CONTAINER_REPAIR_THRESHOLD = 150_000
 const RESERVER_REPLACEMENT_BUFFER = 20
@@ -57,6 +59,8 @@ export interface HarvestSourceState {
   activeHarvestPower: number
   numMiners: number
 
+  remoteBuilderWorkNeeded?: number
+
   carryCapacity: number
   pendingEnergy: number
 }
@@ -76,7 +80,7 @@ export interface HarvestResult {
   readonly haulerPhase2?: HaulerPhase2State
 }
 
-const ROLES_BY_PRIORITY = [MINER_ROLE, HAULER_ROLE, RESERVER_ROLE]
+const ROLES_BY_PRIORITY = [MINER_ROLE, HAULER_ROLE, RESERVER_ROLE, REMOTE_BUILDER_ROLE]
 const EMPTY_HARVEST_RESULT: HarvestResult = { income: 0, maxIncome: 0, spawnUsage: 0 }
 
 export function runHarvest(
@@ -106,6 +110,8 @@ export function runHarvest(
   const sourceById = new Map<Id<Source>, HarvestSourceState>()
   const sourceIndexById = new Map<Id<Source>, number>()
 
+  const remoteBuilderWorkBySource = new Map<Id<Source>, number>()
+
   for (const roomState of roomStates) {
     roomByName.set(roomState.roomName, roomState)
 
@@ -120,6 +126,7 @@ export function runHarvest(
   const miners = getColonyCreeps(context, colonyName, MINER_ROLE)
   const haulers = getColonyCreeps(context, colonyName, HAULER_ROLE)
   const reservers = getColonyCreeps(context, colonyName, RESERVER_ROLE)
+  const remoteBuilders = getColonyCreeps(context, colonyName, REMOTE_BUILDER_ROLE)
 
   for (const reserver of reservers) {
     const remoteRoomName = reserver.memory.remoteRoomName
@@ -179,6 +186,24 @@ export function runHarvest(
     if ((hauler.ticksToLive ?? CREEP_LIFE_TIME) > replacementLeadTime) {
       totalCarryCapacity += hauler.getActiveBodyparts(CARRY) * CARRY_CAPACITY
     }
+  }
+
+  for (const builder of remoteBuilders) {
+    const sourceId = builder.memory.sourceId
+
+    if (sourceId === undefined) {
+      continue
+    }
+
+    const source = sourceById.get(sourceId)
+
+    if (source === undefined) {
+      continue
+    }
+
+    const work = builder.getActiveBodyparts(WORK)
+
+    remoteBuilderWorkBySource.set(sourceId, (remoteBuilderWorkBySource.get(sourceId) ?? 0) + work)
   }
 
   let carryCapacityLeft = totalCarryCapacity
@@ -356,6 +381,22 @@ export function runHarvest(
         )
 
         spawnRequested = true
+      } else if (source.remoteBuilderWorkNeeded !== undefined) {
+        requestSpawn(
+          {
+            requesterId,
+            spawnRoomName: colonyName,
+            assignment,
+            priorityType,
+            order: source.path.length,
+            rolesByPriority: ROLES_BY_PRIORITY,
+          },
+          () => createRemoteBuilderBody(room, source.remoteBuilderWorkNeeded!),
+          REMOTE_BUILDER_ROLE,
+          { memory: { sourceId: source.id } },
+        )
+
+        spawnRequested = true
       }
     }
 
@@ -397,6 +438,18 @@ export function runHarvest(
         applyReservationUpkeep(roomState)
 
         for (const source of roomState.sources) {
+          const remoteConstruction = runRemoteConstructionSource(room, source.id, source.path)
+
+          if (remoteConstruction.active) {
+            const currentWork = remoteBuilderWorkBySource.get(source.id) ?? 0
+
+            const missingWork = REMOTE_BUILDER_TARGET_WORK - currentWork
+
+            if (missingWork > 0) {
+              source.remoteBuilderWorkNeeded = missingWork
+            }
+          }
+
           processSource(source)
         }
         break
