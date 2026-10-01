@@ -293,19 +293,14 @@ export function runHarvest(
       activeSourcePaths.push(source.path)
     }
 
-    const requiredHaulerCarryCapacity = Math.max(
-      0,
-      source.requiredCarryCapacity - (source.builderCarryEquivalent ?? 0),
-    )
+    const requiredHaulerCarryCapacity = Math.max(0, source.requiredCarryCapacity - (source.builderCarryEquivalent ?? 0))
 
     source.carryCapacity = Math.min(requiredHaulerCarryCapacity, carryCapacityLeft)
     carryCapacityLeft -= source.carryCapacity
 
     const minerRatio = source.sustainableHarvestPower / source.requiredHarvestPower
-    const haulerNeedRatio =
-      requiredHaulerCarryCapacity <= 0 ? 1 : source.carryCapacity / requiredHaulerCarryCapacity
-    const haulerRatio =
-      source.requiredCarryCapacity <= 0 ? 1 : source.carryCapacity / source.requiredCarryCapacity
+    const haulerNeedRatio = requiredHaulerCarryCapacity <= 0 ? 1 : source.carryCapacity / requiredHaulerCarryCapacity
+    const haulerRatio = source.requiredCarryCapacity <= 0 ? 1 : source.carryCapacity / source.requiredCarryCapacity
     const targetMinerWork = getTargetMinerWork(room, source)
     const container = source.container
 

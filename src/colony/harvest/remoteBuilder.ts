@@ -195,10 +195,7 @@ export function getRemoteBuilderCarryEquivalent(
 
   const localConsumption = Math.min(source.requiredHarvestPower, builderEnergyPerTick)
 
-  return Math.min(
-    source.requiredCarryCapacity,
-    localConsumption * source.haulerTravel.cycleTravelTicks,
-  )
+  return Math.min(source.requiredCarryCapacity, localConsumption * source.haulerTravel.cycleTravelTicks)
 }
 
 function findBuildPathIndex(path: readonly RoomPosition[], target: RoomPosition): number | undefined {
