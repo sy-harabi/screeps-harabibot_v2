@@ -19,6 +19,8 @@ import { visualizeHarvestPaths } from "./harvestPathVisual"
 import { getHaulerTravelRuntime } from "./haulerTravel"
 import {
   createRemoteBuilderBody,
+  getRemoteBuilderCarryCapacity,
+  getRemoteBuilderCarryEquivalent,
   REMOTE_BUILDER_ROLE,
   REMOTE_BUILDER_TARGET_WORK,
   runRemoteBuilders,
@@ -204,11 +206,10 @@ export function runHarvest(
       continue
     }
 
-    const source = sourceById.get(sourceId)
-
-    if (source === undefined || !sourceById.has(sourceId)) {
+    if (!sourceById.has(sourceId)) {
       continue
     }
+
     const builders = remoteBuildersBySource.get(sourceId)
 
     if (builders === undefined) {
@@ -292,11 +293,19 @@ export function runHarvest(
       activeSourcePaths.push(source.path)
     }
 
-    source.carryCapacity = Math.min(source.requiredCarryCapacity, carryCapacityLeft)
+    const requiredHaulerCarryCapacity = Math.max(
+      0,
+      source.requiredCarryCapacity - (source.builderCarryEquivalent ?? 0),
+    )
+
+    source.carryCapacity = Math.min(requiredHaulerCarryCapacity, carryCapacityLeft)
     carryCapacityLeft -= source.carryCapacity
 
     const minerRatio = source.sustainableHarvestPower / source.requiredHarvestPower
-    const haulerRatio = source.carryCapacity / source.requiredCarryCapacity
+    const haulerNeedRatio =
+      requiredHaulerCarryCapacity <= 0 ? 1 : source.carryCapacity / requiredHaulerCarryCapacity
+    const haulerRatio =
+      source.requiredCarryCapacity <= 0 ? 1 : source.carryCapacity / source.requiredCarryCapacity
     const targetMinerWork = getTargetMinerWork(room, source)
     const container = source.container
 
@@ -356,7 +365,7 @@ export function runHarvest(
     if (!spawnRequested) {
       const priorityType = source.roomName === colonyName ? "ownedSource" : "remoteSource"
 
-      if (minerRatio < 1 && minerRatio <= haulerRatio && source.numMiners < source.miningPositions.length) {
+      if (minerRatio < 1 && minerRatio <= haulerNeedRatio && source.numMiners < source.miningPositions.length) {
         const repairContainer =
           hasHarvestIncome && container !== undefined && container.hits < SOURCE_CONTAINER_REPAIR_THRESHOLD
 
@@ -377,7 +386,7 @@ export function runHarvest(
         )
 
         spawnRequested = true
-      } else if (haulerRatio < 1) {
+      } else if (haulerNeedRatio < 1) {
         requestSpawn(
           {
             requesterId,
@@ -412,7 +421,7 @@ export function runHarvest(
       }
     }
 
-    return minerRatio >= 1 && haulerRatio >= 1
+    return minerRatio >= 1 && haulerNeedRatio >= 1
   }
 
   for (const roomState of roomStates) {
@@ -466,6 +475,19 @@ export function runHarvest(
 
             if (missingWork > 0) {
               source.remoteBuilderWorkNeeded = missingWork
+            }
+
+            if (remoteConstruction.target !== undefined) {
+              const carryCapacity = getRemoteBuilderCarryCapacity(builders)
+
+              if (carryCapacity > 0) {
+                source.remoteBuilderCarryCapacity = carryCapacity
+                source.builderCarryEquivalent = getRemoteBuilderCarryEquivalent(
+                  builders,
+                  source,
+                  remoteConstruction.target,
+                )
+              }
             }
           }
 

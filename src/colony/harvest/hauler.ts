@@ -327,7 +327,9 @@ function preparePendingEnergy(sourceStates: readonly HarvestSourceState[]): void
   for (const sourceState of sourceStates) {
     const source = Game.getObjectById(sourceState.id)
 
-    sourceState.pendingEnergy = source === null ? 0 : sourceState.containerEnergy + sourceState.droppedEnergy
+    const availableEnergy = source === null ? 0 : sourceState.containerEnergy + sourceState.droppedEnergy
+
+    sourceState.pendingEnergy = availableEnergy - (sourceState.remoteBuilderCarryCapacity ?? 0)
   }
 }
 

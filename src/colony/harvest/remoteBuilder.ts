@@ -1,4 +1,5 @@
 import { moveCreep, moveCreepByPath } from "../../capabilities/movement/movement"
+import { estimatePathTravelTicks } from "../../capabilities/movement/travelTime"
 import { type HarvestSourceState } from "./harvest"
 
 export const REMOTE_BUILDER_ROLE = "remoteBuilder"
@@ -133,6 +134,80 @@ function runRemoteBuilderFetch(builder: Creep, source: HarvestSourceState): void
     }
 
     builder.withdraw(container, RESOURCE_ENERGY)
+  }
+}
+
+export function getRemoteBuilderCarryCapacity(builders: readonly Creep[]): number {
+  let carryCapacity = 0
+
+  for (const builder of builders) {
+    if (builder.spawning) {
+      continue
+    }
+
+    carryCapacity += builder.store.getCapacity(RESOURCE_ENERGY)
+  }
+
+  return carryCapacity
+}
+
+export function getRemoteBuilderCarryEquivalent(
+  builders: readonly Creep[],
+  source: HarvestSourceState,
+  target: RoomPosition,
+): number {
+  let builderEnergyPerTick = 0
+
+  for (const builder of builders) {
+    if (builder.spawning) {
+      continue
+    }
+
+    const workParts = builder.getActiveBodyparts(WORK)
+    const carryParts = builder.getActiveBodyparts(CARRY)
+    const moveParts = builder.getActiveBodyparts(MOVE)
+    const carryCapacity = builder.store.getCapacity(RESOURCE_ENERGY)
+
+    if (workParts <= 0 || moveParts <= 0 || carryCapacity <= 0) {
+      continue
+    }
+
+    const buildPathIndex = findBuildPathIndex(source.path, target)
+
+    if (buildPathIndex === undefined) {
+      continue
+    }
+
+    const loadedPath = source.path.slice(buildPathIndex, source.path.length - 1)
+    const emptyPath = source.path.slice(buildPathIndex + 1)
+
+    const loadedTravelTicks = estimatePathTravelTicks(loadedPath, moveParts, workParts + carryParts)
+    const emptyTravelTicks = estimatePathTravelTicks(emptyPath, moveParts, workParts)
+    const buildTicks = Math.ceil(carryCapacity / (workParts * BUILD_POWER))
+    const cycleTicks = loadedTravelTicks + buildTicks + emptyTravelTicks
+
+    if (!Number.isFinite(cycleTicks) || cycleTicks <= 0) {
+      continue
+    }
+
+    builderEnergyPerTick += carryCapacity / cycleTicks
+  }
+
+  const localConsumption = Math.min(source.requiredHarvestPower, builderEnergyPerTick)
+
+  return Math.min(
+    source.requiredCarryCapacity,
+    localConsumption * source.haulerTravel.cycleTravelTicks,
+  )
+}
+
+function findBuildPathIndex(path: readonly RoomPosition[], target: RoomPosition): number | undefined {
+  for (let i = path.length - 1; i >= 0; i--) {
+    const pos = path[i]
+
+    if (pos.roomName === target.roomName && pos.inRangeTo(target, 3)) {
+      return i
+    }
   }
 }
 
