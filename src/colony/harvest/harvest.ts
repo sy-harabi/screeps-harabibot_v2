@@ -25,13 +25,19 @@ import {
   REMOTE_BUILDER_TARGET_WORK,
   runRemoteBuilders,
 } from "./remoteBuilder"
-import { runRemoteConstructionSource } from "./remoteConstruction"
+import {
+  activateRemoteConstructionSource,
+  areRemoteRoadsEnabled,
+  getRemoteConstructionSourceMemory,
+  runRemoteConstructionSource,
+} from "./remoteConstruction"
 import { type RoomIntel } from "../../world/intel/roomIntel"
 
 const SOURCE_CONTAINER_REPAIR_THRESHOLD = 150_000
 const RESERVER_REPLACEMENT_BUFFER = 20
 const RESERVATION_RESTART_MARGIN = 200
 const TARGET_RESERVE_POWER = 2
+const REMOTE_CONSTRUCTION_BATCH_SIZE = 2
 
 interface HarvestRoomState {
   readonly roomName: string
@@ -233,6 +239,8 @@ export function runHarvest(
   const activeSourcePaths: (readonly RoomPosition[])[] = []
   const visualSourceRows: HarvestVisualSourceRow[] = []
   const visualReservationRows: HarvestVisualReservationRow[] = []
+  const remoteConstructionCandidates: HarvestSourceState[] = []
+  let hasActiveRemoteConstruction = false
 
   const requestReserver = (roomState: HarvestRoomState): void => {
     if (spawnRequested || reserverBody === undefined || !needsReserver(roomState)) {
@@ -457,6 +465,7 @@ export function runHarvest(
           const remoteConstruction = runRemoteConstructionSource(room, source.id, source.path)
 
           if (remoteConstruction.active) {
+            hasActiveRemoteConstruction = true
             source.remoteConstructionTarget = remoteConstruction.target
 
             const builders = remoteBuildersBySource.get(source.id) ?? []
@@ -486,7 +495,12 @@ export function runHarvest(
             }
           }
 
-          processSource(source)
+          const sourceReady = processSource(source)
+          const sourceMemory = getRemoteConstructionSourceMemory(room, source.id)
+
+          if (sourceReady && !sourceMemory.useRoad) {
+            remoteConstructionCandidates.push(source)
+          }
         }
         break
       }
@@ -496,6 +510,14 @@ export function runHarvest(
 
         applyReservationUpkeep(roomState)
         break
+    }
+  }
+
+  if (areRemoteRoadsEnabled(room) && !hasActiveRemoteConstruction) {
+    for (let i = 0; i < Math.min(REMOTE_CONSTRUCTION_BATCH_SIZE, remoteConstructionCandidates.length); i++) {
+      const source = remoteConstructionCandidates[i]
+
+      activateRemoteConstructionSource(room, source.id, source.path)
     }
   }
 

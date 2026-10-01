@@ -40,6 +40,17 @@ export interface RemoteConstructionSourceState {
   readonly target?: RoomPosition
 }
 
+export function activateRemoteConstructionSource(
+  colonyRoom: Room,
+  sourceId: Id<Source>,
+  path: readonly RoomPosition[],
+): void {
+  const sourceMemory = getRemoteConstructionSourceMemory(colonyRoom, sourceId)
+
+  sourceMemory.useRoad = true
+  sourceMemory.nextRoadIndex = path.length - 2
+}
+
 export function runRemoteConstructionSource(
   colonyRoom: Room,
   sourceId: Id<Source>,
