@@ -158,6 +158,15 @@ export function getRemoteBuilderCarryEquivalent(
 ): number {
   let builderEnergyPerTick = 0
 
+  const buildPathIndex = findBuildPathIndex(source.path, target)
+
+  if (buildPathIndex === undefined) {
+    return 0
+  }
+
+  const loadedPath = source.path.slice(buildPathIndex, source.path.length - 1)
+  const emptyPath = source.path.slice(buildPathIndex + 1)
+
   for (const builder of builders) {
     if (builder.spawning) {
       continue
@@ -171,15 +180,6 @@ export function getRemoteBuilderCarryEquivalent(
     if (workParts <= 0 || moveParts <= 0 || carryCapacity <= 0) {
       continue
     }
-
-    const buildPathIndex = findBuildPathIndex(source.path, target)
-
-    if (buildPathIndex === undefined) {
-      continue
-    }
-
-    const loadedPath = source.path.slice(buildPathIndex, source.path.length - 1)
-    const emptyPath = source.path.slice(buildPathIndex + 1)
 
     const loadedTravelTicks = estimatePathTravelTicks(loadedPath, moveParts, workParts + carryParts)
     const emptyTravelTicks = estimatePathTravelTicks(emptyPath, moveParts, workParts)
