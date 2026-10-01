@@ -145,14 +145,6 @@ export function runHarvest(
   const reservers = getColonyCreeps(context, colonyName, RESERVER_ROLE)
   const remoteBuilders = getColonyCreeps(context, colonyName, REMOTE_BUILDER_ROLE)
 
-  if (areRemoteRoadsEnabled(room) && !hasActiveRemoteConstruction) {
-    for (let i = 0; i < Math.min(REMOTE_CONSTRUCTION_BATCH_SIZE, remoteConstructionCandidates.length); i++) {
-      const source = remoteConstructionCandidates[i]
-
-      activateRemoteConstructionSource(room, source.id, source.path)
-    }
-  }
-
   for (const reserver of reservers) {
     const remoteRoomName = reserver.memory.remoteRoomName
 
@@ -518,6 +510,14 @@ export function runHarvest(
 
         applyReservationUpkeep(roomState)
         break
+    }
+  }
+
+  if (areRemoteRoadsEnabled(room) && !hasActiveRemoteConstruction) {
+    for (let i = 0; i < Math.min(REMOTE_CONSTRUCTION_BATCH_SIZE, remoteConstructionCandidates.length); i++) {
+      const source = remoteConstructionCandidates[i]
+
+      activateRemoteConstructionSource(room, source.id, source.path)
     }
   }
 
