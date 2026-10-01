@@ -126,7 +126,8 @@ function considerRemoteHarvestCandidate(
   }
 
   if (existing.colonyName === roomName) {
-    return existing
+    harvestRoomPlanStore.set(roomName, plan)
+    return plan
   }
 
   if (existing.colonyName === colonyName) {
