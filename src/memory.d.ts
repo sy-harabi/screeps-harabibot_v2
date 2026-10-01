@@ -1,3 +1,4 @@
+import { type RemoteConstructionMemory } from "./colony/harvest/remoteConstruction"
 import type { RclProgressMemory } from "./colony/rclProgress"
 import type { CreepAssignment } from "./creeps/creepAssignment"
 import type { BotOptionsOverride } from "./options/botOptions"
@@ -11,6 +12,7 @@ declare global {
 
   interface RoomMemory {
     rclProgress?: RclProgressMemory
+    remoteConstruction?: RemoteConstructionMemory
   }
 
   interface CreepMemory {
@@ -22,4 +24,11 @@ declare global {
 
     remoteRoomName?: string
   }
+}
+
+interface RemoteConstructionSourceMemory {
+  useRoad: boolean
+  nextRoadIndex?: number
+  roadsEstablished?: boolean
+  nextMaintenanceTick?: number
 }

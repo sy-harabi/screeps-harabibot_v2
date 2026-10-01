@@ -98,6 +98,7 @@ export function runHarvest(
 
   const options = getBotOptions()
   const reserverBody = createReserverBody(room)
+
   const roomStates = prepareHarvestRoomStates(room, basePlan, reserverBody, options.speedrun)
 
   const roomByName = new Map<string, HarvestRoomState>()
