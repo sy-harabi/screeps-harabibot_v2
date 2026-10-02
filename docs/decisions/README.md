@@ -52,3 +52,4 @@ Date: YYYY-MM-DD
 - [0013: Scouting purposes, intel, and initial exploration](0013-scouting-intel-and-exploration.md) — persistence and Explore details partially superseded by 0014
 - [0014: Intel persistence, bootstrap, and Explore topology](0014-intel-persistence-bootstrap-and-explore.md)
 - [0015: Remote harvesting and reservation lifecycle](0015-remote-harvesting-and-reservation.md)
+- [0016: Colony-wide remote road maintenance sweep](0016-colony-wide-remote-road-maintenance.md)
