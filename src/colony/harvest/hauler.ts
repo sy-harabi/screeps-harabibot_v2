@@ -45,10 +45,8 @@ export function runHaulersPhase1(
   sourceStates: readonly HarvestSourceState[],
   sourceById: ReadonlyMap<Id<Source>, HarvestSourceState>,
   logistics: LogisticsState,
+  sourceHaulerCounts?: Map<Id<Source>, number>,
 ): void {
-  const relayEnabled = getBotOptions().speedrun
-  const sourceHaulerCounts = countSourceHaulers(haulers)
-
   preparePendingEnergy(sourceStates)
 
   for (const hauler of haulers) {
@@ -75,7 +73,7 @@ export function runHaulersPhase1(
 
     switch (hauler.memory.haulerState) {
       case "idle":
-        if (!assignHauler(hauler, sourceStates, sourceHaulerCounts, relayEnabled)) {
+        if (!assignHauler(hauler, sourceStates, sourceHaulerCounts)) {
           continue
         }
         break
@@ -92,7 +90,6 @@ export function runHaulersPhase1(
           sourceStates,
           sourceById,
           sourceHaulerCounts,
-          relayEnabled,
           logistics,
         )
         continue
@@ -125,12 +122,11 @@ function runDeliveryPhase1(
   hauler: Creep,
   sourceStates: readonly HarvestSourceState[],
   sourceById: ReadonlyMap<Id<Source>, HarvestSourceState>,
-  sourceHaulerCounts: Map<Id<Source>, number>,
-  relayEnabled: boolean,
+  sourceHaulerCounts: Map<Id<Source>, number> | undefined,
   logistics: LogisticsState,
 ): void {
   if (hauler.store.getUsedCapacity(RESOURCE_ENERGY) === 0) {
-    finishHaulerDelivery(hauler, sourceStates, sourceById, sourceHaulerCounts, relayEnabled)
+    finishHaulerDelivery(hauler, sourceStates, sourceById, sourceHaulerCounts)
     return
   }
 
@@ -176,8 +172,7 @@ export function finishHaulerDelivery(
   hauler: Creep,
   sourceStates: readonly HarvestSourceState[],
   sourceById: ReadonlyMap<Id<Source>, HarvestSourceState>,
-  sourceHaulerCounts: Map<Id<Source>, number>,
-  relayEnabled: boolean,
+  sourceHaulerCounts: Map<Id<Source>, number> | undefined,
 ): void {
   const previousSourceId = hauler.memory.sourceId
 
@@ -187,7 +182,7 @@ export function finishHaulerDelivery(
 
   clearHaulerTrip(hauler)
 
-  if (!assignHauler(hauler, sourceStates, sourceHaulerCounts, relayEnabled)) {
+  if (!assignHauler(hauler, sourceStates, sourceHaulerCounts)) {
     return
   }
 
@@ -329,15 +324,14 @@ function preparePendingEnergy(sourceStates: readonly HarvestSourceState[]): void
 function assignHauler(
   hauler: Creep,
   sourceStates: readonly HarvestSourceState[],
-  sourceHaulerCounts: Map<Id<Source>, number>,
-  relayEnabled: boolean,
+  sourceHaulerCounts: Map<Id<Source>, number> | undefined,
 ): boolean {
   const capacity = hauler.store.getCapacity(RESOURCE_ENERGY)
 
   for (const sourceState of sourceStates) {
     const source = sourceState.sourceObject
-    const assignedHaulerCount = sourceHaulerCounts.get(sourceState.id) ?? 0
-    const relayTicks = relayEnabled ? assignedHaulerCount : 0
+    const assignedHaulerCount = sourceHaulerCounts?.get(sourceState.id) ?? 0
+    const relayTicks = assignedHaulerCount
     const emptyTravelTicks = Math.max(0, sourceState.haulerTravel.emptyTravelTicks - relayTicks)
     const expectedEnergy =
       sourceState.pendingEnergy +
@@ -349,14 +343,21 @@ function assignHauler(
 
     const cycleTravelTicks = Math.max(0, sourceState.haulerCycleTravelTicks - relayTicks)
 
-    if (!getBotOptions().speedrun && hauler.ticksToLive !== undefined && hauler.ticksToLive <= cycleTravelTicks + 20) {
+    if (
+      sourceHaulerCounts === undefined &&
+      hauler.ticksToLive !== undefined &&
+      hauler.ticksToLive <= cycleTravelTicks + 20
+    ) {
       continue
     }
 
     hauler.memory.sourceId = sourceState.id
     hauler.memory.haulerState = "fetching"
     sourceState.pendingEnergy -= capacity
-    sourceHaulerCounts.set(sourceState.id, assignedHaulerCount + 1)
+
+    if (sourceHaulerCounts !== undefined) {
+      sourceHaulerCounts.set(sourceState.id, assignedHaulerCount + 1)
+    }
 
     return true
   }
@@ -391,7 +392,14 @@ export function countSourceHaulers(haulers: readonly Creep[]): Map<Id<Source>, n
   return result
 }
 
-function decrementSourceHaulerCount(counts: Map<Id<Source>, number>, sourceId: Id<Source>): void {
+function decrementSourceHaulerCount(
+  counts: Map<Id<Source>, number> | undefined,
+  sourceId: Id<Source>,
+): void {
+  if (counts === undefined) {
+    return
+  }
+
   const count = counts.get(sourceId)
 
   if (count === undefined || count <= 1) {

@@ -8,7 +8,14 @@ import type { LogisticsState } from "../logistics/logistics"
 import { planHarvest } from "./harvestRoomPlanner"
 import { harvestRoomPlanStore } from "./harvestRoomPlanStore"
 import { getHarvestRuntime, type HaulerTravelRuntime, type RemoteControllerRuntime } from "./harvestRuntime"
-import { createHaulerBody, getRequiredCarryCapacity, HAULER_ROLE, runHaulersPhase1, type HaulerProfile } from "./hauler"
+import {
+  countSourceHaulers,
+  createHaulerBody,
+  getRequiredCarryCapacity,
+  HAULER_ROLE,
+  runHaulersPhase1,
+  type HaulerProfile,
+} from "./hauler"
 import { getMiningPositions, getSourceContainer } from "./miningSite"
 import { createMinerBody, getMinerReplacementLeadTime, MINER_ROLE, runMiners } from "./miner"
 import { createReserverBody, RESERVER_ROLE, runReserver } from "./reserver"
@@ -86,11 +93,16 @@ export interface HarvestSourceState {
   pendingEnergy: number
 }
 
+export interface HaulerSpeedrunState {
+  readonly travelingMiners: Creep[]
+  readonly sourceHaulerCounts: Map<Id<Source>, number>
+}
+
 export interface HaulerPhase2State {
   readonly haulers: readonly Creep[]
-  readonly travelingMiners: readonly Creep[]
   readonly sourceStates: readonly HarvestSourceState[]
   readonly sourceById: ReadonlyMap<Id<Source>, HarvestSourceState>
+  readonly speedrun?: HaulerSpeedrunState
 }
 
 export interface HarvestResult {
@@ -153,6 +165,12 @@ export function runHarvest(
   const haulers = getColonyCreeps(context, colonyName, HAULER_ROLE)
   const reservers = getColonyCreeps(context, colonyName, RESERVER_ROLE)
   const remoteBuilders = getColonyCreeps(context, colonyName, REMOTE_BUILDER_ROLE)
+  const speedrunState: HaulerSpeedrunState | undefined = options.speedrun
+    ? {
+        travelingMiners: [],
+        sourceHaulerCounts: countSourceHaulers(haulers),
+      }
+    : undefined
 
   for (const reserver of reservers) {
     const remoteRoomName = reserver.memory.remoteRoomName
@@ -602,15 +620,21 @@ export function runHarvest(
     }
   }
 
-  const travelingMiners: Creep[] | undefined = options.speedrun ? [] : undefined
-
   const storagePos = new RoomPosition(basePlan.storage.x, basePlan.storage.y, colonyName)
 
-  runMiners(miners, sourceById, travelingMiners)
+  runMiners(miners, sourceById, speedrunState?.travelingMiners)
 
   runRemoteBuilders(remoteBuilders, sourceById)
 
-  runHaulersPhase1(colonyName, storagePos, haulers, sourceStates, sourceById, logistics)
+  runHaulersPhase1(
+    colonyName,
+    storagePos,
+    haulers,
+    sourceStates,
+    sourceById,
+    logistics,
+    speedrunState?.sourceHaulerCounts,
+  )
 
   for (let i = 0; i < visualSourceRows.length; i++) {
     const source = sourceStates[i]
@@ -628,9 +652,9 @@ export function runHarvest(
     activeSourcePaths,
     haulerPhase2: {
       haulers,
-      travelingMiners: travelingMiners ?? [],
       sourceStates,
       sourceById,
+      speedrun: speedrunState,
     },
   }
 
