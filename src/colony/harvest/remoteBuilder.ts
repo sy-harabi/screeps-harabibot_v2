@@ -102,16 +102,13 @@ function runRemoteBuilderFetch(builder: Creep, source: HarvestSourceState): void
     return
   }
 
-  const sourceObject = Game.getObjectById(source.id)
+  const sourceObject = source.sourceObject
 
-  if (sourceObject === null) {
+  if (sourceObject === undefined) {
     return
   }
 
-  const dropped = sourceObject.pos
-    .findInRange(FIND_DROPPED_RESOURCES, 1)
-    .filter((resource) => resource.resourceType === RESOURCE_ENERGY)
-    .sort((a, b) => b.amount - a.amount)[0]
+  const dropped = source.largestDroppedEnergy
 
   if (dropped !== undefined) {
     if (!builder.pos.isNearTo(dropped)) {

@@ -6,6 +6,8 @@ import type { HarvestSourceState } from "./harvest"
 
 interface MinerRuntime {
   miningPosition?: RoomPosition
+  replacementPath?: readonly RoomPosition[]
+  replacementLeadTime?: number
 }
 
 const minerRuntimes = runtimeRegistry.createCache<string, MinerRuntime>("harvest.miners", {
@@ -31,6 +33,33 @@ function getMinerRuntime(creepName: string): MinerRuntime {
 }
 
 export const MINER_ROLE = "miner"
+
+export function getMinerReplacementLeadTime(miner: Creep, path: readonly RoomPosition[]): number {
+  const runtime = getMinerRuntime(miner.name)
+
+  if (runtime.replacementPath === path && runtime.replacementLeadTime !== undefined) {
+    return runtime.replacementLeadTime
+  }
+
+  let workCount = 0
+  let moveCount = 0
+
+  for (const part of miner.body) {
+    if (part.type === WORK) {
+      workCount++
+    } else if (part.type === MOVE) {
+      moveCount++
+    }
+  }
+
+  const travelTicks = estimatePathTravelTicks(path, moveCount, workCount)
+  const replacementLeadTime = miner.body.length * CREEP_SPAWN_TIME + travelTicks + 10
+
+  runtime.replacementPath = path
+  runtime.replacementLeadTime = replacementLeadTime
+
+  return replacementLeadTime
+}
 
 type RunMinerResult = "harvesting" | "moving"
 
@@ -80,9 +109,9 @@ function runMiner(miner: Creep, sourceState: HarvestSourceState): RunMinerResult
     return "moving"
   }
 
-  const source = Game.getObjectById(sourceState.id)
+  const source = sourceState.sourceObject
 
-  if (source === null) {
+  if (source === undefined) {
     moveCreep(miner, { pos: miningPos, range: 0 })
     return "moving"
   }

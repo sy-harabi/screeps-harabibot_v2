@@ -5,6 +5,12 @@ export interface HarvestRuntime {
   sourceEconomyStatsById?: Map<Id<Source>, SourceEconomyStats>
   remoteControllersByRoom?: Map<string, RemoteControllerRuntime>
   haulerTravelBySource?: Map<Id<Source>, HaulerTravelRuntime>
+  miningPositionsBySource?: Map<Id<Source>, MiningPositionsRuntime>
+}
+
+export interface MiningPositionsRuntime {
+  readonly path: readonly RoomPosition[]
+  readonly positions: readonly RoomPosition[]
 }
 
 export interface HaulerTravelRuntime {

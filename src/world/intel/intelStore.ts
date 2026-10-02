@@ -10,6 +10,9 @@ export const intelStore = {
   observe,
 }
 
+let mergedIntelTick = -1
+const mergedIntelByRoom = new Map<string, RoomIntel | undefined>()
+
 function has(roomName: string): boolean {
   return isReady() && roomDynamicIntelMemory.has(roomName)
 }
@@ -27,19 +30,22 @@ function get(roomName: string): RoomIntel | undefined {
     return
   }
 
+  prepareMergedIntelCache()
+
+  if (mergedIntelByRoom.has(roomName)) {
+    return mergedIntelByRoom.get(roomName)
+  }
+
   const dynamicIntel = roomDynamicIntelMemory.get(roomName)
-
-  if (dynamicIntel === undefined) {
-    return
-  }
-
   const staticIntel = roomStaticIntelStore.get(roomName)
+  const intel =
+    dynamicIntel === undefined || staticIntel === undefined
+      ? undefined
+      : mergeRoomIntel(roomName, staticIntel, dynamicIntel)
 
-  if (staticIntel === undefined) {
-    return
-  }
+  mergedIntelByRoom.set(roomName, intel)
 
-  return mergeRoomIntel(roomName, staticIntel, dynamicIntel)
+  return intel
 }
 
 function observe(room: Room): boolean {
@@ -49,6 +55,9 @@ function observe(room: Room): boolean {
 
   roomDynamicIntelMemory.set(room.name, createRoomDynamicIntel(room))
 
+  prepareMergedIntelCache()
+  mergedIntelByRoom.delete(room.name)
+
   if (roomStaticIntelStore.get(room.name) !== undefined) {
     return false
   }
@@ -56,4 +65,13 @@ function observe(room: Room): boolean {
   roomStaticIntelStore.set(room.name, createRoomStaticIntel(room))
 
   return true
+}
+
+function prepareMergedIntelCache(): void {
+  if (mergedIntelTick === Game.time) {
+    return
+  }
+
+  mergedIntelTick = Game.time
+  mergedIntelByRoom.clear()
 }

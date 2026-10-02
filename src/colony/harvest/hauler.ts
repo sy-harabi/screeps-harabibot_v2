@@ -244,14 +244,14 @@ function runFetch(hauler: Creep, sourceState: HarvestSourceState): void {
     return
   }
 
-  const source = Game.getObjectById(sourceState.id)
+  const source = sourceState.sourceObject
 
-  if (source === null) {
+  if (source === undefined) {
     moveCreep(hauler, { pos: sourcePos, range: 1 }, HAULER_MOVE_OPTIONS)
     return
   }
 
-  const droppedEnergy = getDroppedEnergy(source)
+  const droppedEnergy = sourceState.largestDroppedEnergy
   const freeCapacity = hauler.store.getFreeCapacity(RESOURCE_ENERGY)
 
   if (freeCapacity === 0) {
@@ -317,27 +317,10 @@ function startDelivering(hauler: Creep, sourceState: HarvestSourceState): void {
   moveCreepByPath(hauler, getLoadedPath(hauler, sourceState), HAULER_REVERSE_PATH_OPTIONS)
 }
 
-function getDroppedEnergy(source: Source): Resource<ResourceConstant> | undefined {
-  let result: Resource<ResourceConstant> | undefined
-
-  for (const resource of source.pos.findInRange(FIND_DROPPED_RESOURCES, 1)) {
-    if (resource.resourceType !== RESOURCE_ENERGY) {
-      continue
-    }
-
-    if (result === undefined || resource.amount > result.amount) {
-      result = resource
-    }
-  }
-
-  return result
-}
-
 function preparePendingEnergy(sourceStates: readonly HarvestSourceState[]): void {
   for (const sourceState of sourceStates) {
-    const source = Game.getObjectById(sourceState.id)
-
-    const availableEnergy = source === null ? 0 : sourceState.containerEnergy + sourceState.droppedEnergy
+    const availableEnergy =
+      sourceState.sourceObject === undefined ? 0 : sourceState.containerEnergy + sourceState.droppedEnergy
 
     sourceState.pendingEnergy = availableEnergy - (sourceState.remoteBuilderCarryCapacity ?? 0)
   }
@@ -352,12 +335,13 @@ function assignHauler(
   const capacity = hauler.store.getCapacity(RESOURCE_ENERGY)
 
   for (const sourceState of sourceStates) {
-    const source = Game.getObjectById(sourceState.id)
+    const source = sourceState.sourceObject
     const assignedHaulerCount = sourceHaulerCounts.get(sourceState.id) ?? 0
     const relayTicks = relayEnabled ? assignedHaulerCount : 0
     const emptyTravelTicks = Math.max(0, sourceState.haulerTravel.emptyTravelTicks - relayTicks)
     const expectedEnergy =
-      sourceState.pendingEnergy + (source === null ? 0 : getExpectedEnergyDelta(source, sourceState, emptyTravelTicks))
+      sourceState.pendingEnergy +
+      (source === undefined ? 0 : getExpectedEnergyDelta(source, sourceState, emptyTravelTicks))
 
     if (expectedEnergy < capacity) {
       continue

@@ -1,6 +1,5 @@
 import type { BasePlan } from "../../capabilities/basePlanning/basePlan"
 import { getDefaultRoomCostMatrix } from "../../capabilities/movement/defaultRoomCostMatrix"
-import { estimatePathTravelTicks } from "../../capabilities/movement/travelTime"
 import { requestSpawn } from "../../capabilities/spawning/spawnQueue"
 import { getColonyCreeps, type TickContext } from "../../kernel/tickContext"
 import { getBotOptions } from "../../options/botOptions"
@@ -11,7 +10,7 @@ import { harvestRoomPlanStore } from "./harvestRoomPlanStore"
 import { getHarvestRuntime, type HaulerTravelRuntime, type RemoteControllerRuntime } from "./harvestRuntime"
 import { createHaulerBody, getRequiredCarryCapacity, HAULER_ROLE, runHaulersPhase1, type HaulerProfile } from "./hauler"
 import { getMiningPositions, getSourceContainer } from "./miningSite"
-import { createMinerBody, MINER_ROLE, runMiners } from "./miner"
+import { createMinerBody, getMinerReplacementLeadTime, MINER_ROLE, runMiners } from "./miner"
 import { createReserverBody, RESERVER_ROLE, runReserver } from "./reserver"
 import { getSourceEconomyStats } from "./sourceEconomyStats"
 import { visualizeHarvest, type HarvestVisualReservationRow, type HarvestVisualSourceRow } from "./harvestVisual"
@@ -67,9 +66,11 @@ export interface HarvestSourceState {
 
   readonly requiredHarvestPower: number
   readonly requiredCarryCapacity: number
+  readonly sourceObject?: Source
   readonly container?: StructureContainer
   readonly containerEnergy: number
   readonly droppedEnergy: number
+  readonly largestDroppedEnergy?: Resource<ResourceConstant>
 
   sustainableHarvestPower: number
   activeHarvestPower: number
@@ -745,6 +746,9 @@ function prepareHarvestRoomStates(
   }
 
   const result: HarvestRoomState[] = []
+  const runtime = getHarvestRuntime(colonyName)
+
+  runtime.miningPositionsBySource ??= new Map()
 
   for (const roomName of harvestRoomPlanStore.getByColony(colonyName)) {
     const harvestPlan = harvestRoomPlanStore.get(roomName)
@@ -766,16 +770,35 @@ function prepareHarvestRoomStates(
 
       const haulerTravel = getHaulerTravelRuntime(basePlan, sourceIntel.id, sourcePlan.path, speedrun)
 
-      const miningPositions = getMiningPositions(roomName, sourceIntel.coordinate, sourcePlan.path)
+      const cachedMiningPositions = runtime.miningPositionsBySource.get(sourceIntel.id)
+      const miningPositions =
+        cachedMiningPositions?.path === sourcePlan.path
+          ? cachedMiningPositions.positions
+          : getMiningPositions(roomName, sourceIntel.coordinate, sourcePlan.path)
+
+      if (cachedMiningPositions?.path !== sourcePlan.path) {
+        runtime.miningPositionsBySource.set(sourceIntel.id, {
+          path: sourcePlan.path,
+          positions: miningPositions,
+        })
+      }
+
       const container = getSourceContainer(sourcePlan.path)
-      const source = Game.getObjectById(sourceIntel.id)
+      const sourceObject = Game.getObjectById(sourceIntel.id)
 
       let droppedEnergy = 0
+      let largestDroppedEnergy: Resource<ResourceConstant> | undefined
 
-      if (source !== null) {
-        for (const resource of source.pos.findInRange(FIND_DROPPED_RESOURCES, 1)) {
-          if (resource.resourceType === RESOURCE_ENERGY) {
-            droppedEnergy += resource.amount
+      if (sourceObject !== null) {
+        for (const resource of sourceObject.pos.findInRange(FIND_DROPPED_RESOURCES, 1)) {
+          if (resource.resourceType !== RESOURCE_ENERGY) {
+            continue
+          }
+
+          droppedEnergy += resource.amount
+
+          if (largestDroppedEnergy === undefined || resource.amount > largestDroppedEnergy.amount) {
+            largestDroppedEnergy = resource
           }
         }
       }
@@ -804,9 +827,11 @@ function prepareHarvestRoomStates(
           haulerCycleTravelTicks,
           speedrun ? haulerTravel.emptyPath.length : undefined,
         ),
+        sourceObject: sourceObject ?? undefined,
         container,
         containerEnergy: container?.store.getUsedCapacity(RESOURCE_ENERGY) ?? 0,
         droppedEnergy,
+        largestDroppedEnergy,
 
         sustainableHarvestPower: 0,
         activeHarvestPower: 0,
@@ -962,21 +987,4 @@ function getRequiredHarvestPower(intel: RoomIntel, username: string): number {
   }
 
   return SOURCE_ENERGY_NEUTRAL_CAPACITY / ENERGY_REGEN_TIME
-}
-
-function getMinerReplacementLeadTime(miner: Creep, path: readonly RoomPosition[]): number {
-  let workCount = 0
-  let moveCount = 0
-
-  for (const part of miner.body) {
-    if (part.type === WORK) {
-      workCount++
-    } else if (part.type === MOVE) {
-      moveCount++
-    }
-  }
-
-  const travelTicks = estimatePathTravelTicks(path, moveCount, workCount)
-
-  return miner.body.length * CREEP_SPAWN_TIME + travelTicks + 10
 }
