@@ -51,11 +51,18 @@ export const DEFAULT_BOT_OPTIONS: BotOptions = {
   },
 }
 
+let cachedTick = -1
+let cachedOptions: BotOptions | undefined
+
 export function getBotOptions(): BotOptions {
+  if (cachedTick === Game.time && cachedOptions !== undefined) {
+    return cachedOptions
+  }
+
   const rampartBuildRcl =
     getValidRcl(Memory.options?.construction?.rampartBuildRcl) ?? DEFAULT_BOT_OPTIONS.construction.rampartBuildRcl
 
-  return {
+  cachedOptions = {
     speedrun: Memory.options?.speedrun ?? DEFAULT_BOT_OPTIONS.speedrun,
 
     visuals: {
@@ -68,6 +75,9 @@ export function getBotOptions(): BotOptions {
       rampartBuildRcl,
     },
   }
+  cachedTick = Game.time
+
+  return cachedOptions
 }
 
 export function getRampartBuildRcl(roomName: string): number {
