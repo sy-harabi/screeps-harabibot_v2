@@ -17,6 +17,7 @@ Implemented so far:
 - Colony harvesting across owned and remote rooms, with miners, reservers, a shared hauler pool, ordered spawn demand, and sustainable income/spawn-usage estimates.
 - Remote-room assignment and source-path planning, including shared remote trunks and reservation-aware throughput.
 - Separate empty and loaded hauler paths so roadless travel reflects the creep's actual movement cost in each direction.
+- Optional early-game spawn-time-bounded hauling policy with small fixed-size haulers, relay handoffs, and pull-chain coordination; used heavily by speedrun mode while normal hauling remains optimized independently.
 - Construction scheduling from the base plan, builder spawning, bootstrap storage containers, configurable rampart build RCL, and automatic eviction of creeps blocking obstacle construction sites.
 - Income-driven upgrading with planned controller chains, storage-aware target WORK, and logistics-fed upgrade energy.
 - Tower energy refill requests and low-frequency road repair.
@@ -203,6 +204,9 @@ bot.help()
 
 bot.options.show()
 bot.options.show("W1N1")
+
+bot.options.setSpeedrun(true)
+bot.options.clearSpeedrun()
 
 bot.options.setBasePlanVisual(true)
 bot.options.clearBasePlanVisual()
