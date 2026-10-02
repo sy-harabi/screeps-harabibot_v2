@@ -5,82 +5,129 @@ Related commits: `a5a92502`, `1395763c`, `8fcb540b`, `455003e9`, `8ae5f6c5`, `dc
 
 ## Goal
 
-Improve hauling while spawn time is the main economic constraint in the early game.
+Relay increases hauling throughput from the same number of creeps by handing energy between opposing haulers.
 
-The policy uses small fixed-size haulers aggressively and reduces the cost of their long round trips by allowing energy to move through relay handoffs between opposing haulers. Speedrun mode uses this policy heavily, but the idea is more general than speedrunning: it is an early-game, spawn-time-bounded hauling policy.
+The strategy spends more CPU on additional creeps and coordination to reduce the spawn time required for a target throughput: effectively buying spawn time with CPU. This is useful in the early game, where CPU is relatively abundant but spawn time is scarce.
 
-This policy is separate from long-run remote infrastructure policy. Remote road and container construction, maintenance, payback, and later hauling profiles are optimized on a different timescale and are not part of this experiment.
+Relay is independent of whether roads are used. HarabiBot v2 currently uses it only in its roadless speedrun hauling policy because the speedrun ends too early for remote-road investment to pay back.
 
-## Starting point
+## Relay model
 
-The remote harvest system already had:
+Consider:
 
-- one shared colony hauler pool;
-- source assignment based on expected energy at arrival;
-- separate empty and loaded travel estimates;
-- explicit fetching, loading, and delivering behavior;
-- colony logistics handling the final delivery inside the owned room.
+- source production `R` energy/tick;
+- one-way hauling distance `D`;
+- `N` identical haulers;
+- capacity `C` per hauler.
 
-For early progression, using small `CARRY/MOVE` haulers has useful properties:
+Without relay, each hauler completes a round trip of approximately `2D` ticks.
 
-- the body is cheap and becomes available at low energy capacity;
-- an empty 1:1 hauler moves quickly on both plains and swamps;
-- capacity can be added incrementally as spawn energy becomes available.
+The ordinary hauling throughput is:
 
-The downside is that the same throughput requires many creeps. On longer routes, those creeps repeatedly pass each other in opposite directions, so traffic and round-trip travel become increasingly important.
+```text
+P0 = NC / 2D
+```
 
-## Small-hauler policy
+or, using total carrying capacity `Q = NC`:
 
-Speedrun mode keeps haulers on a fixed 1:1 profile and caps them at three `CARRY` and three `MOVE` parts.
+```text
+P0 = Q / 2D
+```
 
-Normal mode is allowed to choose different hauling profiles independently. In particular, the normal economy may later prefer larger or road-oriented creeps when that improves long-run spawn efficiency.
+Without relay, dividing the same total carrying capacity among more or fewer creeps does not change the modeled throughput. Only total carrying capacity matters.
 
-The early-game policy therefore does not define the permanent hauling architecture. It is a specialized response to a phase where spawn time is scarce and small bodies are useful.
+Relay changes this.
 
-## Relay idea
-
-When a loaded delivering hauler and an empty fetching hauler approach each other on the same route, the loaded hauler can transfer its energy to the fetcher instead of both creeps continuing their complete round trips.
-
-Conceptually:
+When a loaded deliverer and an empty fetcher meet, they transfer energy and exchange roles:
 
 ```text
 source                              colony
 
-empty <- empty <- [meeting] -> loaded -> loaded
-                      |
-                   transfer
-                      |
-empty <- loaded <-          -> empty -> loaded
+          loaded -> <- empty
+
+                 transfer
+
+          empty  <- -> loaded
 ```
 
-After the transfer:
+The energy continues toward the colony on the new deliverer, while the previous deliverer immediately becomes a fetcher.
 
-- the old fetcher becomes the new deliverer;
-- the old deliverer becomes the new fetcher;
-- their source assignments are exchanged;
-- movement-path progress is handed off or swapped;
-- logistics supplier runtime follows the energy rather than remaining attached to the original creep.
-
-The important object moving toward the colony is therefore the energy, not necessarily the same creep.
-
-This lets a chain of small haulers behave more like a relay pipeline than a set of independent round trips.
-
-## Hauling-capacity model
-
-Without relay, required hauling capacity is approximately production multiplied by round-trip travel time.
-
-Relay changes that relationship because adding another hauler to the chain shortens the effective trip that later haulers need to complete before an exchange becomes possible.
-
-For a source producing `r` energy per tick, a one-way path of length `L`, and a fixed hauler capacity `C_h`, the implemented relay model uses:
+Treating the haulers as continuously and roughly uniformly distributed along the route, relay opportunity scales with hauler density:
 
 ```text
-C_required
-    = C_h * L * (sqrt(1 + 8r / C_h) - 1) / 2
+relay density ≈ N / D
 ```
 
-where `C_required` is the target total carrying capacity.
+A denser route creates proportionally more opportunities for loaded and empty haulers to hand their work off to each other.
 
-The corresponding implementation is:
+Ordinary hauling contributes one unit of useful route progress. Relay adds another unit of effective progress when a handoff occurs, so the average hauling gain is approximated as:
+
+```text
+1 + N / D
+```
+
+This gives:
+
+```text
+P
+  ≈ NC / 2D * (1 + N / D)
+```
+
+The approximation captures the behavior of an ideal relay pipeline:
+
+- sparse haulers receive little relay benefit;
+- increasing hauler density creates more handoffs;
+- when `N` approaches `D`, throughput approaches roughly twice ordinary hauling throughput.
+
+Actual throughput can be lower because of traffic, terrain, loading and delivery timing, and imperfect creep spacing.
+
+## Required hauling capacity
+
+To sustain a source producing `R` energy/tick:
+
+```text
+NC / 2D * (1 + N / D) = R
+```
+
+Multiply by `2D / C`:
+
+```text
+N(1 + N / D) = 2DR / C
+```
+
+Multiply by `D`:
+
+```text
+DN + N² = 2RD² / C
+```
+
+Therefore:
+
+```text
+N² + DN - 2RD² / C = 0
+```
+
+Taking the positive root:
+
+```text
+N
+  = D / 2 * (sqrt(1 + 8R / C) - 1)
+```
+
+Since total carrying capacity is:
+
+```text
+Q = NC
+```
+
+the required carrying capacity is:
+
+```text
+Q_required
+  = CD / 2 * (sqrt(1 + 8R / C) - 1)
+```
+
+This is the formula used by v2:
 
 ```ts
 const haulerCapacity = SPEEDRUN_HAULER_MAX_CARRY * CARRY_CAPACITY
@@ -92,17 +139,194 @@ return (
 ) / 2
 ```
 
-Runtime source assignment uses the same idea in a simpler local form. If `n` haulers are already assigned to a source, the next hauler estimates its effective empty travel as:
+## A discrete example
+
+The continuous model can also be realized by a simple discrete steady-state schedule.
+
+Take:
+
+```text
+D = 4
+N = 4
+C = 50
+R = 50
+```
+
+The model predicts:
+
+```text
+P
+  = 4 * 50 / 8 * (1 + 4 / 4)
+  = 25 * 2
+  = 50
+```
+
+Consider four positions from the colony to the source:
+
+```text
+Colony                          Source
+
+ P1       P2       P3       P4
+ A:L      B:E      C:L      D:E
+```
+
+`L` means loaded with 50 energy and `E` means empty.
+
+During the tick:
+
+1. `A` at `P1` delivers 50 energy and becomes empty.
+2. `D` at `P4` loads 50 energy and becomes loaded.
+3. `C` relays its 50 energy to `B`.
+4. Each creep continues in the direction of its new role.
+
+The next state is:
+
+```text
+ P1       P2       P3       P4
+ B:L      A:E      D:L      C:E
+```
+
+On the next tick the same pattern repeats with the creep identities exchanged:
+
+```text
+ P1       P2       P3       P4
+ A:L      B:E      C:L      D:E
+```
+
+The pipeline therefore repeats every two ticks while delivering 50 energy every tick.
+
+Over four ticks:
+
+```text
+4 deliveries * 50 energy = 200 energy
+```
+
+so the steady-state throughput is:
+
+```text
+200 / 4 = 50 energy/tick
+```
+
+This shows that the `N = D`, `R = C` boundary of the continuous model is achievable in an ideal discrete relay schedule when traffic is ignored.
+
+## What follows from the model
+
+Without relay:
+
+```text
+P0 = Q / 2D
+```
+
+For fixed total carrying capacity `Q`, individual hauler size does not matter.
+
+With relay:
+
+```text
+P
+  ≈ Q / 2D * (1 + N / D)
+```
+
+and:
+
+```text
+N = Q / C
+```
+
+so:
+
+```text
+P
+  ≈ Q / 2D * (1 + Q / CD)
+```
+
+Now individual hauler capacity `C` matters.
+
+For the same total carrying capacity, smaller haulers mean more creeps. More creeps increase `N / D`, increasing relay throughput.
+
+Relay therefore has two useful properties:
+
+1. **More creeps can substitute for carrying capacity.**
+2. **Smaller, uniform haulers make relay more effective.**
+
+The cost is CPU and traffic.
+
+More creeps require more creep execution, movement coordination, and collision handling. Relay therefore trades CPU and traffic complexity for lower required carrying capacity and lower spawn-time consumption.
+
+This is useful in the early game because spawn time is scarce while CPU is comparatively available.
+
+## Small uniform haulers
+
+The relay benefit becomes stronger when the same carrying capacity is divided among more, smaller haulers.
+
+Suppose the same total carrying capacity `Q` is implemented with either large or small creeps.
+
+Without relay, both have the same modeled throughput:
+
+```text
+P0 = Q / 2D
+```
+
+With relay, smaller creeps create a larger `N`, increasing:
+
+```text
+1 + N / D
+```
+
+and therefore increasing throughput for the same total carrying capacity.
+
+Uniform capacity also simplifies handoffs. A loaded hauler can transfer its load and role to an empty hauler without systematic capacity mismatch across the pipeline.
+
+The ideal model therefore favors very small, uniform haulers.
+
+Some top Screeps players use `1C1M` haulers for this kind of relay hauling.
+
+HarabiBot v2 instead settled on at most:
+
+```text
+3 CARRY + 3 MOVE
+```
+
+per speedrun hauler.
+
+`1C1M` and `2C2M` were theoretically more attractive because they create more creeps and therefore greater relay density for the same total carrying capacity.
+
+In actual v2 speedrun testing, however, the additional creep count caused enough traffic congestion to erase the theoretical advantage.
+
+`3C3M` was therefore a practical compromise:
+
+- small enough to retain much of the relay benefit;
+- cheap enough for incremental early-game spawning;
+- large enough to reduce creep count and traffic pressure.
+
+This does not mean `3C3M` is theoretically optimal. Better traffic handling can move the practical optimum toward smaller haulers.
+
+## V2 implementation scope
+
+Relay is independent of whether roads are used.
+
+HarabiBot v2 currently enables relay only as part of its speedrun hauling policy, and that policy operates without remote roads.
+
+This is a property of the current speedrun strategy rather than a requirement of relay.
+
+Remote roads consume energy, WORK, spawn time, and time before they begin returning the investment. The current speedrun ends soon enough that this investment is not worthwhile.
+
+Normal long-run remote mining follows a separate policy and can invest in roads, containers, different hauler profiles, and other infrastructure whose costs can be recovered over a longer operating lifetime.
+
+Relay and remote infrastructure are therefore separate optimization branches.
+
+## Runtime source assignment
+
+The runtime assignment heuristic applies the same relay idea locally.
+
+If `n` haulers are already assigned to a source, the next fetcher estimates its effective empty travel as:
 
 ```text
 max(0, emptyTravelTicks - n)
 ```
 
-and its effective cycle travel similarly.
+and reduces its effective cycle travel similarly.
 
-This makes an established chain more attractive than treating every newly assigned hauler as if it must complete the original full route independently.
-
-The model is an approximation of the realized relay pipeline, not a general transport law. It is intentionally scoped to this small-hauler policy.
+As the relay chain becomes denser, a newly assigned hauler is expected to meet another hauler sooner instead of completing the entire original route on its own.
 
 ## Hauler state machine
 
@@ -139,7 +363,7 @@ old deliverer -> fetching
 old fetcher   -> delivering
 ```
 
-Explicit states made it substantially easier to reason about same-tick handoffs than the earlier behavior inferred from several independent memory fields.
+The creep identities remain in place while the energy, source assignment, movement progress, and delivery responsibility continue in their useful directions.
 
 ## Two-phase execution
 
@@ -155,104 +379,82 @@ Relay depends on movement intent, so hauler execution is split into two phases.
 - start loaded return trips;
 - register eligible deliverers with colony logistics.
 
-At this point movement intents exist, but colony logistics has not yet finished consuming suppliers.
-
 ### Colony logistics
 
 The normal logistics system runs between the two hauler phases.
 
-This allows a deliverer that reaches the colony to satisfy a spawn, extension, tower, upgrade, storage, or other logistics request using the same mechanism as the rest of the colony economy.
+A deliverer reaching the colony can therefore satisfy normal colony energy requests before relay coordination is resolved.
 
 ### Phase 2
 
 `runHaulersPhase2` reacts to the results of Phase 1 and logistics:
 
-1. finish deliveries that logistics emptied;
+1. finish deliveries emptied by logistics;
 2. execute fallback storage/container/drop delivery;
-3. immediately start the next fetch trip when a delivery finishes;
-4. in speedrun mode, inspect movement intents and resolve coordination;
-5. perform relay handoffs;
+3. immediately start the next fetch trip after a completed delivery;
+4. in speedrun mode, inspect movement intents;
+5. resolve relay handoffs;
 6. resolve pull chains involving traveling miners.
 
-Keeping normal hauling and logistics behavior in Phase 1 and the post-intent coordination in Phase 2 avoids making the core logistics system aware of relay mechanics.
+This keeps relay-specific coordination outside the normal colony logistics system.
 
 ## Same-tick turnaround
 
-A small-hauler pipeline loses meaningful throughput if an empty creep waits until the next tick before starting its next trip.
-
-For that reason, a delivery that empties a hauler immediately:
+When a delivery empties a hauler, it immediately:
 
 - clears the previous source assignment;
-- assigns the next useful source when possible;
+- finds the next useful source when possible;
 - registers movement toward that source in the same tick.
 
-The same rule applies whether the energy was consumed through normal logistics or through the fallback delivery path.
+Waiting another tick would directly reduce the throughput of a dense small-hauler pipeline.
 
-This behavior remains useful outside relay itself and is kept as normal hauler behavior.
-
-## Delivery-side holding
-
-Relay created one important edge case near the colony.
-
-A fetcher can receive energy through relay while already standing in the exact position from which it can deliver to storage, a storage container, or the planned storage position. If it keeps the movement request it generated while still empty, it may leave that position before the new energy can be delivered on the next tick.
-
-When a relay receiver is already at its delivery home and has no active logistics target, Phase 2 registers a move to its current position.
-
-The hold is limited to cases where staying in place directly preserves the next delivery action. It is not a general traffic reservation mechanism.
+The same behavior is used for normal logistics deliveries and fallback deliveries.
 
 ## Movement-state handoff
 
-Changing only creep memory is insufficient during a relay.
+Changing creep memory alone is not enough when relay occurs.
 
-The two creeps may already have cached progress along the same known path, and the loaded creep may already be registered as a logistics supplier.
+The two creeps may already have cached progress along a known path, and the loaded creep may already own a logistics supplier target.
 
 Relay therefore also transfers runtime state:
 
 - mutual encounters swap known path indexes;
-- one-sided encounters hand the supplier's known path index to the new deliverer;
+- one-sided encounters hand path progress to the new deliverer;
 - logistics supplier runtime is swapped so the delivery target follows the energy.
 
-This keeps the new fetching and delivering roles aligned with movement and logistics state in the same tick.
+The energy and the runtime state required to deliver it therefore continue together.
+
+## Delivery-side holding
+
+A relay receiver may already be standing next to storage, a storage container, or the planned storage position.
+
+Before receiving energy it was a fetcher, so it may already have an outbound movement intent. If that movement remains active after the relay, the creep can leave the exact position from which it should deliver the newly received energy on the next tick.
+
+When this occurs and there is no active logistics target, Phase 2 registers movement to the creep's current position.
 
 ## Pull chains
 
-Small haulers can also block miners that are still traveling toward their sources.
+Dense small-hauler traffic also interacts with miners traveling toward their sources.
 
-During speedrun coordination, empty fetchers directly behind another empty fetcher or a traveling miner can form a pull chain. The front creep pulls its follower so the chain can continue moving instead of turning the miner-hauler interaction into a traffic deadlock.
+In speedrun mode, an empty fetcher directly behind another empty fetcher or a traveling miner may form a pull chain. The front creep pulls its follower so the chain can continue progressing instead of becoming a traffic blockage.
 
-This is a traffic optimization for dense small-creep early-game movement, not a general formation system.
+This is primarily a consequence of the high creep density created by the relay policy.
 
 ## Other coordination fixes
 
-Several smaller cases were handled as part of making the pipeline stable:
+Several smaller cases were handled while stabilizing the pipeline:
 
-- a fetcher encountering an energy tombstone in its intended next tile may collect it and turn around immediately;
-- source assignment counts are tracked during speedrun hauling so relay-aware travel estimates remain consistent within the tick;
-- delivery fallback and logistics delivery both use the same immediate turnaround behavior;
-- normal mode skips speedrun-only coordination state and work entirely.
-
-## Scope
-
-This experiment deliberately separates two economic policies.
-
-Early-game spawn-time-bounded hauling:
-
-- favors small incremental haulers;
-- can use relay and pull-chain coordination;
-- values rapid use of limited spawn time and low available energy;
-- is used heavily by speedrun mode.
-
-Long-run remote infrastructure and hauling:
-
-- may build and maintain roads and containers;
-- may use different body profiles;
-- must account for construction and maintenance payback;
-- is optimized for sustained economy rather than the early-game spawn-time bottleneck.
-
-The two policies may share remote source paths and general harvest infrastructure, but they should not be treated as one optimization problem.
+- a fetcher encountering an energy tombstone in its intended next tile can collect it and turn around immediately;
+- source assignment counts are tracked within the tick for relay-aware travel estimates;
+- logistics and fallback deliveries share the same immediate turnaround behavior;
+- normal mode skips relay-specific coordination state and work.
 
 ## Result
 
-The speedrun hauling work is considered complete for now.
+Relay gives early-game hauling another resource trade-off.
 
-HarabiBot v2 now has an optional early-game small-hauler policy where opposing fetchers and deliverers can exchange energy and roles, with movement and logistics runtime handed off in the same tick. The implementation remains isolated behind speedrun-specific coordination so normal hauling can continue evolving toward long-run infrastructure and spawn-efficiency goals without inheriting the relay policy by default.
+Instead of spending more spawn time on carrying capacity, the bot can use more small creeps and more CPU to create a denser relay pipeline. The higher density creates more handoffs, allowing the same total carrying capacity to produce greater throughput.
+
+HarabiBot v2 uses this mainly as a roadless speedrun policy. Its `3C3M` haulers are a practical traffic compromise rather than the theoretical relay optimum.
+
+Long-run remote infrastructure remains a separate optimization problem.
