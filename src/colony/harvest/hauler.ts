@@ -83,15 +83,7 @@ export function runHaulersPhase1(
         break
 
       case "delivering":
-        runDeliveryPhase1(
-          colonyName,
-          storagePos,
-          hauler,
-          sourceStates,
-          sourceById,
-          sourceHaulerCounts,
-          logistics,
-        )
+        runDeliveryPhase1(colonyName, storagePos, hauler, sourceStates, sourceById, sourceHaulerCounts, logistics)
         continue
 
       default:
@@ -392,10 +384,7 @@ export function countSourceHaulers(haulers: readonly Creep[]): Map<Id<Source>, n
   return result
 }
 
-function decrementSourceHaulerCount(
-  counts: Map<Id<Source>, number> | undefined,
-  sourceId: Id<Source>,
-): void {
+function decrementSourceHaulerCount(counts: Map<Id<Source>, number> | undefined, sourceId: Id<Source>): void {
   if (counts === undefined) {
     return
   }
