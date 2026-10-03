@@ -6,6 +6,11 @@ import { getBotOptions } from "../../options/botOptions"
 import { intelStore } from "../../world/intel/intelStore"
 import type { LogisticsState } from "../logistics/logistics"
 import { getHarvestSourceMemory } from "./harvestMemory"
+import {
+  getRemoteMaintenanceSourceId,
+  inspectRemoteMaintenanceSource,
+  reconcileRemoteMaintenance,
+} from "./remoteMaintenance"
 import { planHarvest } from "./harvestRoomPlanner"
 import { harvestRoomPlanStore } from "./harvestRoomPlanStore"
 import { getHarvestRuntime, type HaulerTravelRuntime, type RemoteControllerRuntime } from "./harvestRuntime"
@@ -38,6 +43,7 @@ import {
   runRemoteConstructionSource,
   type RemoteConstructionSourceState,
 } from "./remoteConstruction"
+import { createRemoteRepairerBody, REMOTE_REPAIRER_ROLE, runRemoteRepairers } from "./remoteRepairer"
 import { type RoomIntel } from "../../world/intel/roomIntel"
 
 const SOURCE_CONTAINER_REPAIR_THRESHOLD = 150_000
@@ -94,6 +100,7 @@ export interface HarvestSourceState {
 
   builderCarryEquivalent?: number
   remoteBuilderCarryCapacity?: number
+  remoteRepairerCarryCapacity?: number
 
   carryCapacity: number
   pendingEnergy: number
@@ -119,7 +126,7 @@ export interface HarvestResult {
   readonly haulerPhase2?: HaulerPhase2State
 }
 
-const ROLES_BY_PRIORITY = [MINER_ROLE, HAULER_ROLE, RESERVER_ROLE, REMOTE_BUILDER_ROLE]
+const ROLES_BY_PRIORITY = [MINER_ROLE, REMOTE_REPAIRER_ROLE, HAULER_ROLE, RESERVER_ROLE, REMOTE_BUILDER_ROLE]
 const EMPTY_HARVEST_RESULT: HarvestResult = { income: 0, maxIncome: 0, spawnUsage: 0 }
 
 export function runHarvest(
@@ -165,12 +172,15 @@ export function runHarvest(
     }
   }
 
+  reconcileRemoteMaintenance(room, sourceStates)
+
   const haulerProfile: HaulerProfile = !options.speedrun && room.memory.use21Hauler ? "2:1" : "1:1"
 
   const miners = getColonyCreeps(context, colonyName, MINER_ROLE)
   const haulers = getColonyCreeps(context, colonyName, HAULER_ROLE)
   const reservers = getColonyCreeps(context, colonyName, RESERVER_ROLE)
   const remoteBuilders = getColonyCreeps(context, colonyName, REMOTE_BUILDER_ROLE)
+  const remoteRepairers = getColonyCreeps(context, colonyName, REMOTE_REPAIRER_ROLE)
   const speedrunState: HaulerSpeedrunState | undefined = options.speedrun
     ? {
         travelingMiners: [],
@@ -345,6 +355,27 @@ export function runHarvest(
     spawnRequested = true
   }
 
+  const requestRemoteRepairer = (source: HarvestSourceState): void => {
+    if (spawnRequested || remoteRepairers.length > 0) {
+      return
+    }
+
+    requestSpawn(
+      {
+        requesterId,
+        spawnRoomName: colonyName,
+        assignment,
+        priorityType: "remoteSource",
+        order: source.path.length,
+        rolesByPriority: ROLES_BY_PRIORITY,
+      },
+      () => createRemoteRepairerBody(room),
+      REMOTE_REPAIRER_ROLE,
+    )
+
+    spawnRequested = true
+  }
+
   const applyReservationUpkeep = (roomState: HarvestRoomState, firstSourceReady = false): void => {
     if (!isReservationLifecycleActive(roomState, firstSourceReady)) {
       return
@@ -363,7 +394,7 @@ export function runHarvest(
     })
   }
 
-  const processSource = (source: HarvestSourceState): HarvestSourceResult => {
+  const processSource = (source: HarvestSourceState, allowMaintenanceStart = false): HarvestSourceResult => {
     if (source.requiredHarvestPower <= 0) {
       return { minerRatio: 0, haulerRatio: 0, ready: false }
     }
@@ -380,6 +411,11 @@ export function runHarvest(
     const minerRatio = source.sustainableHarvestPower / source.requiredHarvestPower
     const haulerNeedRatio = requiredHaulerCarryCapacity <= 0 ? 1 : source.carryCapacity / requiredHaulerCarryCapacity
     const haulerRatio = source.requiredCarryCapacity <= 0 ? 1 : source.carryCapacity / source.requiredCarryCapacity
+    const ready = haulerRatio >= 1
+
+    if (allowMaintenanceStart && ready) {
+      inspectRemoteMaintenanceSource(room, source)
+    }
 
     if (!options.speedrun && !room.memory.use21Hauler && requiredHaulerCarryCapacity > 0 && haulerNeedRatio > 0) {
       const cycle11 = source.haulerCycleTravelTicks
@@ -471,6 +507,8 @@ export function runHarvest(
         )
 
         spawnRequested = true
+      } else if (getRemoteMaintenanceSourceId(room) === source.id && remoteRepairers.length === 0) {
+        requestRemoteRepairer(source)
       } else if (haulerNeedRatio < 1) {
         requestSpawn(
           {
@@ -509,7 +547,7 @@ export function runHarvest(
     return {
       minerRatio,
       haulerRatio,
-      ready: haulerRatio >= 1,
+      ready,
     }
   }
 
@@ -581,18 +619,18 @@ export function runHarvest(
             if (remoteConstruction.target !== undefined) {
               const carryCapacity = getRemoteBuilderCarryCapacity(builders)
 
-              if (carryCapacity > 0) {
+              if (carryCapacity > 0 && remoteConstruction.targetIndex !== undefined) {
                 source.remoteBuilderCarryCapacity = carryCapacity
                 source.builderCarryEquivalent = getRemoteBuilderCarryEquivalent(
                   builders,
                   source,
-                  remoteConstruction.target,
+                  remoteConstruction.targetIndex,
                 )
               }
             }
           }
 
-          const sourceResult = processSource(source)
+          const sourceResult = processSource(source, true)
           const sourceMemory = getHarvestSourceMemory(room, source.id)
 
           if (sourceResult.ready) {
@@ -611,6 +649,15 @@ export function runHarvest(
 
         applyReservationUpkeep(roomState)
         break
+    }
+  }
+
+  if (!spawnRequested && remoteRepairers.length === 0) {
+    const maintenanceSourceId = getRemoteMaintenanceSourceId(room)
+    const maintenanceSource = maintenanceSourceId === undefined ? undefined : sourceById.get(maintenanceSourceId)
+
+    if (maintenanceSource !== undefined) {
+      requestRemoteRepairer(maintenanceSource)
     }
   }
 
@@ -639,6 +686,8 @@ export function runHarvest(
   runMiners(miners, sourceById, speedrunState?.travelingMiners)
 
   runRemoteBuilders(remoteBuilders, sourceById)
+
+  runRemoteRepairers(room, remoteRepairers, sourceStates, sourceById)
 
   runHaulersPhase1(
     colonyName,

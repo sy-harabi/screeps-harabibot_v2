@@ -12,8 +12,15 @@ export interface HarvestSourceMemory {
   lastReadyTick?: number
 }
 
+export interface RemoteMaintenanceMemory {
+  readonly startSourceId: Id<Source>
+  sourceId: Id<Source>
+  pathIndex: number
+}
+
 export interface HarvestMemory {
   sources: Record<string, HarvestSourceMemory>
+  maintenance?: RemoteMaintenanceMemory
 }
 
 export function getHarvestMemory(room: Room): HarvestMemory {

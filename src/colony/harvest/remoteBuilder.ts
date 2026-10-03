@@ -155,15 +155,11 @@ export function getRemoteBuilderCarryCapacity(builders: readonly Creep[]): numbe
 export function getRemoteBuilderCarryEquivalent(
   builders: readonly Creep[],
   source: HarvestSourceState,
-  target: RoomPosition,
+  targetIndex: number,
 ): number {
   let builderEnergyPerTick = 0
 
-  const buildPathIndex = findBuildPathIndex(source.path, target)
-
-  if (buildPathIndex === undefined) {
-    return 0
-  }
+  const buildPathIndex = findBuildPathIndex(source.path, targetIndex)
 
   const loadedPath = source.path.slice(buildPathIndex, source.path.length - 1)
   const emptyPath = source.path.slice(buildPathIndex + 1)
@@ -203,8 +199,14 @@ function isRoomEdge(pos: RoomPosition): boolean {
   return pos.x === 0 || pos.x === 49 || pos.y === 0 || pos.y === 49
 }
 
-function findBuildPathIndex(path: readonly RoomPosition[], target: RoomPosition): number | undefined {
-  for (let i = path.length - 1; i >= 0; i--) {
+function findBuildPathIndex(path: readonly RoomPosition[], targetIndex: number): number {
+  const target = path[targetIndex]
+
+  if (target === undefined) {
+    return targetIndex
+  }
+
+  for (let i = Math.min(path.length - 1, targetIndex + 3); i >= targetIndex; i--) {
     const pos = path[i]
 
     if (pos.roomName === target.roomName && pos.inRangeTo(target, 3)) {
@@ -212,7 +214,7 @@ function findBuildPathIndex(path: readonly RoomPosition[], target: RoomPosition)
     }
   }
 
-  return undefined
+  return targetIndex
 }
 
 export function createRemoteBuilderBody(room: Room, missingWork: number): readonly BodyPartConstant[] | undefined {

@@ -309,7 +309,10 @@ function preparePendingEnergy(sourceStates: readonly HarvestSourceState[]): void
     const availableEnergy =
       sourceState.sourceObject === undefined ? 0 : sourceState.containerEnergy + sourceState.droppedEnergy
 
-    sourceState.pendingEnergy = availableEnergy - (sourceState.remoteBuilderCarryCapacity ?? 0)
+    const builderReserve = sourceState.remoteBuilderCarryCapacity ?? 0
+    const repairerReserve = sourceState.remoteRepairerCarryCapacity ?? 0
+
+    sourceState.pendingEnergy = availableEnergy - builderReserve - repairerReserve
   }
 }
 

@@ -1,9 +1,8 @@
 import { tryCreateConstructionSite } from "../../capabilities/construction/constructionSite"
 import { getHarvestSourceMemory } from "./harvestMemory"
+import { REMOTE_MAINTENANCE_INTERVAL } from "./remoteMaintenance"
 
 export const REMOTE_ROAD_ENERGY_CAPACITY = 750
-
-const MAX_REMOTE_CONSTRUCTION_SITES = 3
 
 export function areRemoteRoadsEnabled(room: Room): boolean {
   return room.energyCapacityAvailable >= REMOTE_ROAD_ENERGY_CAPACITY
@@ -13,6 +12,7 @@ export interface RemoteConstructionSourceState {
   readonly active: boolean
   readonly complete: boolean
   readonly target?: RoomPosition
+  readonly targetIndex?: number
 }
 
 export function activateRemoteConstructionSource(
@@ -42,159 +42,117 @@ export function runRemoteConstructionSource(
     return { active: false, complete: true }
   }
 
-  const containerPos = path[path.length - 1]
+  const containerIndex = path.length - 1
+  const containerPos = path[containerIndex]
 
   if (containerPos === undefined) {
     return { active: false, complete: false }
   }
 
-  const containerState = handleContainer(containerPos)
+  if (!hasContainer(containerPos)) {
+    ensureConstructionSite(containerPos, STRUCTURE_CONTAINER)
 
-  if (containerState !== "complete") {
     return {
       active: true,
       complete: false,
       target: containerPos,
+      targetIndex: containerIndex,
     }
   }
 
-  const constructionRoadIndex = sourceMemory.constructionRoadIndex
+  let index = sourceMemory.constructionRoadIndex
 
-  if (constructionRoadIndex === undefined) {
-    const target = findRemoteConstructionTarget(path)
+  if (index === undefined) {
+    finishRemoteConstruction(colonyRoom, sourceId)
+    return { active: false, complete: true }
+  }
 
-    if (target === undefined) {
-      sourceMemory.roadsEstablished = true
-      return { active: false, complete: true }
+  while (index >= 0) {
+    const pos = path[index]
+
+    if (pos === undefined) {
+      index--
+      continue
     }
+
+    if (isRoomEdge(pos)) {
+      index--
+      continue
+    }
+
+    const room = Game.rooms[pos.roomName]
+
+    if (room === undefined) {
+      sourceMemory.constructionRoadIndex = index
+      return {
+        active: true,
+        complete: false,
+        target: pos,
+        targetIndex: index,
+      }
+    }
+
+    const road = room
+      .lookForAt(LOOK_STRUCTURES, pos.x, pos.y)
+      .find((structure) => structure.structureType === STRUCTURE_ROAD)
+
+    if (road !== undefined) {
+      index--
+      continue
+    }
+
+    ensureConstructionSite(pos, STRUCTURE_ROAD)
+    sourceMemory.constructionRoadIndex = index
 
     return {
       active: true,
       complete: false,
-      target,
+      target: pos,
+      targetIndex: index,
     }
   }
 
-  let index = constructionRoadIndex
-  let activeSites = countRoadConstructionSites(path)
+  delete sourceMemory.constructionRoadIndex
+  finishRemoteConstruction(colonyRoom, sourceId)
 
-  while (index >= 0 && activeSites < MAX_REMOTE_CONSTRUCTION_SITES) {
-    const pos = path[index]
-    const room = Game.rooms[pos.roomName]
-
-    if (room === undefined) {
-      break
-    }
-
-    if (pos.x === 0 || pos.x === 49 || pos.y === 0 || pos.y === 49) {
-      index--
-      continue
-    }
-
-    const structures = room.lookForAt(LOOK_STRUCTURES, pos)
-
-    if (structures.some((structure) => structure.structureType === STRUCTURE_ROAD)) {
-      index--
-      continue
-    }
-
-    const roadSite = room.lookForAt(LOOK_CONSTRUCTION_SITES, pos).find((site) => site.structureType === STRUCTURE_ROAD)
-
-    if (roadSite) {
-      index--
-      continue
-    }
-
-    const result = tryCreateConstructionSite(room, pos.x, pos.y, STRUCTURE_ROAD)
-
-    if (result === OK) {
-      activeSites++
-      index--
-      continue
-    }
-
-    break
-  }
-
-  sourceMemory.constructionRoadIndex = index
-
-  if (index < 0) {
-    delete sourceMemory.constructionRoadIndex
-  }
-  const target = findRemoteConstructionTarget(path) ?? (index >= 0 ? path[index] : undefined)
-  const complete = index < 0 && activeSites === 0
-
-  if (complete) {
-    sourceMemory.roadsEstablished = true
-  }
-
-  return {
-    active: !complete,
-    complete,
-    target,
-  }
+  return { active: false, complete: true }
 }
 
-function findRemoteConstructionTarget(path: readonly RoomPosition[]): RoomPosition | undefined {
-  for (let i = path.length - 2; i >= 0; i--) {
-    const pos = path[i]
-    const room = Game.rooms[pos.roomName]
+function finishRemoteConstruction(room: Room, sourceId: Id<Source>): void {
+  const sourceMemory = getHarvestSourceMemory(room, sourceId)
 
-    if (room === undefined) {
-      continue
-    }
-
-    const site = room
-      .lookForAt(LOOK_CONSTRUCTION_SITES, pos.x, pos.y)
-      .find((site) => site.structureType === STRUCTURE_ROAD)
-
-    if (site !== undefined) {
-      return site.pos
-    }
-  }
-
-  return undefined
+  sourceMemory.roadsEstablished = true
+  sourceMemory.nextMaintenanceTick = Game.time + REMOTE_MAINTENANCE_INTERVAL
 }
 
-function countRoadConstructionSites(path: readonly RoomPosition[]): number {
-  let activeSites = 0
-
-  for (const pos of path) {
-    const room = Game.rooms[pos.roomName]
-    if (room === undefined) {
-      continue
-    }
-
-    if (room.lookForAt(LOOK_CONSTRUCTION_SITES, pos).some((site) => site.structureType === STRUCTURE_ROAD)) {
-      activeSites++
-    }
-  }
-
-  return activeSites
-}
-
-function handleContainer(pos: RoomPosition): "complete" | "constructing" | "waiting" {
+function hasContainer(pos: RoomPosition): boolean {
   const room = Game.rooms[pos.roomName]
 
   if (room === undefined) {
-    return "waiting"
+    return false
   }
 
-  const isContainer = room
-    .lookForAt(LOOK_STRUCTURES, pos)
+  return room
+    .lookForAt(LOOK_STRUCTURES, pos.x, pos.y)
     .some((structure) => structure.structureType === STRUCTURE_CONTAINER)
+}
 
-  if (isContainer) {
-    return "complete"
+function ensureConstructionSite(pos: RoomPosition, structureType: BuildableStructureConstant): void {
+  const room = Game.rooms[pos.roomName]
+
+  if (room === undefined) {
+    return
   }
 
-  const isSite = room.lookForAt(LOOK_CONSTRUCTION_SITES, pos).some((site) => site.structureType === STRUCTURE_CONTAINER)
+  const siteExists = room
+    .lookForAt(LOOK_CONSTRUCTION_SITES, pos.x, pos.y)
+    .some((site) => site.structureType === structureType)
 
-  if (isSite) {
-    return "constructing"
+  if (!siteExists) {
+    tryCreateConstructionSite(room, pos.x, pos.y, structureType)
   }
+}
 
-  tryCreateConstructionSite(room, pos.x, pos.y, STRUCTURE_CONTAINER)
-
-  return "constructing"
+function isRoomEdge(pos: RoomPosition): boolean {
+  return pos.x === 0 || pos.x === 49 || pos.y === 0 || pos.y === 49
 }
