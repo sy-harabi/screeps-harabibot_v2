@@ -1,4 +1,4 @@
-import { type RemoteConstructionMemory } from "./colony/harvest/remoteConstruction"
+import type { HarvestMemory } from "./colony/harvest/harvestMemory"
 import type { RclProgressMemory } from "./colony/rclProgress"
 import type { CreepAssignment } from "./creeps/creepAssignment"
 import type { BotOptionsOverride } from "./options/botOptions"
@@ -12,7 +12,7 @@ declare global {
 
   interface RoomMemory {
     rclProgress?: RclProgressMemory
-    remoteConstruction?: RemoteConstructionMemory
+    harvest?: HarvestMemory
     use21Hauler?: boolean
   }
 

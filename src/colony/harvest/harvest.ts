@@ -5,6 +5,7 @@ import { getColonyCreeps, type TickContext } from "../../kernel/tickContext"
 import { getBotOptions } from "../../options/botOptions"
 import { intelStore } from "../../world/intel/intelStore"
 import type { LogisticsState } from "../logistics/logistics"
+import { getHarvestSourceMemory } from "./harvestMemory"
 import { planHarvest } from "./harvestRoomPlanner"
 import { harvestRoomPlanStore } from "./harvestRoomPlanStore"
 import { getHarvestRuntime, type HaulerTravelRuntime, type RemoteControllerRuntime } from "./harvestRuntime"
@@ -34,7 +35,6 @@ import {
 import {
   activateRemoteConstructionSource,
   areRemoteRoadsEnabled,
-  getRemoteConstructionSourceMemory,
   runRemoteConstructionSource,
   type RemoteConstructionSourceState,
 } from "./remoteConstruction"
@@ -60,6 +60,12 @@ interface HarvestRoomState {
 }
 
 type ReservationState = "owned" | "none" | "ours" | "foreign"
+
+interface HarvestSourceResult {
+  readonly minerRatio: number
+  readonly haulerRatio: number
+  readonly ready: boolean
+}
 
 export interface HarvestSourceState {
   readonly id: Id<Source>
@@ -357,9 +363,9 @@ export function runHarvest(
     })
   }
 
-  const processSource = (source: HarvestSourceState): boolean => {
+  const processSource = (source: HarvestSourceState): HarvestSourceResult => {
     if (source.requiredHarvestPower <= 0) {
-      return false
+      return { minerRatio: 0, haulerRatio: 0, ready: false }
     }
 
     if (source.roomName === colonyName || source.sustainableHarvestPower > 0) {
@@ -500,7 +506,11 @@ export function runHarvest(
       }
     }
 
-    return haulerNeedRatio >= 1
+    return {
+      minerRatio,
+      haulerRatio,
+      ready: haulerRatio >= 1,
+    }
   }
 
   for (const roomState of roomStates) {
@@ -518,13 +528,13 @@ export function runHarvest(
           break
         }
 
-        const firstSourceHaulerReady = processSource(firstSource)
+        const firstSourceResult = processSource(firstSource)
 
-        if (firstSourceHaulerReady) {
+        if (firstSourceResult.ready) {
           requestReserver(roomState)
         }
 
-        applyReservationUpkeep(roomState, firstSourceHaulerReady)
+        applyReservationUpkeep(roomState, firstSourceResult.ready)
 
         for (let i = 1; i < roomState.sources.length; i++) {
           processSource(roomState.sources[i])
@@ -582,10 +592,14 @@ export function runHarvest(
             }
           }
 
-          const sourceReady = processSource(source)
-          const sourceMemory = getRemoteConstructionSourceMemory(room, source.id)
+          const sourceResult = processSource(source)
+          const sourceMemory = getHarvestSourceMemory(room, source.id)
 
-          if (sourceReady && !sourceMemory.useRoad) {
+          if (sourceResult.ready) {
+            sourceMemory.lastReadyTick = Game.time
+          }
+
+          if (sourceResult.ready && !sourceMemory.useRoad) {
             remoteConstructionCandidates.push(source)
           }
         }
@@ -831,7 +845,7 @@ function prepareHarvestRoomStates(
         !speedrun &&
         (roomName === colonyName
           ? (room.controller?.level ?? 0) >= 3
-          : getRemoteConstructionSourceMemory(room, sourceIntel.id).roadsEstablished === true)
+          : getHarvestSourceMemory(room, sourceIntel.id).roadsEstablished === true)
       const haulerCycleTravelTicks = useRoadPath
         ? haulerTravel.emptyTravelTicks + sourcePlan.path.length
         : haulerTravel.cycleTravelTicks

@@ -1,40 +1,12 @@
 import { tryCreateConstructionSite } from "../../capabilities/construction/constructionSite"
+import { getHarvestSourceMemory } from "./harvestMemory"
 
 export const REMOTE_ROAD_ENERGY_CAPACITY = 750
 
 const MAX_REMOTE_CONSTRUCTION_SITES = 3
 
-export interface RemoteConstructionSourceMemory {
-  useRoad?: boolean
-
-  // Road construction progresses from source -> base.
-  nextRoadIndex?: number
-
-  // Initial container and road construction is complete.
-  roadsEstablished?: boolean
-
-  // Used later for periodic maintenance.
-  nextMaintenanceTick?: number
-}
-
-export interface RemoteConstructionMemory {
-  sources: Record<string, RemoteConstructionSourceMemory>
-}
-
 export function areRemoteRoadsEnabled(room: Room): boolean {
   return room.energyCapacityAvailable >= REMOTE_ROAD_ENERGY_CAPACITY
-}
-
-export function getRemoteConstructionMemory(room: Room): RemoteConstructionMemory {
-  return (room.memory.remoteConstruction ??= {
-    sources: {},
-  })
-}
-
-export function getRemoteConstructionSourceMemory(room: Room, sourceId: Id<Source>): RemoteConstructionSourceMemory {
-  const memory = getRemoteConstructionMemory(room)
-
-  return (memory.sources[sourceId] ??= {})
 }
 
 export interface RemoteConstructionSourceState {
@@ -48,10 +20,10 @@ export function activateRemoteConstructionSource(
   sourceId: Id<Source>,
   path: readonly RoomPosition[],
 ): void {
-  const sourceMemory = getRemoteConstructionSourceMemory(colonyRoom, sourceId)
+  const sourceMemory = getHarvestSourceMemory(colonyRoom, sourceId)
 
   sourceMemory.useRoad = true
-  sourceMemory.nextRoadIndex = path.length - 2
+  sourceMemory.constructionRoadIndex = path.length - 2
   delete sourceMemory.roadsEstablished
 }
 
@@ -60,7 +32,7 @@ export function runRemoteConstructionSource(
   sourceId: Id<Source>,
   path: readonly RoomPosition[],
 ): RemoteConstructionSourceState {
-  const sourceMemory = getRemoteConstructionSourceMemory(colonyRoom, sourceId)
+  const sourceMemory = getHarvestSourceMemory(colonyRoom, sourceId)
 
   if (!sourceMemory.useRoad) {
     return { active: false, complete: false }
@@ -86,9 +58,9 @@ export function runRemoteConstructionSource(
     }
   }
 
-  const nextRoadIndex = sourceMemory.nextRoadIndex
+  const constructionRoadIndex = sourceMemory.constructionRoadIndex
 
-  if (nextRoadIndex === undefined) {
+  if (constructionRoadIndex === undefined) {
     const target = findRemoteConstructionTarget(path)
 
     if (target === undefined) {
@@ -103,7 +75,7 @@ export function runRemoteConstructionSource(
     }
   }
 
-  let index = nextRoadIndex
+  let index = constructionRoadIndex
   let activeSites = countRoadConstructionSites(path)
 
   while (index >= 0 && activeSites < MAX_REMOTE_CONSTRUCTION_SITES) {
@@ -144,10 +116,10 @@ export function runRemoteConstructionSource(
     break
   }
 
-  sourceMemory.nextRoadIndex = index
+  sourceMemory.constructionRoadIndex = index
 
   if (index < 0) {
-    delete sourceMemory.nextRoadIndex
+    delete sourceMemory.constructionRoadIndex
   }
   const target = findRemoteConstructionTarget(path) ?? (index >= 0 ? path[index] : undefined)
   const complete = index < 0 && activeSites === 0
