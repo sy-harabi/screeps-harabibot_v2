@@ -97,10 +97,7 @@ function runDeliveryFallbacks(
       continue
     }
 
-    const sourceId = hauler.memory.sourceId
-    const source = sourceId === undefined ? undefined : sourceById.get(sourceId)
-
-    if (source === undefined || !isAtDeliveryHome(hauler, basePlan, source)) {
+    if (!isAtDeliveryHome(hauler, basePlan)) {
       continue
     }
 
@@ -192,18 +189,9 @@ function getStorageContainer(room: Room, basePlan: BasePlan): StructureContainer
     .find((structure): structure is StructureContainer => structure.structureType === STRUCTURE_CONTAINER)
 }
 
-function isAtDeliveryHome(hauler: Creep, basePlan: BasePlan, source: HarvestSourceState): boolean {
-  const pathStart = source.haulerTravel.loadedPath[0]
-
-  if (pathStart !== undefined && hauler.pos.isEqualTo(pathStart)) {
-    return true
-  }
-
-  return (
-    hauler.pos.roomName === basePlan.roomName &&
-    hauler.pos.x === basePlan.storage.x &&
-    hauler.pos.y === basePlan.storage.y
-  )
+function isAtDeliveryHome(hauler: Creep, basePlan: BasePlan): boolean {
+  const storagePos = new RoomPosition(basePlan.storage.x, basePlan.storage.y, basePlan.roomName)
+  return hauler.pos.inRangeTo(storagePos, 1)
 }
 
 function createHaulerCoordinationContext(
@@ -482,7 +470,7 @@ function requestHaulerMovement(
     return
   }
 
-  if (hauler.room.name === room.name && isAtDeliveryHome(hauler, basePlan, source)) {
+  if (hauler.room.name === room.name && isAtDeliveryHome(hauler, basePlan)) {
     requestHomeFallbackMovement(room, basePlan, hauler)
     return
   }
