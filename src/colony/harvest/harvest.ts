@@ -159,7 +159,8 @@ export function runHarvest(
   const remoteBuildersBySource = new Map<Id<Source>, Creep[]>()
   const unassignedRemoteBuilders: Creep[] = []
   const remoteConstructionBySource = new Map<Id<Source>, RemoteConstructionSourceState>()
-  let hasActiveRemoteConstruction = false
+
+  let activeRemoteConstructionCount = 0
 
   for (const roomState of roomStates) {
     roomByName.set(roomState.roomName, roomState)
@@ -282,7 +283,7 @@ export function runHarvest(
       remoteConstructionBySource.set(source.id, remoteConstruction)
 
       if (remoteConstruction.active) {
-        hasActiveRemoteConstruction = true
+        activeRemoteConstructionCount++
       }
 
       if (!remoteConstruction.complete) {
@@ -665,8 +666,9 @@ export function runHarvest(
     room.memory.use21Hauler = true
   }
 
-  if (areRemoteRoadsEnabled(room) && !hasActiveRemoteConstruction) {
-    for (let i = 0; i < Math.min(REMOTE_CONSTRUCTION_BATCH_SIZE, remoteConstructionCandidates.length); i++) {
+  if (areRemoteRoadsEnabled(room)) {
+    const availableSlots = Math.max(0, REMOTE_CONSTRUCTION_BATCH_SIZE - activeRemoteConstructionCount)
+    for (let i = 0; i < Math.min(availableSlots, remoteConstructionCandidates.length); i++) {
       const source = remoteConstructionCandidates[i]
 
       activateRemoteConstructionSource(room, source.id, source.path)
