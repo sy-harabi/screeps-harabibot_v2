@@ -16,6 +16,7 @@ export type HaulerProfile = "1:1" | "2:1"
 
 const SPEEDRUN_HAULER_MAX_CARRY = 3
 const LOGISTICS_ENTRY_RANGE = 6
+const LOADING_TIMEOUT = 25
 
 export const HAULER_MOVE_OPTIONS: MoveOptions = {
   roomCostMatrixModifier: getHaulerRoomCostMatrix,
@@ -104,7 +105,9 @@ export function runHaulersPhase1(
       continue
     }
 
-    runFetch(hauler, source)
+    if (runFetch(hauler, source)) {
+      finishHaulerDelivery(hauler, sourceStates, sourceById, sourceHaulerCounts)
+    }
   }
 }
 
@@ -197,24 +200,26 @@ export function finishHaulerDelivery(
 
 function clearHaulerTrip(hauler: Creep): void {
   delete hauler.memory.sourceId
+  delete hauler.memory.haulerLoadingSince
   hauler.memory.haulerState = "idle"
 }
 
-function runFetch(hauler: Creep, sourceState: HarvestSourceState): void {
+function runFetch(hauler: Creep, sourceState: HarvestSourceState): boolean {
   const path = sourceState.path
   const sourcePos = path[path.length - 1]
 
   if (sourcePos === undefined) {
-    return
+    return false
   }
 
   if (hauler.memory.haulerState === "fetching") {
     if (hauler.room.name !== sourcePos.roomName || !hauler.pos.inRangeTo(sourcePos, 1)) {
       moveCreepByPath(hauler, sourceState.haulerTravel.emptyPath, HAULER_PATH_OPTIONS)
-      return
+      return false
     }
 
     hauler.memory.haulerState = "loading"
+    hauler.memory.haulerLoadingSince = Game.time
   } else if (hauler.memory.haulerState === "loading") {
     if (Game.rooms[sourcePos.roomName] === undefined) {
       moveCreep(
@@ -225,17 +230,17 @@ function runFetch(hauler: Creep, sourceState: HarvestSourceState): void {
         },
         HAULER_ROUTE_MOVE_OPTIONS,
       )
-      return
+      return false
     }
   } else {
-    return
+    return false
   }
 
   const source = sourceState.sourceObject
 
   if (source === undefined) {
     moveCreep(hauler, { pos: sourcePos, range: 1 }, HAULER_MOVE_OPTIONS)
-    return
+    return false
   }
 
   const droppedEnergy = sourceState.largestDroppedEnergy
@@ -243,7 +248,7 @@ function runFetch(hauler: Creep, sourceState: HarvestSourceState): void {
 
   if (freeCapacity === 0) {
     startDelivering(hauler, sourceState)
-    return
+    return false
   }
 
   if (droppedEnergy !== undefined) {
@@ -256,7 +261,7 @@ function runFetch(hauler: Creep, sourceState: HarvestSourceState): void {
         },
         HAULER_MOVE_OPTIONS,
       )
-      return
+      return false
     }
 
     if (hauler.pickup(droppedEnergy) === OK) {
@@ -265,7 +270,7 @@ function runFetch(hauler: Creep, sourceState: HarvestSourceState): void {
       }
     }
 
-    return
+    return false
   }
 
   const container = sourceState.container
@@ -280,7 +285,7 @@ function runFetch(hauler: Creep, sourceState: HarvestSourceState): void {
         },
         HAULER_MOVE_OPTIONS,
       )
-      return
+      return false
     }
 
     const amount = container.store.getUsedCapacity(RESOURCE_ENERGY)
@@ -290,16 +295,31 @@ function runFetch(hauler: Creep, sourceState: HarvestSourceState): void {
         startDelivering(hauler, sourceState)
       }
 
-      return
+      return false
     }
+  }
+
+  if (
+    hauler.memory.haulerLoadingSince !== undefined &&
+    Game.time - hauler.memory.haulerLoadingSince >= LOADING_TIMEOUT
+  ) {
+    if (hauler.store.getUsedCapacity(RESOURCE_ENERGY) === 0) {
+      return true
+    }
+
+    startDelivering(hauler, sourceState)
+    return false
   }
 
   if (!hauler.pos.inRangeTo(sourcePos, 1)) {
     moveCreep(hauler, { pos: sourcePos, range: 1 }, HAULER_MOVE_OPTIONS)
   }
+
+  return false
 }
 
 function startDelivering(hauler: Creep, sourceState: HarvestSourceState): void {
+  delete hauler.memory.haulerLoadingSince
   hauler.memory.haulerState = "delivering"
   moveCreepByPath(hauler, getLoadedPath(hauler, sourceState), HAULER_REVERSE_PATH_OPTIONS)
 }
