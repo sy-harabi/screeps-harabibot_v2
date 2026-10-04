@@ -27,5 +27,6 @@ declare global {
     remoteRoomName?: string
 
     remoteBuilderState?: "fetching" | "building"
+    remoteRepairerState?: "working" | "fetching" | "loading"
   }
 }
