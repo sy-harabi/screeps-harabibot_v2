@@ -1,4 +1,4 @@
-import { moveCreep, moveCreepByPath } from "../../capabilities/movement/movement"
+import { moveCreep } from "../../capabilities/movement/movement"
 import { estimatePathTravelTicks } from "../../capabilities/movement/travelTime"
 import { type HarvestSourceState } from "./harvest"
 
@@ -38,20 +38,19 @@ export function runRemoteBuilders(
 
 function runRemoteBuilder(builder: Creep, source: HarvestSourceState): void {
   const energy = builder.store.getUsedCapacity(RESOURCE_ENERGY)
-
   const freeCapacity = builder.store.getFreeCapacity(RESOURCE_ENERGY)
 
   let state = builder.memory.remoteBuilderState ?? (energy > 0 ? "building" : "fetching")
 
   if (state === "building" && energy === 0) {
     state = "fetching"
-  } else if (state === "fetching" && freeCapacity === 0) {
+  } else if ((state === "fetching" || state === "loading") && freeCapacity === 0) {
     state = "building"
   }
 
   builder.memory.remoteBuilderState = state
 
-  if (state === "fetching") {
+  if (state === "fetching" || state === "loading") {
     runRemoteBuilderFetch(builder, source)
     return
   }
@@ -66,27 +65,25 @@ function runRemoteBuilderBuild(builder: Creep, source: HarvestSourceState): void
     return
   }
 
-  if (builder.pos.roomName !== target.roomName || !builder.pos.inRangeTo(target, 3)) {
-    moveCreepByPath(builder, source.path, { reverse: true })
-    return
+  const targetRange = isSourceContainerTarget(source, target) ? 1 : 0
+  const range = builder.room.name === target.roomName ? builder.pos.getRangeTo(target) : Infinity
+
+  if (range <= 3) {
+    const targetRoom = Game.rooms[target.roomName]
+    const site = targetRoom
+      ?.lookForAt(LOOK_CONSTRUCTION_SITES, target.x, target.y)
+      .find((site) => site.structureType === STRUCTURE_CONTAINER || site.structureType === STRUCTURE_ROAD)
+
+    if (site !== undefined) {
+      builder.build(site)
+    }
   }
 
-  if (isRoomEdge(builder.pos)) {
-    moveCreepByPath(builder, source.path, { reverse: true })
-  }
-
-  const targetRoom = Game.rooms[target.roomName]
-
-  if (targetRoom === undefined) {
-    return
-  }
-
-  const site = targetRoom
-    .lookForAt(LOOK_CONSTRUCTION_SITES, target.x, target.y)
-    .find((site) => site.structureType === STRUCTURE_CONTAINER || site.structureType === STRUCTURE_ROAD)
-
-  if (site !== undefined) {
-    builder.build(site)
+  if (range > targetRange) {
+    moveCreep(builder, {
+      pos: target,
+      range: targetRange,
+    })
   }
 }
 
@@ -97,14 +94,37 @@ function runRemoteBuilderFetch(builder: Creep, source: HarvestSourceState): void
     return
   }
 
-  if (builder.pos.roomName !== sourcePos.roomName || !builder.pos.inRangeTo(sourcePos, 1)) {
-    moveCreepByPath(builder, source.path)
+  if (builder.memory.remoteBuilderState === "fetching") {
+    if (builder.room.name !== sourcePos.roomName || !builder.pos.inRangeTo(sourcePos, 1)) {
+      moveCreep(builder, {
+        pos: sourcePos,
+        range: 1,
+      })
+      return
+    }
+
+    builder.memory.remoteBuilderState = "loading"
+  }
+
+  if (builder.memory.remoteBuilderState !== "loading") {
+    return
+  }
+
+  if (Game.rooms[sourcePos.roomName] === undefined) {
+    moveCreep(builder, {
+      pos: new RoomPosition(25, 25, sourcePos.roomName),
+      range: 20,
+    })
     return
   }
 
   const sourceObject = source.sourceObject
 
   if (sourceObject === undefined) {
+    moveCreep(builder, {
+      pos: sourcePos,
+      range: 1,
+    })
     return
   }
 
@@ -135,6 +155,14 @@ function runRemoteBuilderFetch(builder: Creep, source: HarvestSourceState): void
     }
 
     builder.withdraw(container, RESOURCE_ENERGY)
+    return
+  }
+
+  if (!builder.pos.inRangeTo(sourcePos, 1)) {
+    moveCreep(builder, {
+      pos: sourcePos,
+      range: 1,
+    })
   }
 }
 
@@ -195,8 +223,10 @@ export function getRemoteBuilderCarryEquivalent(
   return Math.min(source.requiredCarryCapacity, localConsumption * source.haulerCycleTravelTicks)
 }
 
-function isRoomEdge(pos: RoomPosition): boolean {
-  return pos.x === 0 || pos.x === 49 || pos.y === 0 || pos.y === 49
+function isSourceContainerTarget(source: HarvestSourceState, target: RoomPosition): boolean {
+  const sourcePos = source.path[source.path.length - 1]
+
+  return sourcePos !== undefined && sourcePos.isEqualTo(target)
 }
 
 function findBuildPathIndex(path: readonly RoomPosition[], targetIndex: number): number {
