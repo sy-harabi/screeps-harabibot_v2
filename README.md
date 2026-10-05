@@ -88,6 +88,40 @@ flowchart LR
 
 Solid arrows show execution order. Dashed arrows show explicit data dependencies or the shared per-tick logistics state passed to the relevant subsystem.
 
+### Harvest flow
+
+Harvest is the largest colony subsystem because it combines owned and remote source orchestration, economy accounting, remote infrastructure, spawn demand, and the first half of hauling.
+
+```mermaid
+flowchart TD
+    Start["runHarvest"] --> Ready{"Plans and intel ready?"}
+    Ready -- "no" --> Empty["Return empty result"]
+    Ready -- "yes" --> Prepare["Prepare room and source state<br/>plans + intel + paths + visible resources"]
+
+    Prepare --> Census["Index harvest creeps<br/>measure reservation, harvest and carry capacity"]
+    Census --> Infra["Reconcile maintenance<br/>inspect active remote construction"]
+    Infra --> Sources["Process owned and remote sources"]
+
+    Sources --> Capacity["Allocate shared hauler capacity<br/>compute miner and transport readiness"]
+    Capacity --> Economy["Compute sustainable income<br/>max income + spawn usage"]
+    Capacity --> Policy["Apply reservation, maintenance<br/>and remote-road policy"]
+
+    Economy --> Spawn["Emit harvest spawn demand when needed"]
+    Policy --> Spawn
+
+    Spawn --> Workers["Run reservers, miners,<br/>remote builders and repairers"]
+    Workers --> Phase1["Hauling phase 1<br/>assign, fetch, load, return<br/>register inbound logistics suppliers"]
+    Phase1 --> Result["Return HarvestResult<br/>income + active paths + hauling context"]
+
+    Result --> Colony["Construction → Build → Upgrade → Towers"]
+    Colony --> Logistics["Run colony logistics"]
+    Logistics --> Phase2["Hauling phase 2<br/>finish or fallback delivery<br/>same-tick reassignment<br/>optional relay + pull"]
+```
+
+Source processing shares one sustainable hauler-capacity budget across the colony and consumes it in source order. Remote-room reservation state determines whether a source can operate, when reservation upkeep begins, and when remote construction or maintenance participates.
+
+Hauling deliberately spans the colony flow. `runHarvest()` performs phase 1 and returns the hauling context; after the other colony systems have registered their energy demand and logistics has matched suppliers to requests, `resolveHauling()` completes delivery and optional coordination.
+
 Subsystems pass derived results directly when later colony work depends on earlier work. For example, harvest returns the current sustainable income estimate used by upgrading rather than publishing that value through generic shared state.
 
 Creeps belong to exactly one colony or mission. `TickContext` derives per-tick rosters from creep memory instead of storing persistent creep-name rosters on owners.
