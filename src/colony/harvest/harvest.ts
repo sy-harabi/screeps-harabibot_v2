@@ -68,12 +68,6 @@ interface HarvestRoomState {
 
 type ReservationState = "owned" | "none" | "ours" | "foreign"
 
-interface HarvestSourceResult {
-  readonly minerRatio: number
-  readonly colonyTransportRatio: number
-  readonly ready: boolean
-}
-
 export interface HarvestSourceState {
   readonly id: Id<Source>
   readonly roomName: string
@@ -392,9 +386,9 @@ export function runHarvest(
     })
   }
 
-  const processSource = (source: HarvestSourceState, allowMaintenanceStart = false): HarvestSourceResult => {
+  const processSource = (source: HarvestSourceState, allowMaintenanceStart = false): boolean => {
     if (source.requiredHarvestPower <= 0) {
-      return { minerRatio: 0, colonyTransportRatio: 0, ready: false }
+      return false
     }
 
     if (source.roomName === colonyName || source.sustainableHarvestPower > 0) {
@@ -547,11 +541,7 @@ export function runHarvest(
       }
     }
 
-    return {
-      minerRatio,
-      colonyTransportRatio,
-      ready,
-    }
+    return ready
   }
 
   for (const roomState of roomStates) {
@@ -569,13 +559,13 @@ export function runHarvest(
           break
         }
 
-        const firstSourceResult = processSource(firstSource)
+        const firstSourceReady = processSource(firstSource)
 
-        if (firstSourceResult.ready) {
+        if (firstSourceReady) {
           requestReserver(roomState)
         }
 
-        applyReservationUpkeep(roomState, firstSourceResult.ready)
+        applyReservationUpkeep(roomState, firstSourceReady)
 
         for (let i = 1; i < roomState.sources.length; i++) {
           processSource(roomState.sources[i])
@@ -633,14 +623,14 @@ export function runHarvest(
             }
           }
 
-          const sourceResult = processSource(source, true)
+          const sourceReady = processSource(source, true)
           const sourceMemory = getHarvestSourceMemory(room, source.id)
 
-          if (sourceResult.ready) {
+          if (sourceReady) {
             sourceMemory.lastReadyTick = Game.time
           }
 
-          if (sourceResult.ready && !sourceMemory.useRoad) {
+          if (sourceReady && !sourceMemory.useRoad) {
             remoteConstructionCandidates.push(source)
           }
         }
