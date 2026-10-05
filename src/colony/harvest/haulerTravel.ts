@@ -24,28 +24,6 @@ export function getHaulerTravelRuntime(
     return cached
   }
 
-  if (speedrun) {
-    const sharedPath = sourcePath.slice(0, -1)
-    const emptyTravelTicks = sharedPath.length
-    const loadedTravelTicks = estimatePathTravelTicks(sharedPath, 1, 1)
-    const result: HaulerTravelRuntime = {
-      sourcePath,
-      speedrun,
-
-      emptyPath: sharedPath,
-      loadedPath: sharedPath,
-
-      emptyTravelTicks,
-      loadedTravelTicks,
-      cycleTravelTicks: emptyTravelTicks + loadedTravelTicks,
-      loadedTravelTicks21: loadedTravelTicks,
-      cycleTravelTicks21: emptyTravelTicks + loadedTravelTicks,
-    }
-
-    runtime.haulerTravelBySource.set(sourceId, result)
-    return result
-  }
-
   const containerPositionsByRoom = createContainerPositionsByRoom(basePlan.roomName)
 
   const origin = new RoomPosition(basePlan.storage.x, basePlan.storage.y, basePlan.roomName)
@@ -98,9 +76,31 @@ export function getHaulerTravelRuntime(
     },
   })
 
-  const loadedPath = loadedResult.incomplete ? sourcePath : loadedResult.path
+  const loadedFallbackPath = speedrun ? sourcePath.slice(0, -1) : sourcePath
+  const loadedPath = loadedResult.incomplete ? loadedFallbackPath : loadedResult.path
 
-  const loadedTravelTicks = loadedResult.incomplete ? estimatePathTravelTicks(sourcePath, 1, 1) : loadedResult.cost
+  const loadedTravelTicks = loadedResult.incomplete ? estimatePathTravelTicks(loadedFallbackPath, 1, 1) : loadedResult.cost
+
+  if (speedrun) {
+    const emptyTravelTicks = loadedPath.length
+    const result: HaulerTravelRuntime = {
+      sourcePath,
+      speedrun,
+
+      emptyPath: loadedPath,
+      loadedPath,
+
+      emptyTravelTicks,
+      loadedTravelTicks,
+      cycleTravelTicks: emptyTravelTicks + loadedTravelTicks,
+      loadedTravelTicks21: loadedTravelTicks,
+      cycleTravelTicks21: emptyTravelTicks + loadedTravelTicks,
+    }
+
+    runtime.haulerTravelBySource.set(sourceId, result)
+    return result
+  }
+
   const loadedTravelTicks21 = estimatePathTravelTicks(loadedPath, 1, 2)
 
   const cycleTravelTicks = emptyTravelTicks + loadedTravelTicks
