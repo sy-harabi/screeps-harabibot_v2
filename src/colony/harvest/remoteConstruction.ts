@@ -1,11 +1,12 @@
 import { tryCreateConstructionSite } from "../../capabilities/construction/constructionSite"
+import { getBotOptions } from "../../options/botOptions"
 import { getHarvestSourceMemory } from "./harvestMemory"
 import { REMOTE_MAINTENANCE_INTERVAL } from "./remoteMaintenance"
 
 export const REMOTE_ROAD_ENERGY_CAPACITY = 750
 
 export function areRemoteRoadsEnabled(room: Room): boolean {
-  return room.energyCapacityAvailable >= REMOTE_ROAD_ENERGY_CAPACITY
+  return !getBotOptions().speedrun && room.energyCapacityAvailable >= REMOTE_ROAD_ENERGY_CAPACITY
 }
 
 export interface RemoteConstructionSourceState {

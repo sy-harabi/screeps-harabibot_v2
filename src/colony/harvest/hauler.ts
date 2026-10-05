@@ -39,7 +39,7 @@ export const HAULER_REVERSE_PATH_OPTIONS: MoveByPathOptions = {
 }
 
 // Phase 1 runs normal hauling and registers eligible deliverers with colony logistics.
-export function runHaulersPhase1(
+export function prepareHauling(
   colonyName: string,
   storagePos: RoomPosition,
   haulers: readonly Creep[],

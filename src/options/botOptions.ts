@@ -1,4 +1,17 @@
 // src/options/botOptions.ts
+export const DEFAULT_BOT_OPTIONS: BotOptions = {
+  speedrun: true,
+
+  visuals: {
+    basePlan: false,
+    harvest: true,
+    harvestPath: false,
+    rclProgress: true,
+  },
+  construction: {
+    rampartBuildRcl: 6,
+  },
+}
 
 export type BotMode = "normal" | "speedrun"
 
@@ -37,19 +50,7 @@ export interface BotOptionsOverride {
   rooms?: Record<string, RoomOptionsOverride>
 }
 
-export const DEFAULT_BOT_OPTIONS: BotOptions = {
-  speedrun: false,
 
-  visuals: {
-    basePlan: false,
-    harvest: true,
-    harvestPath: false,
-    rclProgress: true,
-  },
-  construction: {
-    rampartBuildRcl: 6,
-  },
-}
 
 let cachedTick = -1
 let cachedOptions: BotOptions | undefined

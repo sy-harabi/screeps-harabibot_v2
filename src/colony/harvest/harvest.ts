@@ -19,7 +19,7 @@ import {
   createHaulerBody,
   getRequiredCarryCapacity,
   HAULER_ROLE,
-  runHaulersPhase1,
+  prepareHauling,
   type HaulerProfile,
 } from "./hauler"
 import { getMiningPositions, getSourceContainer } from "./miningSite"
@@ -111,7 +111,7 @@ export interface HaulerSpeedrunState {
   readonly sourceHaulerCounts: Map<Id<Source>, number>
 }
 
-export interface HaulerPhase2State {
+export interface HaulingTickContext {
   readonly haulers: readonly Creep[]
   readonly sourceStates: readonly HarvestSourceState[]
   readonly sourceById: ReadonlyMap<Id<Source>, HarvestSourceState>
@@ -123,7 +123,7 @@ export interface HarvestResult {
   readonly maxIncome: number
   readonly spawnUsage: number
   readonly activeSourcePaths?: readonly (readonly RoomPosition[])[]
-  readonly haulerPhase2?: HaulerPhase2State
+  readonly hauling?: HaulingTickContext
 }
 
 const ROLES_BY_PRIORITY = [MINER_ROLE, REMOTE_REPAIRER_ROLE, HAULER_ROLE, RESERVER_ROLE, REMOTE_BUILDER_ROLE]
@@ -184,9 +184,9 @@ export function runHarvest(
   const remoteRepairers = getColonyCreeps(context, colonyName, REMOTE_REPAIRER_ROLE)
   const speedrunState: HaulerSpeedrunState | undefined = options.speedrun
     ? {
-        travelingMiners: [],
-        sourceHaulerCounts: countSourceHaulers(haulers),
-      }
+      travelingMiners: [],
+      sourceHaulerCounts: countSourceHaulers(haulers),
+    }
     : undefined
 
   for (const reserver of reservers) {
@@ -691,7 +691,7 @@ export function runHarvest(
 
   runRemoteRepairers(room, remoteRepairers, sourceStates, sourceById)
 
-  runHaulersPhase1(
+  prepareHauling(
     colonyName,
     storagePos,
     haulers,
@@ -715,7 +715,7 @@ export function runHarvest(
     maxIncome,
     spawnUsage,
     activeSourcePaths,
-    haulerPhase2: {
+    hauling: {
       haulers,
       sourceStates,
       sourceById,

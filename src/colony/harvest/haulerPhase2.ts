@@ -4,7 +4,7 @@ import { handoffKnownPathIndex, swapKnownPathIndex } from "../../capabilities/mo
 import { clearMoveRequest, getIntendedCoord, registerMove } from "../../capabilities/movement/traffic"
 import type { LogisticsState } from "../logistics/logistics"
 import { getLogisticsSupplierRuntime, swapLogisticsSupplierRuntime } from "../logistics/logisticsRuntime"
-import type { HarvestSourceState, HaulerPhase2State } from "./harvest"
+import type { HarvestSourceState, HaulingTickContext } from "./harvest"
 import {
   finishHaulerDelivery,
   HAULER_MOVE_OPTIONS,
@@ -24,12 +24,12 @@ interface HaulerCoordinationContext {
   readonly turnedAround: Set<string>
 }
 
-// Phase 2 reacts to logistics results, finishes deliveries, then resolves speedrun coordination.
-export function runHaulersPhase2(
+// Resolves logistics results and then applies optional hauling coordination.
+export function resolveHauling(
   room: Room,
   basePlan: BasePlan,
   logistics: LogisticsState,
-  state: HaulerPhase2State,
+  state: HaulingTickContext,
 ): void {
   const { haulers, sourceStates, sourceById, speedrun } = state
   const sourceHaulerCounts = speedrun?.sourceHaulerCounts
