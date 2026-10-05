@@ -1,4 +1,5 @@
 import type { HarvestMemory } from "./colony/harvest/harvestMemory"
+import { type HaulTask } from "./colony/harvest/hauler"
 import type { RclProgressMemory } from "./colony/rclProgress"
 import type { CreepAssignment } from "./creeps/creepAssignment"
 import type { BotOptionsOverride } from "./options/botOptions"
@@ -19,6 +20,8 @@ declare global {
   interface CreepMemory {
     assignment: CreepAssignment
     role: string
+
+    haulTask?: HaulTask
 
     sourceId?: Id<Source>
     haulerState?: "idle" | "fetching" | "loading" | "delivering"

@@ -12,7 +12,23 @@ import type { HarvestSourceState } from "./harvest"
 import { getHaulerRoomCostMatrix } from "./haulerCostMatrix"
 export const HAULER_ROLE = "hauler"
 
+export type HaulTask =
+  | {
+    sourceId: Id<Source>
+    phase: "outbound"
+  }
+  | {
+    sourceId: Id<Source>
+    phase: "loading"
+    loadingSince: number
+  }
+  | {
+    sourceId: Id<Source>
+    phase: "inbound"
+  }
+
 export type HaulerProfile = "1:1" | "2:1"
+
 
 const SPEEDRUN_HAULER_MAX_CARRY = 3
 const LOGISTICS_ENTRY_RANGE = 6
@@ -38,7 +54,7 @@ export const HAULER_REVERSE_PATH_OPTIONS: MoveByPathOptions = {
   reverse: true,
 }
 
-// Phase 1 runs normal hauling and registers eligible deliverers with colony logistics.
+// Advances normal hauling and registers eligible inbound haulers with colony logistics.
 export function prepareHauling(
   colonyName: string,
   storagePos: RoomPosition,
