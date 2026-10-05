@@ -3,7 +3,7 @@ export interface HarvestVisualSourceRow {
   readonly sourceIndex: number
   readonly distance: number
   readonly minerRatio: number
-  readonly haulerRatio: number
+  readonly colonyTransportRatio: number
   readonly grossIncome: number
   readonly minerUpkeep?: number
   readonly haulerUpkeep?: number
@@ -130,7 +130,7 @@ function drawSourceRow(visual: RoomVisual, y: number, row: HarvestVisualSourceRo
   visual.text(String(row.sourceIndex), COLUMNS.source, y, textStyle("right"))
   visual.text(String(row.distance), COLUMNS.distance, y, textStyle("right"))
   visual.text(percent(row.minerRatio), COLUMNS.mine, y, textStyle("right"))
-  visual.text(percent(row.haulerRatio), COLUMNS.haul, y, textStyle("right"))
+  visual.text(percent(row.colonyTransportRatio), COLUMNS.haul, y, textStyle("right"))
   visual.text(format(row.grossIncome), COLUMNS.gross, y, textStyle("right"))
   visual.text(integer(row.containerEnergy ?? 0), COLUMNS.container, y, textStyle("right"))
   visual.text(integer(row.droppedEnergy ?? 0), COLUMNS.dropped, y, textStyle("right"))

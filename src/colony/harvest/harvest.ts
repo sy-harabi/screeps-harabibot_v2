@@ -70,7 +70,7 @@ type ReservationState = "owned" | "none" | "ours" | "foreign"
 
 interface HarvestSourceResult {
   readonly minerRatio: number
-  readonly haulerRatio: number
+  readonly colonyTransportRatio: number
   readonly ready: boolean
 }
 
@@ -102,8 +102,6 @@ export interface HarvestSourceState {
   builderCarryEquivalent?: number
   remoteBuilderCarryCapacity?: number
   remoteRepairerCarryCapacity?: number
-
-  carryCapacity: number
 }
 
 export interface HaulerSpeedrunState {
@@ -396,34 +394,33 @@ export function runHarvest(
 
   const processSource = (source: HarvestSourceState, allowMaintenanceStart = false): HarvestSourceResult => {
     if (source.requiredHarvestPower <= 0) {
-      return { minerRatio: 0, haulerRatio: 0, ready: false }
+      return { minerRatio: 0, colonyTransportRatio: 0, ready: false }
     }
 
     if (source.roomName === colonyName || source.sustainableHarvestPower > 0) {
       activeSourcePaths.push(source.path)
     }
 
-    const requiredHaulerCarryCapacity = Math.max(0, source.requiredCarryCapacity - (source.builderCarryEquivalent ?? 0))
+    const requiredHaulerCapacity = Math.max(0, source.requiredCarryCapacity - (source.builderCarryEquivalent ?? 0))
 
-    const allocatedHaulerCarryCapacity = Math.min(requiredHaulerCarryCapacity, carryCapacityLeft)
+    const allocatedHaulerCapacity = Math.min(requiredHaulerCapacity, carryCapacityLeft)
 
-    carryCapacityLeft -= allocatedHaulerCarryCapacity
+    carryCapacityLeft -= allocatedHaulerCapacity
 
     const minerRatio = source.sustainableHarvestPower / source.requiredHarvestPower
 
-    const haulerNeedRatio =
-      requiredHaulerCarryCapacity <= 0 ? 1 : allocatedHaulerCarryCapacity / requiredHaulerCarryCapacity
+    const haulerNeedRatio = requiredHaulerCapacity <= 0 ? 1 : allocatedHaulerCapacity / requiredHaulerCapacity
 
-    const haulerRatio =
-      source.requiredCarryCapacity <= 0 ? 1 : allocatedHaulerCarryCapacity / source.requiredCarryCapacity
+    const colonyTransportRatio =
+      source.requiredCarryCapacity <= 0 ? 1 : allocatedHaulerCapacity / source.requiredCarryCapacity
 
-    const ready = haulerRatio >= 1
+    const ready = colonyTransportRatio >= 1
 
     if (allowMaintenanceStart && ready) {
       inspectRemoteMaintenanceSource(room, source)
     }
 
-    if (!options.speedrun && !room.memory.use21Hauler && requiredHaulerCarryCapacity > 0 && haulerNeedRatio > 0) {
+    if (!options.speedrun && !room.memory.use21Hauler && requiredHaulerCapacity > 0 && haulerNeedRatio > 0) {
       const cycle11 = source.haulerCycleTravelTicks
       const cycle21 = source.useRoadPath ? source.haulerCycleTravelTicks : source.haulerTravel.cycleTravelTicks21
 
@@ -453,10 +450,10 @@ export function runHarvest(
     let sourceSpawnUsage: number | undefined
     let actualHaulerUpkeep: number | undefined
 
-    if (haulerRatio > 0) {
-      const productionRatio = Math.min(1, minerRatio, haulerRatio)
+    if (colonyTransportRatio > 0) {
+      const productionRatio = Math.min(1, minerRatio, colonyTransportRatio)
 
-      actualHaulerUpkeep = sourceEconomyStats.haulerUpkeep * haulerRatio
+      actualHaulerUpkeep = sourceEconomyStats.haulerUpkeep * colonyTransportRatio
       sourceIncome =
         sourceEconomyStats.harvestIncome * productionRatio -
         sourceEconomyStats.minerUpkeep -
@@ -467,7 +464,7 @@ export function runHarvest(
         sourceEconomyStats.minerUpkeep -
         sourceEconomyStats.haulerUpkeep -
         sourceEconomyStats.infrastructureUpkeep
-      sourceSpawnUsage = sourceEconomyStats.minerSpawnUsage + sourceEconomyStats.haulerSpawnUsage * haulerRatio
+      sourceSpawnUsage = sourceEconomyStats.minerSpawnUsage + sourceEconomyStats.haulerSpawnUsage * colonyTransportRatio
 
       income += sourceIncome
       maxIncome += sourceMaxIncome
@@ -479,11 +476,11 @@ export function runHarvest(
       sourceIndex: sourceIndexById.get(source.id) ?? 0,
       distance: source.path.length,
       minerRatio,
-      haulerRatio,
+      colonyTransportRatio,
       grossIncome: sourceEconomyStats.harvestIncome,
-      minerUpkeep: haulerRatio > 0 ? sourceEconomyStats.minerUpkeep : undefined,
+      minerUpkeep: colonyTransportRatio > 0 ? sourceEconomyStats.minerUpkeep : undefined,
       haulerUpkeep: actualHaulerUpkeep,
-      infrastructureUpkeep: haulerRatio > 0 ? sourceEconomyStats.infrastructureUpkeep : undefined,
+      infrastructureUpkeep: colonyTransportRatio > 0 ? sourceEconomyStats.infrastructureUpkeep : undefined,
       income: sourceIncome,
       maxIncome: sourceMaxIncome,
       spawnUsage: sourceSpawnUsage,
@@ -552,7 +549,7 @@ export function runHarvest(
 
     return {
       minerRatio,
-      haulerRatio,
+      colonyTransportRatio,
       ready,
     }
   }
@@ -925,8 +922,6 @@ function prepareHarvestRoomStates(
         sustainableHarvestPower: 0,
         activeHarvestPower: 0,
         numMiners: 0,
-
-        carryCapacity: 0,
       })
     }
 
