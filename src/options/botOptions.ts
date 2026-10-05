@@ -1,6 +1,6 @@
 // src/options/botOptions.ts
 export const DEFAULT_BOT_OPTIONS: BotOptions = {
-  speedrun: true,
+  speedrun: false,
 
   visuals: {
     basePlan: false,
