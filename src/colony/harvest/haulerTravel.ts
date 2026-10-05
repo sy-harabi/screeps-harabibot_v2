@@ -59,7 +59,9 @@ export function getHaulerTravelRuntime(
   const loadedFallbackPath = speedrun ? sourcePath.slice(0, -1) : sourcePath
   const loadedPath = loadedResult.incomplete ? loadedFallbackPath : loadedResult.path
 
-  const loadedTravelTicks = loadedResult.incomplete ? estimatePathTravelTicks(loadedFallbackPath, 1, 1) : loadedResult.cost
+  const loadedTravelTicks = loadedResult.incomplete
+    ? estimatePathTravelTicks(loadedFallbackPath, 1, 1)
+    : loadedResult.cost
 
   if (speedrun) {
     const emptyTravelTicks = loadedPath.length
