@@ -386,6 +386,86 @@ export function runHarvest(
     })
   }
 
+  const requestSourceSpawn = (
+    source: HarvestSourceState,
+    minerRatio: number,
+    haulerNeedRatio: number,
+    targetMinerWork: number,
+    container: StructureContainer | undefined,
+  ): void => {
+    if (spawnRequested) {
+      return
+    }
+
+    const priorityType = source.roomName === colonyName ? "ownedSource" : "remoteSource"
+
+    if (minerRatio < 1 && minerRatio <= haulerNeedRatio && source.numMiners < source.miningPositions.length) {
+      const repairContainer =
+        hasHarvestIncome && container !== undefined && container.hits < SOURCE_CONTAINER_REPAIR_THRESHOLD
+
+      const targetWork = targetMinerWork + (repairContainer ? 1 : 0)
+
+      requestSpawn(
+        {
+          requesterId,
+          spawnRoomName: colonyName,
+          assignment,
+          priorityType,
+          order: source.path.length,
+          rolesByPriority: ROLES_BY_PRIORITY,
+        },
+        () => createMinerBody(room, source.path, targetWork, hasHarvestIncome, { carry: repairContainer }),
+        MINER_ROLE,
+        { memory: { sourceId: source.id } },
+      )
+
+      spawnRequested = true
+      return
+    }
+
+    if (getRemoteMaintenanceSourceId(room) === source.id && remoteRepairers.length === 0) {
+      requestRemoteRepairer(source)
+      return
+    }
+
+    if (haulerNeedRatio < 1) {
+      requestSpawn(
+        {
+          requesterId,
+          spawnRoomName: colonyName,
+          assignment,
+          priorityType,
+          order: source.path.length,
+          rolesByPriority: ROLES_BY_PRIORITY,
+        },
+        () => createHaulerBody(room, haulerProfile),
+        HAULER_ROLE,
+        { memory: { haulerProfile } },
+      )
+
+      spawnRequested = true
+      return
+    }
+
+    if (source.remoteBuilderWorkNeeded !== undefined) {
+      requestSpawn(
+        {
+          requesterId,
+          spawnRoomName: colonyName,
+          assignment,
+          priorityType,
+          order: source.path.length,
+          rolesByPriority: ROLES_BY_PRIORITY,
+        },
+        () => createRemoteBuilderBody(room, source.remoteBuilderWorkNeeded!),
+        REMOTE_BUILDER_ROLE,
+        { memory: { sourceId: source.id } },
+      )
+
+      spawnRequested = true
+    }
+  }
+
   const processSource = (source: HarvestSourceState, allowMaintenanceStart = false): boolean => {
     if (source.requiredHarvestPower <= 0) {
       return false
@@ -480,66 +560,7 @@ export function runHarvest(
       spawnUsage: sourceSpawnUsage,
     })
 
-    if (!spawnRequested) {
-      const priorityType = source.roomName === colonyName ? "ownedSource" : "remoteSource"
-
-      if (minerRatio < 1 && minerRatio <= haulerNeedRatio && source.numMiners < source.miningPositions.length) {
-        const repairContainer =
-          hasHarvestIncome && container !== undefined && container.hits < SOURCE_CONTAINER_REPAIR_THRESHOLD
-
-        const targetWork = targetMinerWork + (repairContainer ? 1 : 0)
-
-        requestSpawn(
-          {
-            requesterId,
-            spawnRoomName: colonyName,
-            assignment,
-            priorityType,
-            order: source.path.length,
-            rolesByPriority: ROLES_BY_PRIORITY,
-          },
-          () => createMinerBody(room, source.path, targetWork, hasHarvestIncome, { carry: repairContainer }),
-          MINER_ROLE,
-          { memory: { sourceId: source.id } },
-        )
-
-        spawnRequested = true
-      } else if (getRemoteMaintenanceSourceId(room) === source.id && remoteRepairers.length === 0) {
-        requestRemoteRepairer(source)
-      } else if (haulerNeedRatio < 1) {
-        requestSpawn(
-          {
-            requesterId,
-            spawnRoomName: colonyName,
-            assignment,
-            priorityType,
-            order: source.path.length,
-            rolesByPriority: ROLES_BY_PRIORITY,
-          },
-          () => createHaulerBody(room, haulerProfile),
-          HAULER_ROLE,
-          { memory: { haulerProfile } },
-        )
-
-        spawnRequested = true
-      } else if (source.remoteBuilderWorkNeeded !== undefined) {
-        requestSpawn(
-          {
-            requesterId,
-            spawnRoomName: colonyName,
-            assignment,
-            priorityType,
-            order: source.path.length,
-            rolesByPriority: ROLES_BY_PRIORITY,
-          },
-          () => createRemoteBuilderBody(room, source.remoteBuilderWorkNeeded!),
-          REMOTE_BUILDER_ROLE,
-          { memory: { sourceId: source.id } },
-        )
-
-        spawnRequested = true
-      }
-    }
+    requestSourceSpawn(source, minerRatio, haulerNeedRatio, targetMinerWork, container)
 
     return ready
   }
