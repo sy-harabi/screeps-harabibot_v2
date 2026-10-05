@@ -6,7 +6,7 @@ import type { LogisticsState } from "../logistics/logistics"
 import { getLogisticsSupplierRuntime, swapLogisticsSupplierRuntime } from "../logistics/logisticsRuntime"
 import type { HarvestSourceState, HaulingTickContext } from "./harvest"
 import {
-  finishHaulerDelivery,
+  finishHaulTask,
   HAULER_MOVE_OPTIONS,
   HAULER_PATH_OPTIONS,
   HAULER_REVERSE_PATH_OPTIONS,
@@ -67,7 +67,7 @@ function finishLogisticsDeliveries(
       continue
     }
 
-    finishHaulerDelivery(hauler, sourceStates, sourceById, sourceHaulerCounts)
+    finishHaulTask(hauler, sourceStates, sourceById, sourceHaulerCounts)
   }
 }
 
@@ -136,7 +136,7 @@ function runHomeFallbackAction(
 
       if (hauler.transfer(storage, RESOURCE_ENERGY, transferAmount) === OK) {
         if (transferAmount >= energy) {
-          finishHaulerDelivery(hauler, sourceStates, sourceById, sourceHaulerCounts)
+          finishHaulTask(hauler, sourceStates, sourceById, sourceHaulerCounts)
         }
 
         return freeCapacity - transferAmount
@@ -158,7 +158,7 @@ function runHomeFallbackAction(
 
       if (hauler.transfer(container, RESOURCE_ENERGY, transferAmount) === OK) {
         if (transferAmount >= energy) {
-          finishHaulerDelivery(hauler, sourceStates, sourceById, sourceHaulerCounts)
+          finishHaulTask(hauler, sourceStates, sourceById, sourceHaulerCounts)
         }
 
         return freeCapacity - transferAmount
@@ -174,7 +174,7 @@ function runHomeFallbackAction(
     clearMoveRequest(hauler)
 
     if (hauler.drop(RESOURCE_ENERGY) === OK) {
-      finishHaulerDelivery(hauler, sourceStates, sourceById, sourceHaulerCounts)
+      finishHaulTask(hauler, sourceStates, sourceById, sourceHaulerCounts)
     }
 
     return freeCapacity
