@@ -4,7 +4,7 @@ HarabiBot v2 is an in-progress TypeScript rewrite of HarabiBot for [Screeps](htt
 
 The rewrite is not a line-by-line port. It is being rebuilt around explicit data flow, ordered colony execution, reusable capabilities, and clearer state ownership. The design direction and collaboration rules are documented in [docs/rewrite-context.md](./docs/rewrite-context.md).
 
-> **Status:** active development. The current vertical slice covers owned-room economy, remote harvesting and reservation, construction and upgrading, persistent room intel, and autonomous Explore scouting, but this is not yet a complete autonomous bot.
+> **Status:** active development. The current vertical slice covers owned-room economy, remote harvesting and reservation, remote infrastructure construction and maintenance, construction and upgrading, persistent room intel, and autonomous Explore scouting. Combat, empire-level coordination, and other late-game systems are still under development.
 
 ## Current implementation
 
@@ -14,11 +14,13 @@ Implemented so far:
 - Per-tick `TickContext` indexes for owned rooms, colony creeps, and future mission creeps.
 - Exclusive creep ownership through `colony | mission` assignment, with role stored separately.
 - Spawn requests, priority ordering, queueing, and global spawn allocation.
-- Colony harvesting across owned and remote rooms, with miners, reservers, a shared hauler pool, ordered spawn demand, and sustainable income/spawn-usage estimates.
+- Colony harvesting across owned and remote rooms, with miners, reservers, a shared hauler pool, ordered spawn demand, and current/max sustainable-income and spawn-usage estimates.
 - Remote-room assignment and source-path planning, including shared remote trunks and reservation-aware throughput.
-- Separate empty and loaded hauler paths so roadless travel reflects the creep's actual movement cost in each direction.
-- Optional early-game spawn-time-bounded hauling policy with small fixed-size haulers, relay handoffs, and pull-chain coordination; used heavily by speedrun mode while normal hauling remains optimized independently.
+- Direction-aware hauling in normal mode with separate empty and loaded travel costs, plus road-aware 1:1 and 2:1 hauler profiles as remote infrastructure comes online.
+- Remote container and road construction with reusable remote builders, followed by colony-wide maintenance that repairs damaged roads and rebuilds missing infrastructure on recently used remotes.
+- Optional early-game spawn-time-bounded hauling with small fixed-size haulers, relay handoffs, and pull-chain coordination; speedrun mode deliberately favors the loaded route in both directions to avoid expensive swamp travel.
 - Construction scheduling from the base plan, builder spawning, bootstrap storage containers, configurable rampart build RCL, and automatic eviction of creeps blocking obstacle construction sites.
+- Dynamic extension construction order: early extensions favor storage proximity and overlap with active source routes, while RCL4+ placement follows storage distance.
 - Income-driven upgrading with planned controller chains, storage-aware target WORK, and logistics-fed upgrade energy.
 - Tower energy refill requests and low-frequency road repair.
 - One-tick colony logistics state that matches loaded suppliers to spawn/extension, tower, and upgrade-energy requests with storage fallback.
@@ -30,11 +32,11 @@ Implemented so far:
 - RCL progress tracking and in-game harvest/economy diagnostics.
 - Domain-owned runtime caches registered through a shared runtime registry with cleanup and cache-size diagnostics.
 - Map/planner primitives including distance transform, Dijkstra maps, flood fill, terrain regions, and min-cut.
-- Console options for base-plan, harvest, and RCL-progress visuals plus construction-policy overrides.
+- Console options for speedrun mode, base-plan/harvest/RCL-progress visuals, and construction-policy overrides.
 
 The base planner currently covers the core layout, controller/upgrader area, resource endpoints and road tree, labs, structure slots, towers, outer ramparts, rampart access roads, and repair roads. Existing manually placed spawns are respected by the planner.
 
-Still under construction are remote infrastructure deployment such as remote containers and roads, CPU/statistics instrumentation, Watch and Resource scouting, combat and active defense, empire resource coordination/market logic, and other late-game systems. A persistent mission framework is intentionally deferred until the first real cross-room mission requires it.
+Still under construction are CPU/statistics instrumentation, Watch and Resource scouting, combat and active defense, empire resource coordination and market logic, and other late-game systems. A persistent mission framework remains intentionally deferred until the first concrete cross-room mission requires it.
 
 ## Runtime flow
 
@@ -92,6 +94,7 @@ src/colony/                         Ordered colony execution
   upgrade/
 src/creeps/                         Creep ownership types
 src/capabilities/basePlanning/      Runtime base planner
+src/capabilities/construction/      Shared construction-site helpers
 src/capabilities/spawning/          Spawn requests, queue, priority, allocator
 src/capabilities/movement/          Movement, path state, and traffic
 src/world/map/                      Map algorithms and room-grid utilities
@@ -102,8 +105,11 @@ src/runtime/                        Runtime-only registries/caches
 src/options/                        Bot option definitions
 src/console/                        Screeps console API
 src/visuals/                        RoomVisual helpers
+src/utils/                          General-purpose utilities
+src/vendor/                         Vendored code
 docs/decisions/                     Architecture/design decision history
 docs/rewrite-log/                   Rewrite and experiment notes
+docs/diagrams/                      README flowcharts and Mermaid sources
 experiment/                         Standalone research/visualization experiments
 dist/                               Generated bundle; not committed
 ```
@@ -206,7 +212,7 @@ bot.options.clearRampartBuildRcl()
 bot.options.clearRampartBuildRcl("W1N1")
 ```
 
-Visuals are disabled by default.
+Harvest and RCL-progress visuals are enabled by default; base-plan and harvest-path visuals are disabled by default.
 
 ## Design notes
 

@@ -12,6 +12,8 @@ bot.help()
 
 bot.options.show()
 bot.options.show("W1N1")
+bot.options.setSpeedrun(true | false)
+bot.options.clearSpeedrun()
 bot.options.setBasePlanVisual(true | false)
 bot.options.clearBasePlanVisual()
 bot.options.setHarvestVisual(true | false)
