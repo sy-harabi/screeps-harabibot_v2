@@ -53,3 +53,4 @@ Date: YYYY-MM-DD
 - [0014: Intel persistence, bootstrap, and Explore topology](0014-intel-persistence-bootstrap-and-explore.md)
 - [0015: Remote harvesting and reservation lifecycle](0015-remote-harvesting-and-reservation.md)
 - [0016: Colony-wide remote road maintenance sweep](0016-colony-wide-remote-road-maintenance.md)
+- [0017: Mission hierarchy and shared Screeps combat foundation](0017-mission-hierarchy-and-shared-combat-foundation.md)
