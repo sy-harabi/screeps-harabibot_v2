@@ -114,16 +114,14 @@ export function prepareHauling(
       continue
     }
 
-    if (runFetch(hauler, source) === 'normal') {
-      continue
+    if (runFetch(hauler, source) === 'emptyTimeout') {
+      finishHaulTask(
+        hauler,
+        sourceStates,
+        sourceById,
+        sourceHaulerCounts,
+      )
     }
-
-    finishHaulTask(
-      hauler,
-      sourceStates,
-      sourceById,
-      sourceHaulerCounts,
-    )
   }
 }
 
@@ -235,7 +233,8 @@ function runFetch(hauler: Creep, sourceState: HarvestSourceState): FetchResult {
   }
 
   if (task.phase === "outbound") {
-    if (hauler.pos.getRangeTo(sourcePos) > 1) {
+    if (hauler.room.name !== sourcePos.roomName ||
+      !hauler.pos.inRangeTo(sourcePos, 1)) {
       moveCreepByPath(hauler, sourceState.haulerTravel.emptyPath, HAULER_PATH_OPTIONS)
       return 'normal'
     }
@@ -245,9 +244,7 @@ function runFetch(hauler: Creep, sourceState: HarvestSourceState): FetchResult {
       phase: "loading",
       loadingSince: Game.time,
     }
-  }
-
-  if (task.phase !== 'loading') {
+  } else if (task.phase !== 'loading') {
     return 'normal'
   }
 
