@@ -11,6 +11,7 @@ import {
   HAULER_PATH_OPTIONS,
   HAULER_REVERSE_PATH_OPTIONS,
   HAULER_ROLE,
+  type HaulTickState,
   type HaulTask,
 } from "./hauler"
 
@@ -32,21 +33,26 @@ export function resolveHauling(
   logistics: LogisticsState,
   state: HaulingTickContext,
 ): void {
-  const { haulers, sourceStates, sourceById, speedrun } = state
-  const sourceHaulerCounts = speedrun?.sourceHaulerCounts
+  const { haulers, sourceStates, sourceById, haulTickState, speedrun: speedrunState } = state
 
-  finishLogisticsDeliveries(logistics, haulers, sourceStates, sourceById, sourceHaulerCounts)
-  runDeliveryFallbacks(room, basePlan, logistics, haulers, sourceStates, sourceById, sourceHaulerCounts)
+  const speedrun = speedrunState !== undefined
 
-  if (speedrun === undefined) {
+  finishLogisticsDeliveries(logistics, haulers, sourceStates, sourceById,
+    haulTickState,
+    speedrun,)
+  runDeliveryFallbacks(room, basePlan, logistics, haulers, sourceStates, sourceById,
+    haulTickState,
+    speedrun,)
+
+  if (speedrunState === undefined) {
     return
   }
 
-  const context = createHaulerCoordinationContext(haulers, speedrun.travelingMiners)
+  const context = createHaulerCoordinationContext(haulers, speedrunState.travelingMiners)
 
   resolveTombstoneTurnarounds(context, room, basePlan, logistics, haulers, sourceById)
   resolveRelays(context, room, basePlan, logistics, haulers, sourceById)
-  resolvePullChains(context, haulers, speedrun.travelingMiners)
+  resolvePullChains(context, haulers, speedrunState.travelingMiners)
 }
 
 function finishLogisticsDeliveries(
@@ -54,7 +60,8 @@ function finishLogisticsDeliveries(
   haulers: readonly Creep[],
   sourceStates: readonly HarvestSourceState[],
   sourceById: ReadonlyMap<Id<Source>, HarvestSourceState>,
-  sourceHaulerCounts: Map<Id<Source>, number> | undefined,
+  haulTickState: HaulTickState,
+  speedrun: boolean,
 ): void {
   const emptiedSuppliers = logistics.emptiedSuppliers
 
@@ -67,7 +74,7 @@ function finishLogisticsDeliveries(
       continue
     }
 
-    finishHaulTask(hauler, sourceStates, sourceById, sourceHaulerCounts)
+    finishHaulTask(hauler, sourceStates, sourceById, haulTickState, speedrun)
   }
 }
 
@@ -78,7 +85,8 @@ function runDeliveryFallbacks(
   haulers: readonly Creep[],
   sourceStates: readonly HarvestSourceState[],
   sourceById: ReadonlyMap<Id<Source>, HarvestSourceState>,
-  sourceHaulerCounts: Map<Id<Source>, number> | undefined,
+  haulTickState: HaulTickState,
+  speedrun: boolean
 ): void {
   const fallbackTarget = room.storage ?? getStorageContainer(room, basePlan)
   let fallbackFreeCapacity = fallbackTarget?.store.getFreeCapacity(RESOURCE_ENERGY)
@@ -107,8 +115,7 @@ function runDeliveryFallbacks(
       basePlan,
       hauler,
       sourceStates,
-      sourceById,
-      sourceHaulerCounts,
+      sourceById, haulTickState, speedrun,
       fallbackFreeCapacity,
     )
   }
@@ -120,7 +127,8 @@ function runHomeFallbackAction(
   hauler: Creep,
   sourceStates: readonly HarvestSourceState[],
   sourceById: ReadonlyMap<Id<Source>, HarvestSourceState>,
-  sourceHaulerCounts: Map<Id<Source>, number> | undefined,
+  haulTickState: HaulTickState,
+  speedrun: boolean,
   fallbackFreeCapacity: number | undefined,
 ): number | undefined {
   const energy = hauler.store.getUsedCapacity(RESOURCE_ENERGY)
@@ -136,7 +144,7 @@ function runHomeFallbackAction(
 
       if (hauler.transfer(storage, RESOURCE_ENERGY, transferAmount) === OK) {
         if (transferAmount >= energy) {
-          finishHaulTask(hauler, sourceStates, sourceById, sourceHaulerCounts)
+          finishHaulTask(hauler, sourceStates, sourceById, haulTickState, speedrun)
         }
 
         return freeCapacity - transferAmount
@@ -158,7 +166,7 @@ function runHomeFallbackAction(
 
       if (hauler.transfer(container, RESOURCE_ENERGY, transferAmount) === OK) {
         if (transferAmount >= energy) {
-          finishHaulTask(hauler, sourceStates, sourceById, sourceHaulerCounts)
+          finishHaulTask(hauler, sourceStates, sourceById, haulTickState, speedrun)
         }
 
         return freeCapacity - transferAmount
@@ -174,7 +182,7 @@ function runHomeFallbackAction(
     clearMoveRequest(hauler)
 
     if (hauler.drop(RESOURCE_ENERGY) === OK) {
-      finishHaulTask(hauler, sourceStates, sourceById, sourceHaulerCounts)
+      finishHaulTask(hauler, sourceStates, sourceById, haulTickState, speedrun)
     }
 
     return freeCapacity

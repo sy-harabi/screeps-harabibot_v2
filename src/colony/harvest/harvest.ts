@@ -15,10 +15,11 @@ import { planHarvest } from "./harvestRoomPlanner"
 import { harvestRoomPlanStore } from "./harvestRoomPlanStore"
 import { getHarvestRuntime, type HaulerTravelRuntime, type RemoteControllerRuntime } from "./harvestRuntime"
 import {
-  countSourceHaulers,
   createHaulerBody,
+  createHaulTickState,
   getRequiredCarryCapacity,
   HAULER_ROLE,
+  type HaulTickState,
   prepareHauling,
   type HaulerProfile,
 } from "./hauler"
@@ -103,18 +104,17 @@ export interface HarvestSourceState {
   remoteRepairerCarryCapacity?: number
 
   carryCapacity: number
-  pendingEnergy: number
 }
 
 export interface HaulerSpeedrunState {
   readonly travelingMiners: Creep[]
-  readonly sourceHaulerCounts: Map<Id<Source>, number>
 }
 
 export interface HaulingTickContext {
   readonly haulers: readonly Creep[]
   readonly sourceStates: readonly HarvestSourceState[]
   readonly sourceById: ReadonlyMap<Id<Source>, HarvestSourceState>
+  readonly haulTickState: HaulTickState
   readonly speedrun?: HaulerSpeedrunState
 }
 
@@ -185,7 +185,6 @@ export function runHarvest(
   const speedrunState: HaulerSpeedrunState | undefined = options.speedrun
     ? {
       travelingMiners: [],
-      sourceHaulerCounts: countSourceHaulers(haulers),
     }
     : undefined
 
@@ -691,6 +690,11 @@ export function runHarvest(
 
   runRemoteRepairers(room, remoteRepairers, sourceStates, sourceById)
 
+  const haulTickState = createHaulTickState(
+    sourceStates,
+    haulers,
+  )
+
   prepareHauling(
     colonyName,
     storagePos,
@@ -698,7 +702,8 @@ export function runHarvest(
     sourceStates,
     sourceById,
     logistics,
-    speedrunState?.sourceHaulerCounts,
+    haulTickState,
+    options.speedrun,
   )
 
   for (let i = 0; i < visualSourceRows.length; i++) {
@@ -719,6 +724,7 @@ export function runHarvest(
       haulers,
       sourceStates,
       sourceById,
+      haulTickState,
       speedrun: speedrunState,
     },
   }
@@ -927,7 +933,6 @@ function prepareHarvestRoomStates(
         numMiners: 0,
 
         carryCapacity: 0,
-        pendingEnergy: 0,
       })
     }
 

@@ -29,6 +29,12 @@ export type HaulTask =
 
 export type HaulerProfile = "1:1" | "2:1"
 
+interface HaulSourceTickState {
+  pendingEnergy: number
+  haulerCount: number
+}
+
+export type HaulTickState = Map<Id<Source>, HaulSourceTickState>
 
 const SPEEDRUN_HAULER_MAX_CARRY = 3
 const LOGISTICS_ENTRY_RANGE = 6
@@ -62,32 +68,15 @@ export function prepareHauling(
   sourceStates: readonly HarvestSourceState[],
   sourceById: ReadonlyMap<Id<Source>, HarvestSourceState>,
   logistics: LogisticsState,
-  sourceHaulerCounts?: Map<Id<Source>, number>,
+  haulTickState: HaulTickState,
+  speedrun: boolean,
 ): void {
-  preparePendingEnergy(sourceStates)
-
-  for (const hauler of haulers) {
-    const task = hauler.memory.haulTask
-
-    if (task == undefined || task.phase !== 'outbound' && task.phase !== 'loading') {
-      continue
-    }
-
-    const source = sourceById.get(task.sourceId)
-
-    if (source === undefined) {
-      continue
-    }
-
-    source.pendingEnergy -= hauler.store.getFreeCapacity(RESOURCE_ENERGY)
-  }
-
   for (const hauler of haulers) {
     if (hauler.spawning) {
       continue
     }
 
-    const task = hauler.memory.haulTask ?? assignHauler(hauler, sourceStates, sourceHaulerCounts)
+    const task = hauler.memory.haulTask ?? assignHauler(hauler, sourceStates, haulTickState, speedrun)
 
     if (task === undefined) {
       continue
@@ -100,7 +89,7 @@ export function prepareHauling(
         hauler,
         sourceStates,
         sourceById,
-        sourceHaulerCounts,
+        haulTickState, speedrun,
         logistics,
       )
       continue
@@ -109,7 +98,7 @@ export function prepareHauling(
     const source = sourceById.get(task.sourceId)
 
     if (source === undefined) {
-      decrementSourceHaulerCount(sourceHaulerCounts, task.sourceId)
+      decrementSourceHaulerCount(haulTickState, task.sourceId)
       clearHaulTask(hauler)
       continue
     }
@@ -119,7 +108,7 @@ export function prepareHauling(
         hauler,
         sourceStates,
         sourceById,
-        sourceHaulerCounts,
+        haulTickState, speedrun,
       )
     }
   }
@@ -135,11 +124,12 @@ function runDeliveryPhase1(
   hauler: Creep,
   sourceStates: readonly HarvestSourceState[],
   sourceById: ReadonlyMap<Id<Source>, HarvestSourceState>,
-  sourceHaulerCounts: Map<Id<Source>, number> | undefined,
+  haulTickState: HaulTickState,
+  speedrun: boolean,
   logistics: LogisticsState,
 ): void {
   if (hauler.store.getUsedCapacity(RESOURCE_ENERGY) === 0) {
-    finishHaulTask(hauler, sourceStates, sourceById, sourceHaulerCounts)
+    finishHaulTask(hauler, sourceStates, sourceById, haulTickState, speedrun)
     return
   }
 
@@ -185,21 +175,23 @@ export function finishHaulTask(
   hauler: Creep,
   sourceStates: readonly HarvestSourceState[],
   sourceById: ReadonlyMap<Id<Source>, HarvestSourceState>,
-  sourceHaulerCounts: Map<Id<Source>, number> | undefined,
+  haulTickState: HaulTickState,
+  speedrun: boolean,
 ): void {
   const previousSourceId = hauler.memory.haulTask?.sourceId
 
   if (previousSourceId !== undefined) {
-    decrementSourceHaulerCount(sourceHaulerCounts, previousSourceId)
+    decrementSourceHaulerCount(haulTickState, previousSourceId)
   }
 
   clearHaulTask(hauler)
 
-  if (!assignHauler(hauler, sourceStates, sourceHaulerCounts)) {
-    return
-  }
-
-  const task = hauler.memory.haulTask
+  const task = assignHauler(
+    hauler,
+    sourceStates,
+    haulTickState,
+    speedrun,
+  )
 
   if (task === undefined) {
     return
@@ -208,7 +200,7 @@ export function finishHaulTask(
   const source = sourceById.get(task.sourceId)
 
   if (source === undefined) {
-    decrementSourceHaulerCount(sourceHaulerCounts, task.sourceId)
+    decrementSourceHaulerCount(haulTickState, task.sourceId)
     clearHaulTask(hauler)
     return
   }
@@ -352,32 +344,71 @@ function startDelivering(hauler: Creep, sourceState: HarvestSourceState): void {
   moveCreepByPath(hauler, getLoadedPath(hauler, sourceState), HAULER_REVERSE_PATH_OPTIONS)
 }
 
-function preparePendingEnergy(sourceStates: readonly HarvestSourceState[]): void {
-  for (const sourceState of sourceStates) {
+export function createHaulTickState(
+  sourceStates: readonly HarvestSourceState[],
+  haulers: readonly Creep[],
+): HaulTickState {
+  const result: HaulTickState = new Map()
+
+  for (const source of sourceStates) {
     const availableEnergy =
-      sourceState.sourceObject === undefined ? 0 : sourceState.containerEnergy + sourceState.droppedEnergy
+      source.sourceObject === undefined
+        ? 0
+        : source.containerEnergy + source.droppedEnergy
 
-    const builderReserve = sourceState.remoteBuilderCarryCapacity ?? 0
-    const repairerReserve = sourceState.remoteRepairerCarryCapacity ?? 0
+    const builderReserve = source.remoteBuilderCarryCapacity ?? 0
+    const repairerReserve = source.remoteRepairerCarryCapacity ?? 0
 
-    sourceState.pendingEnergy = availableEnergy - builderReserve - repairerReserve
+    result.set(source.id, {
+      pendingEnergy: availableEnergy - builderReserve - repairerReserve,
+      haulerCount: 0,
+    })
   }
+
+  for (const hauler of haulers) {
+    const task = hauler.memory.haulTask
+
+    if (task === undefined) {
+      continue
+    }
+
+    const state = result.get(task.sourceId)
+
+    if (state === undefined) {
+      continue
+    }
+
+    state.haulerCount++
+
+    if (task.phase === "outbound" || task.phase === "loading") {
+      state.pendingEnergy -= hauler.store.getFreeCapacity(RESOURCE_ENERGY)
+    }
+  }
+
+  return result
 }
 
 function assignHauler(
   hauler: Creep,
   sourceStates: readonly HarvestSourceState[],
-  sourceHaulerCounts: Map<Id<Source>, number> | undefined,
+  haulTickState: HaulTickState,
+  speedrun: boolean,
 ): HaulTask | undefined {
   const capacity = hauler.store.getCapacity(RESOURCE_ENERGY)
 
   for (const sourceState of sourceStates) {
+    const state = haulTickState.get(sourceState.id)
+
+    if (state === undefined) {
+      continue
+    }
+
     const source = sourceState.sourceObject
-    const assignedHaulerCount = sourceHaulerCounts?.get(sourceState.id) ?? 0
-    const relayTicks = assignedHaulerCount
+    const relayTicks = speedrun ? state.haulerCount : 0
     const emptyTravelTicks = Math.max(0, sourceState.haulerTravel.emptyTravelTicks - relayTicks)
+
     const expectedEnergy =
-      sourceState.pendingEnergy +
+      state.pendingEnergy +
       (source === undefined ? 0 : getExpectedEnergyDelta(source, sourceState, emptyTravelTicks))
 
     if (expectedEnergy < capacity) {
@@ -387,7 +418,7 @@ function assignHauler(
     const cycleTravelTicks = Math.max(0, sourceState.haulerCycleTravelTicks - relayTicks)
 
     if (
-      sourceHaulerCounts === undefined &&
+      !speedrun &&
       hauler.ticksToLive !== undefined &&
       hauler.ticksToLive <= cycleTravelTicks + 20
     ) {
@@ -401,11 +432,9 @@ function assignHauler(
 
 
     hauler.memory.haulTask = task
-    sourceState.pendingEnergy -= capacity
 
-    if (sourceHaulerCounts !== undefined) {
-      sourceHaulerCounts.set(sourceState.id, assignedHaulerCount + 1)
-    }
+    state.pendingEnergy -= capacity
+    state.haulerCount++
 
     return task
   }
@@ -426,33 +455,17 @@ function getExpectedEnergyDelta(source: Source, sourceState: HarvestSourceState,
   )
 }
 
-export function countSourceHaulers(haulers: readonly Creep[]): Map<Id<Source>, number> {
-  const result = new Map<Id<Source>, number>()
+function decrementSourceHaulerCount(
+  haulTickState: HaulTickState,
+  sourceId: Id<Source>,
+): void {
+  const state = haulTickState.get(sourceId)
 
-  for (const hauler of haulers) {
-    const sourceId = hauler.memory.haulTask?.sourceId
-
-    if (sourceId !== undefined) {
-      result.set(sourceId, (result.get(sourceId) ?? 0) + 1)
-    }
-  }
-
-  return result
-}
-
-function decrementSourceHaulerCount(counts: Map<Id<Source>, number> | undefined, sourceId: Id<Source>): void {
-  if (counts === undefined) {
+  if (state === undefined || state.haulerCount <= 0) {
     return
   }
 
-  const count = counts.get(sourceId)
-
-  if (count === undefined || count <= 1) {
-    counts.delete(sourceId)
-    return
-  }
-
-  counts.set(sourceId, count - 1)
+  state.haulerCount--
 }
 
 export function getRequiredCarryCapacity(
