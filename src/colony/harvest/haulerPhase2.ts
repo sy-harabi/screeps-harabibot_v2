@@ -11,6 +11,7 @@ import {
   HAULER_PATH_OPTIONS,
   HAULER_REVERSE_PATH_OPTIONS,
   HAULER_ROLE,
+  type HaulTask,
 } from "./hauler"
 
 interface Coordinate {
@@ -62,7 +63,7 @@ function finishLogisticsDeliveries(
   }
 
   for (const hauler of haulers) {
-    if (!emptiedSuppliers.has(hauler.name) || hauler.memory.haulerState !== "delivering") {
+    if (!emptiedSuppliers.has(hauler.name) || hauler.memory.haulTask?.phase !== "inbound") {
       continue
     }
 
@@ -245,14 +246,23 @@ function resolveTombstoneTurnarounds(
       continue
     }
 
-    const sourceId = hauler.memory.sourceId
-    const source = sourceId === undefined ? undefined : sourceById.get(sourceId)
+    const task = hauler.memory.haulTask
+
+    if (task?.phase !== "outbound") {
+      continue
+    }
+
+    const source = sourceById.get(task.sourceId)
 
     if (source === undefined || hauler.withdraw(tombstone, RESOURCE_ENERGY) !== OK) {
       continue
     }
 
-    hauler.memory.haulerState = "delivering"
+    hauler.memory.haulTask = {
+      sourceId: task.sourceId,
+      phase: "inbound",
+    }
+
     context.turnedAround.add(hauler.name)
 
     requestHaulerMovement(room, basePlan, logistics, hauler, source)
@@ -296,15 +306,15 @@ function resolveRelays(
       continue
     }
 
-    const fetcherSourceId = fetcher.memory.sourceId
-    const supplierSourceId = supplier.memory.sourceId
+    const fetcherTask = fetcher.memory.haulTask
+    const supplierTask = supplier.memory.haulTask
 
-    if (fetcherSourceId === undefined || supplierSourceId === undefined) {
+    if (fetcherTask?.phase !== "outbound" || supplierTask?.phase !== "inbound") {
       continue
     }
 
-    const fetcherSource = sourceById.get(fetcherSourceId)
-    const supplierSource = sourceById.get(supplierSourceId)
+    const fetcherSource = sourceById.get(fetcherTask.sourceId)
+    const supplierSource = sourceById.get(supplierTask.sourceId)
 
     if (
       fetcherSource === undefined ||
@@ -314,7 +324,7 @@ function resolveRelays(
       continue
     }
 
-    applyRelay(context, supplier, fetcher, supplierSourceId, fetcherSourceId)
+    applyRelay(context, supplier, fetcher, supplierTask, fetcherTask)
 
     if (shouldHoldRelayFetcher(room, basePlan, logistics, fetcher)) {
       registerMove(fetcher, fetcher.pos)
@@ -335,14 +345,11 @@ function applyRelay(
   context: HaulerCoordinationContext,
   supplier: Creep,
   fetcher: Creep,
-  supplierSourceId: Id<Source>,
-  fetcherSourceId: Id<Source>,
+  supplierTask: HaulTask,
+  fetcherTask: HaulTask,
 ): void {
-  fetcher.memory.sourceId = supplierSourceId
-  fetcher.memory.haulerState = "delivering"
-
-  supplier.memory.sourceId = fetcherSourceId
-  supplier.memory.haulerState = "fetching"
+  fetcher.memory.haulTask = supplierTask
+  supplier.memory.haulTask = fetcherTask
 
   const fetcherIntended = context.intendedByCreep.get(fetcher.name)
   const isMutualRelay =
@@ -418,8 +425,7 @@ function isEmptyFetcher(hauler: Creep): boolean {
   return (
     hauler.memory.role === HAULER_ROLE &&
     !hauler.spawning &&
-    hauler.memory.haulerState === "fetching" &&
-    hauler.memory.sourceId !== undefined &&
+    hauler.memory.haulTask?.phase === "outbound" &&
     hauler.store.getUsedCapacity() === 0
   )
 }
@@ -427,8 +433,7 @@ function isEmptyFetcher(hauler: Creep): boolean {
 function isLoadedDeliverer(hauler: Creep): boolean {
   return (
     !hauler.spawning &&
-    hauler.memory.haulerState === "delivering" &&
-    hauler.memory.sourceId !== undefined &&
+    hauler.memory.haulTask?.phase === "inbound" &&
     hauler.store.getUsedCapacity(RESOURCE_ENERGY) > 0
   )
 }
@@ -440,12 +445,14 @@ function requestHaulerMovement(
   hauler: Creep,
   source: HarvestSourceState,
 ): void {
-  if (hauler.memory.haulerState === "fetching") {
+  const task = hauler.memory.haulTask
+
+  if (task?.phase === "outbound") {
     moveCreepByPath(hauler, source.haulerTravel.emptyPath, HAULER_PATH_OPTIONS)
     return
   }
 
-  if (hauler.memory.haulerState !== "delivering") {
+  if (task?.phase !== "inbound") {
     return
   }
 

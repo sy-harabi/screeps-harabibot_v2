@@ -22,11 +22,8 @@ declare global {
     role: string
 
     haulTask?: HaulTask
-
     sourceId?: Id<Source>
-    haulerState?: "idle" | "fetching" | "loading" | "delivering"
     haulerProfile?: "1:1" | "2:1"
-    haulerLoadingSince?: number
 
     remoteRoomName?: string
 

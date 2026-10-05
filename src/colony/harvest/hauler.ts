@@ -67,14 +67,13 @@ export function prepareHauling(
   preparePendingEnergy(sourceStates)
 
   for (const hauler of haulers) {
-    const state = hauler.memory.haulerState
-    const sourceId = hauler.memory.sourceId
+    const task = hauler.memory.haulTask
 
-    if (sourceId === undefined || (state !== "fetching" && state !== "loading")) {
+    if (task == undefined || task.phase !== 'outbound' && task.phase !== 'loading') {
       continue
     }
 
-    const source = sourceById.get(sourceId)
+    const source = sourceById.get(task.sourceId)
 
     if (source === undefined) {
       continue
@@ -88,43 +87,46 @@ export function prepareHauling(
       continue
     }
 
-    switch (hauler.memory.haulerState) {
-      case "idle":
-        if (!assignHauler(hauler, sourceStates, sourceHaulerCounts)) {
-          continue
-        }
-        break
+    const task = hauler.memory.haulTask ?? assignHauler(hauler, sourceStates, sourceHaulerCounts)
 
-      case "fetching":
-      case "loading":
-        break
-
-      case "delivering":
-        runDeliveryPhase1(colonyName, storagePos, hauler, sourceStates, sourceById, sourceHaulerCounts, logistics)
-        continue
-
-      default:
-        continue
-    }
-
-    const sourceId = hauler.memory.sourceId
-
-    if (sourceId === undefined) {
+    if (task === undefined) {
       continue
     }
 
-    const source = sourceById.get(sourceId)
+    if (task.phase === "inbound") {
+      runDeliveryPhase1(
+        colonyName,
+        storagePos,
+        hauler,
+        sourceStates,
+        sourceById,
+        sourceHaulerCounts,
+        logistics,
+      )
+      continue
+    }
+
+    const source = sourceById.get(task.sourceId)
 
     if (source === undefined) {
-      decrementSourceHaulerCount(sourceHaulerCounts, sourceId)
-      clearHaulerTrip(hauler)
+      decrementSourceHaulerCount(sourceHaulerCounts, task.sourceId)
+      clearHaulTask(hauler)
       continue
     }
 
     if (runFetch(hauler, source)) {
-      finishHaulerDelivery(hauler, sourceStates, sourceById, sourceHaulerCounts)
+      finishHaulerDelivery(
+        hauler,
+        sourceStates,
+        sourceById,
+        sourceHaulerCounts,
+      )
     }
   }
+}
+
+function clearHaulTask(hauler: Creep): void {
+  delete hauler.memory.haulTask
 }
 
 function runDeliveryPhase1(
@@ -156,8 +158,8 @@ function runDeliveryPhase1(
 }
 
 function moveAlongLoadedPath(hauler: Creep, sourceById: ReadonlyMap<Id<Source>, HarvestSourceState>): boolean {
-  const sourceId = hauler.memory.sourceId
-  const source = sourceId === undefined ? undefined : sourceById.get(sourceId)
+  const task = hauler.memory.haulTask
+  const source = task === undefined ? undefined : sourceById.get(task.sourceId)
 
   if (source === undefined) {
     return false
@@ -185,42 +187,42 @@ export function finishHaulerDelivery(
   sourceById: ReadonlyMap<Id<Source>, HarvestSourceState>,
   sourceHaulerCounts: Map<Id<Source>, number> | undefined,
 ): void {
-  const previousSourceId = hauler.memory.sourceId
+  const previousSourceId = hauler.memory.haulTask?.sourceId
 
   if (previousSourceId !== undefined) {
     decrementSourceHaulerCount(sourceHaulerCounts, previousSourceId)
   }
 
-  clearHaulerTrip(hauler)
+  clearHaulTask(hauler)
 
   if (!assignHauler(hauler, sourceStates, sourceHaulerCounts)) {
     return
   }
 
-  const sourceId = hauler.memory.sourceId
+  const task = hauler.memory.haulTask
 
-  if (sourceId === undefined) {
+  if (task === undefined) {
     return
   }
 
-  const source = sourceById.get(sourceId)
+  const source = sourceById.get(task.sourceId)
 
   if (source === undefined) {
-    decrementSourceHaulerCount(sourceHaulerCounts, sourceId)
-    clearHaulerTrip(hauler)
+    decrementSourceHaulerCount(sourceHaulerCounts, task.sourceId)
+    clearHaulTask(hauler)
     return
   }
 
   moveToSource(hauler, source)
 }
 
-function clearHaulerTrip(hauler: Creep): void {
-  delete hauler.memory.sourceId
-  delete hauler.memory.haulerLoadingSince
-  hauler.memory.haulerState = "idle"
-}
-
 function runFetch(hauler: Creep, sourceState: HarvestSourceState): boolean {
+  const task = hauler.memory.haulTask
+
+  if (task === undefined) {
+    return false
+  }
+
   const path = sourceState.path
   const sourcePos = path[path.length - 1]
 
@@ -228,15 +230,18 @@ function runFetch(hauler: Creep, sourceState: HarvestSourceState): boolean {
     return false
   }
 
-  if (hauler.memory.haulerState === "fetching") {
+  if (task.phase === "outbound") {
     if (hauler.room.name !== sourcePos.roomName || !hauler.pos.inRangeTo(sourcePos, 1)) {
       moveCreepByPath(hauler, sourceState.haulerTravel.emptyPath, HAULER_PATH_OPTIONS)
       return false
     }
 
-    hauler.memory.haulerState = "loading"
-    hauler.memory.haulerLoadingSince = Game.time
-  } else if (hauler.memory.haulerState === "loading") {
+    hauler.memory.haulTask = {
+      sourceId: task.sourceId,
+      phase: "loading",
+      loadingSince: Game.time,
+    }
+  } else if (task.phase === "loading") {
     if (Game.rooms[sourcePos.roomName] === undefined) {
       moveCreep(
         hauler,
@@ -315,9 +320,11 @@ function runFetch(hauler: Creep, sourceState: HarvestSourceState): boolean {
     }
   }
 
+  const currentTask = hauler.memory.haulTask
+
   if (
-    hauler.memory.haulerLoadingSince !== undefined &&
-    Game.time - hauler.memory.haulerLoadingSince >= LOADING_TIMEOUT
+    currentTask?.phase === "loading" &&
+    Game.time - currentTask.loadingSince >= LOADING_TIMEOUT
   ) {
     if (hauler.store.getUsedCapacity(RESOURCE_ENERGY) === 0) {
       return true
@@ -335,8 +342,10 @@ function runFetch(hauler: Creep, sourceState: HarvestSourceState): boolean {
 }
 
 function startDelivering(hauler: Creep, sourceState: HarvestSourceState): void {
-  delete hauler.memory.haulerLoadingSince
-  hauler.memory.haulerState = "delivering"
+  hauler.memory.haulTask = {
+    sourceId: sourceState.id,
+    phase: "inbound",
+  }
   moveCreepByPath(hauler, getLoadedPath(hauler, sourceState), HAULER_REVERSE_PATH_OPTIONS)
 }
 
@@ -356,7 +365,7 @@ function assignHauler(
   hauler: Creep,
   sourceStates: readonly HarvestSourceState[],
   sourceHaulerCounts: Map<Id<Source>, number> | undefined,
-): boolean {
+): HaulTask | undefined {
   const capacity = hauler.store.getCapacity(RESOURCE_ENERGY)
 
   for (const sourceState of sourceStates) {
@@ -382,18 +391,23 @@ function assignHauler(
       continue
     }
 
-    hauler.memory.sourceId = sourceState.id
-    hauler.memory.haulerState = "fetching"
+    const task: HaulTask = {
+      sourceId: sourceState.id,
+      phase: "outbound",
+    }
+
+
+    hauler.memory.haulTask = task
     sourceState.pendingEnergy -= capacity
 
     if (sourceHaulerCounts !== undefined) {
       sourceHaulerCounts.set(sourceState.id, assignedHaulerCount + 1)
     }
 
-    return true
+    return task
   }
 
-  return false
+  return
 }
 
 function getExpectedEnergyDelta(source: Source, sourceState: HarvestSourceState, travelTicks: number): number {
@@ -413,7 +427,7 @@ export function countSourceHaulers(haulers: readonly Creep[]): Map<Id<Source>, n
   const result = new Map<Id<Source>, number>()
 
   for (const hauler of haulers) {
-    const sourceId = hauler.memory.sourceId
+    const sourceId = hauler.memory.haulTask?.sourceId
 
     if (sourceId !== undefined) {
       result.set(sourceId, (result.get(sourceId) ?? 0) + 1)

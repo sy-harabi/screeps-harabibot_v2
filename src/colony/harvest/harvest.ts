@@ -522,7 +522,7 @@ export function runHarvest(
           },
           () => createHaulerBody(room, haulerProfile),
           HAULER_ROLE,
-          { memory: { haulerState: "idle", haulerProfile } },
+          { memory: { haulerProfile } },
         )
 
         spawnRequested = true
