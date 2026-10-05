@@ -184,8 +184,8 @@ export function runHarvest(
   const remoteRepairers = getColonyCreeps(context, colonyName, REMOTE_REPAIRER_ROLE)
   const speedrunState: HaulerSpeedrunState | undefined = options.speedrun
     ? {
-      travelingMiners: [],
-    }
+        travelingMiners: [],
+      }
     : undefined
 
   for (const reserver of reservers) {
@@ -405,12 +405,18 @@ export function runHarvest(
 
     const requiredHaulerCarryCapacity = Math.max(0, source.requiredCarryCapacity - (source.builderCarryEquivalent ?? 0))
 
-    source.carryCapacity = Math.min(requiredHaulerCarryCapacity, carryCapacityLeft)
-    carryCapacityLeft -= source.carryCapacity
+    const allocatedHaulerCarryCapacity = Math.min(requiredHaulerCarryCapacity, carryCapacityLeft)
+
+    carryCapacityLeft -= allocatedHaulerCarryCapacity
 
     const minerRatio = source.sustainableHarvestPower / source.requiredHarvestPower
-    const haulerNeedRatio = requiredHaulerCarryCapacity <= 0 ? 1 : source.carryCapacity / requiredHaulerCarryCapacity
-    const haulerRatio = source.requiredCarryCapacity <= 0 ? 1 : source.carryCapacity / source.requiredCarryCapacity
+
+    const haulerNeedRatio =
+      requiredHaulerCarryCapacity <= 0 ? 1 : allocatedHaulerCarryCapacity / requiredHaulerCarryCapacity
+
+    const haulerRatio =
+      source.requiredCarryCapacity <= 0 ? 1 : allocatedHaulerCarryCapacity / source.requiredCarryCapacity
+
     const ready = haulerRatio >= 1
 
     if (allowMaintenanceStart && ready) {
@@ -690,21 +696,9 @@ export function runHarvest(
 
   runRemoteRepairers(room, remoteRepairers, sourceStates, sourceById)
 
-  const haulTickState = createHaulTickState(
-    sourceStates,
-    haulers,
-  )
+  const haulTickState = createHaulTickState(sourceStates, haulers)
 
-  prepareHauling(
-    colonyName,
-    storagePos,
-    haulers,
-    sourceStates,
-    sourceById,
-    logistics,
-    haulTickState,
-    options.speedrun,
-  )
+  prepareHauling(colonyName, storagePos, haulers, sourceStates, sourceById, logistics, haulTickState, options.speedrun)
 
   for (let i = 0; i < visualSourceRows.length; i++) {
     const source = sourceStates[i]

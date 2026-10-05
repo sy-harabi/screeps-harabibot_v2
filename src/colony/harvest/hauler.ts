@@ -14,18 +14,18 @@ export const HAULER_ROLE = "hauler"
 
 export type HaulTask =
   | {
-    sourceId: Id<Source>
-    phase: "outbound"
-  }
+      sourceId: Id<Source>
+      phase: "outbound"
+    }
   | {
-    sourceId: Id<Source>
-    phase: "loading"
-    loadingSince: number
-  }
+      sourceId: Id<Source>
+      phase: "loading"
+      loadingSince: number
+    }
   | {
-    sourceId: Id<Source>
-    phase: "inbound"
-  }
+      sourceId: Id<Source>
+      phase: "inbound"
+    }
 
 export type HaulerProfile = "1:1" | "2:1"
 
@@ -83,15 +83,7 @@ export function prepareHauling(
     }
 
     if (task.phase === "inbound") {
-      runDeliveryPhase1(
-        colonyName,
-        storagePos,
-        hauler,
-        sourceStates,
-        sourceById,
-        haulTickState, speedrun,
-        logistics,
-      )
+      runDeliveryPhase1(colonyName, storagePos, hauler, sourceStates, sourceById, haulTickState, speedrun, logistics)
       continue
     }
 
@@ -103,13 +95,8 @@ export function prepareHauling(
       continue
     }
 
-    if (runFetch(hauler, source) === 'emptyTimeout') {
-      finishHaulTask(
-        hauler,
-        sourceStates,
-        sourceById,
-        haulTickState, speedrun,
-      )
+    if (runFetch(hauler, source) === "emptyTimeout") {
+      finishHaulTask(hauler, sourceStates, sourceById, haulTickState, speedrun)
     }
   }
 }
@@ -186,12 +173,7 @@ export function finishHaulTask(
 
   clearHaulTask(hauler)
 
-  const task = assignHauler(
-    hauler,
-    sourceStates,
-    haulTickState,
-    speedrun,
-  )
+  const task = assignHauler(hauler, sourceStates, haulTickState, speedrun)
 
   if (task === undefined) {
     return
@@ -214,21 +196,20 @@ function runFetch(hauler: Creep, sourceState: HarvestSourceState): FetchResult {
   const task = hauler.memory.haulTask
 
   if (task === undefined) {
-    return 'normal'
+    return "normal"
   }
 
   const path = sourceState.path
   const sourcePos = path[path.length - 1]
 
   if (sourcePos === undefined) {
-    return 'normal'
+    return "normal"
   }
 
   if (task.phase === "outbound") {
-    if (hauler.room.name !== sourcePos.roomName ||
-      !hauler.pos.inRangeTo(sourcePos, 1)) {
+    if (hauler.room.name !== sourcePos.roomName || !hauler.pos.inRangeTo(sourcePos, 1)) {
       moveCreepByPath(hauler, sourceState.haulerTravel.emptyPath, HAULER_PATH_OPTIONS)
-      return 'normal'
+      return "normal"
     }
 
     hauler.memory.haulTask = {
@@ -236,8 +217,8 @@ function runFetch(hauler: Creep, sourceState: HarvestSourceState): FetchResult {
       phase: "loading",
       loadingSince: Game.time,
     }
-  } else if (task.phase !== 'loading') {
-    return 'normal'
+  } else if (task.phase !== "loading") {
+    return "normal"
   }
 
   if (Game.rooms[sourcePos.roomName] === undefined) {
@@ -249,14 +230,14 @@ function runFetch(hauler: Creep, sourceState: HarvestSourceState): FetchResult {
       },
       HAULER_ROUTE_MOVE_OPTIONS,
     )
-    return 'normal'
+    return "normal"
   }
 
   const source = sourceState.sourceObject
 
   if (source === undefined) {
     moveCreep(hauler, { pos: sourcePos, range: 1 }, HAULER_MOVE_OPTIONS)
-    return 'normal'
+    return "normal"
   }
 
   const droppedEnergy = sourceState.largestDroppedEnergy
@@ -264,7 +245,7 @@ function runFetch(hauler: Creep, sourceState: HarvestSourceState): FetchResult {
 
   if (freeCapacity === 0) {
     startDelivering(hauler, sourceState)
-    return 'normal'
+    return "normal"
   }
 
   if (droppedEnergy !== undefined) {
@@ -277,7 +258,7 @@ function runFetch(hauler: Creep, sourceState: HarvestSourceState): FetchResult {
         },
         HAULER_MOVE_OPTIONS,
       )
-      return 'normal'
+      return "normal"
     }
 
     if (hauler.pickup(droppedEnergy) === OK) {
@@ -286,7 +267,7 @@ function runFetch(hauler: Creep, sourceState: HarvestSourceState): FetchResult {
       }
     }
 
-    return 'normal'
+    return "normal"
   }
 
   const container = sourceState.container
@@ -301,7 +282,7 @@ function runFetch(hauler: Creep, sourceState: HarvestSourceState): FetchResult {
         },
         HAULER_MOVE_OPTIONS,
       )
-      return 'normal'
+      return "normal"
     }
 
     const amount = container.store.getUsedCapacity(RESOURCE_ENERGY)
@@ -311,29 +292,26 @@ function runFetch(hauler: Creep, sourceState: HarvestSourceState): FetchResult {
         startDelivering(hauler, sourceState)
       }
 
-      return 'normal'
+      return "normal"
     }
   }
 
   const currentTask = hauler.memory.haulTask
 
-  if (
-    currentTask?.phase === "loading" &&
-    Game.time - currentTask.loadingSince >= LOADING_TIMEOUT
-  ) {
+  if (currentTask?.phase === "loading" && Game.time - currentTask.loadingSince >= LOADING_TIMEOUT) {
     if (hauler.store.getUsedCapacity(RESOURCE_ENERGY) === 0) {
-      return 'emptyTimeout'
+      return "emptyTimeout"
     }
 
     startDelivering(hauler, sourceState)
-    return 'normal'
+    return "normal"
   }
 
   if (!hauler.pos.inRangeTo(sourcePos, 1)) {
     moveCreep(hauler, { pos: sourcePos, range: 1 }, HAULER_MOVE_OPTIONS)
   }
 
-  return 'normal'
+  return "normal"
 }
 
 function startDelivering(hauler: Creep, sourceState: HarvestSourceState): void {
@@ -351,10 +329,7 @@ export function createHaulTickState(
   const result: HaulTickState = new Map()
 
   for (const source of sourceStates) {
-    const availableEnergy =
-      source.sourceObject === undefined
-        ? 0
-        : source.containerEnergy + source.droppedEnergy
+    const availableEnergy = source.sourceObject === undefined ? 0 : source.containerEnergy + source.droppedEnergy
 
     const builderReserve = source.remoteBuilderCarryCapacity ?? 0
     const repairerReserve = source.remoteRepairerCarryCapacity ?? 0
@@ -408,8 +383,7 @@ function assignHauler(
     const emptyTravelTicks = Math.max(0, sourceState.haulerTravel.emptyTravelTicks - relayTicks)
 
     const expectedEnergy =
-      state.pendingEnergy +
-      (source === undefined ? 0 : getExpectedEnergyDelta(source, sourceState, emptyTravelTicks))
+      state.pendingEnergy + (source === undefined ? 0 : getExpectedEnergyDelta(source, sourceState, emptyTravelTicks))
 
     if (expectedEnergy < capacity) {
       continue
@@ -417,11 +391,7 @@ function assignHauler(
 
     const cycleTravelTicks = Math.max(0, sourceState.haulerCycleTravelTicks - relayTicks)
 
-    if (
-      !speedrun &&
-      hauler.ticksToLive !== undefined &&
-      hauler.ticksToLive <= cycleTravelTicks + 20
-    ) {
+    if (!speedrun && hauler.ticksToLive !== undefined && hauler.ticksToLive <= cycleTravelTicks + 20) {
       continue
     }
 
@@ -429,7 +399,6 @@ function assignHauler(
       sourceId: sourceState.id,
       phase: "outbound",
     }
-
 
     hauler.memory.haulTask = task
 
@@ -455,10 +424,7 @@ function getExpectedEnergyDelta(source: Source, sourceState: HarvestSourceState,
   )
 }
 
-function decrementSourceHaulerCount(
-  haulTickState: HaulTickState,
-  sourceId: Id<Source>,
-): void {
+function decrementSourceHaulerCount(haulTickState: HaulTickState, sourceId: Id<Source>): void {
   const state = haulTickState.get(sourceId)
 
   if (state === undefined || state.haulerCount <= 0) {

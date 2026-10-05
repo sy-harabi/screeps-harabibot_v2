@@ -61,11 +61,7 @@ export function runRemoteRepairers(
   }
 }
 
-function runRemoteRepairer(
-  repairer: Creep,
-  source: HarvestSourceState,
-  maintenance: RemoteMaintenanceMemory,
-): void {
+function runRemoteRepairer(repairer: Creep, source: HarvestSourceState, maintenance: RemoteMaintenanceMemory): void {
   const state = (repairer.memory.remoteRepairerState ??= "working")
 
   if (state === "fetching" || state === "loading") {

@@ -132,11 +132,7 @@ This is the formula used by v2:
 ```ts
 const haulerCapacity = SPEEDRUN_HAULER_MAX_CARRY * CARRY_CAPACITY
 
-return (
-  haulerCapacity *
-  relayPathLength *
-  (Math.sqrt(1 + (8 * energyPerTick) / haulerCapacity) - 1)
-) / 2
+return (haulerCapacity * relayPathLength * (Math.sqrt(1 + (8 * energyPerTick) / haulerCapacity) - 1)) / 2
 ```
 
 ## A discrete example

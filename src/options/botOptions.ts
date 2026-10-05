@@ -50,8 +50,6 @@ export interface BotOptionsOverride {
   rooms?: Record<string, RoomOptionsOverride>
 }
 
-
-
 let cachedTick = -1
 let cachedOptions: BotOptions | undefined
 

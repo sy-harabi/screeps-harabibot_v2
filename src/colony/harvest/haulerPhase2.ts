@@ -37,12 +37,8 @@ export function resolveHauling(
 
   const speedrun = speedrunState !== undefined
 
-  finishLogisticsDeliveries(logistics, haulers, sourceStates, sourceById,
-    haulTickState,
-    speedrun,)
-  runDeliveryFallbacks(room, basePlan, logistics, haulers, sourceStates, sourceById,
-    haulTickState,
-    speedrun,)
+  finishLogisticsDeliveries(logistics, haulers, sourceStates, sourceById, haulTickState, speedrun)
+  runDeliveryFallbacks(room, basePlan, logistics, haulers, sourceStates, sourceById, haulTickState, speedrun)
 
   if (speedrunState === undefined) {
     return
@@ -86,7 +82,7 @@ function runDeliveryFallbacks(
   sourceStates: readonly HarvestSourceState[],
   sourceById: ReadonlyMap<Id<Source>, HarvestSourceState>,
   haulTickState: HaulTickState,
-  speedrun: boolean
+  speedrun: boolean,
 ): void {
   const fallbackTarget = room.storage ?? getStorageContainer(room, basePlan)
   let fallbackFreeCapacity = fallbackTarget?.store.getFreeCapacity(RESOURCE_ENERGY)
@@ -115,7 +111,9 @@ function runDeliveryFallbacks(
       basePlan,
       hauler,
       sourceStates,
-      sourceById, haulTickState, speedrun,
+      sourceById,
+      haulTickState,
+      speedrun,
       fallbackFreeCapacity,
     )
   }
@@ -440,9 +438,7 @@ function isEmptyFetcher(hauler: Creep): boolean {
 
 function isLoadedDeliverer(hauler: Creep): boolean {
   return (
-    !hauler.spawning &&
-    hauler.memory.haulTask?.phase === "inbound" &&
-    hauler.store.getUsedCapacity(RESOURCE_ENERGY) > 0
+    !hauler.spawning && hauler.memory.haulTask?.phase === "inbound" && hauler.store.getUsedCapacity(RESOURCE_ENERGY) > 0
   )
 }
 
