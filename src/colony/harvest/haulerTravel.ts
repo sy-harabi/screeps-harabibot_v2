@@ -40,26 +40,6 @@ export function getHaulerTravelRuntime(
     allowedRooms.add(pos.roomName)
   }
 
-  const emptyResult = PathFinder.search(origin, goal, {
-    plainCost: 1,
-    swampCost: 1,
-
-    maxRooms: allowedRooms.size,
-    maxOps: allowedRooms.size * 2000,
-
-    roomCallback: (roomName: string) => {
-      if (!allowedRooms.has(roomName)) {
-        return false
-      }
-
-      return getHaulerCostMatrix(roomName, basePlan, destination, containerPositionsByRoom)
-    },
-  })
-
-  const emptyPath = emptyResult.incomplete ? sourcePath : emptyResult.path
-
-  const emptyTravelTicks = emptyPath.length
-
   const loadedResult = PathFinder.search(origin, goal, {
     plainCost: 1,
     swampCost: 5,
@@ -101,6 +81,25 @@ export function getHaulerTravelRuntime(
     return result
   }
 
+  const emptyResult = PathFinder.search(origin, goal, {
+    plainCost: 1,
+    swampCost: 1,
+
+    maxRooms: allowedRooms.size,
+    maxOps: allowedRooms.size * 2000,
+
+    roomCallback: (roomName: string) => {
+      if (!allowedRooms.has(roomName)) {
+        return false
+      }
+
+      return getHaulerCostMatrix(roomName, basePlan, destination, containerPositionsByRoom)
+    },
+  })
+
+  const emptyPath = emptyResult.incomplete ? sourcePath : emptyResult.path
+
+  const emptyTravelTicks = emptyPath.length
   const loadedTravelTicks21 = estimatePathTravelTicks(loadedPath, 1, 2)
 
   const cycleTravelTicks = emptyTravelTicks + loadedTravelTicks
