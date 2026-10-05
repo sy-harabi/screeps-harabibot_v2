@@ -38,57 +38,55 @@ Still under construction are remote infrastructure deployment such as remote con
 
 ## Runtime flow
 
-Each tick currently runs in this order:
+### Tick flow
 
-```text
-segmentManager.pretick()
-        |
-create TickContext
-        |
-update RCL progress
-        |
-preload BasePlan -> HarvestRoomPlan -> RoomIntel segments
-        |
-refresh visible room intel
-and consider newly observed remote harvest rooms
-        |
-run scouting
-        |
-run colonies
-        |
-allocate spawns
-        |
-resolve traffic
-        |
-clean runtime caches
-        |
-segmentManager.endTick()
+At a high level, each tick runs in this order:
+
+```mermaid
+flowchart TD
+    Tick["Game tick"] --> Segment["Segment pretick"]
+    Segment --> Context["Create TickContext"]
+    Context --> Progress["Update RCL progress"]
+    Progress --> Stores["Preload persistent stores"]
+    Stores --> Intel["Refresh visible room intel"]
+    Intel --> Scout["Run scouting"]
+    Scout --> Colonies["Run colonies"]
+    Colonies --> Spawn["Allocate global spawn requests"]
+    Spawn --> Traffic["Resolve movement / traffic"]
+    Traffic --> Cleanup["Clean runtime caches"]
+    Cleanup --> End["Segment endTick"]
 ```
+
+Persistent stores are preloaded in economy-first order: base plans, harvest room plans, then room intel. Newly observed rooms may also be considered for remote harvesting while visible-room intel is refreshed. Colony execution waits until the intel and harvest-plan stores are ready.
+
+### Colony flow
 
 A colony is the operating unit centered on one owned room. Colony-local responsibilities run in explicit gameplay order rather than through a universal `plan/execute` interface.
 
-The implemented colony economy currently flows explicitly through harvesting, construction/building, upgrading, towers, and logistics:
+```mermaid
+flowchart LR
+    H["Harvest"] --> C["Construction"]
+    C --> B["Build"]
+    B --> U["Upgrade"]
+    U --> T["Towers"]
+    T --> L["Logistics"]
+    L --> R["Resolve hauling"]
 
-```text
-Colony:<roomName>
-├─ harvest
-│  ├─ owned + remote sources
-│  ├─ miners + reservers
-│  ├─ shared hauler pool
-│  └─ sustainable income / spawn-usage estimate
-├─ construction
-│  └─ active construction-site set
-├─ build
-│  └─ builder demand from harvest income
-├─ upgrade
-│  └─ target WORK from income + stored energy
-├─ towers
-│  ├─ refill demand
-│  └─ road repair
-└─ logistics
-   ├─ loaded suppliers
-   └─ spawn/extension, tower, and upgrade-energy requests
+    H -. "active source paths" .-> C
+    H -. "income" .-> B
+    H -. "income" .-> U
+    H -. "hauling state" .-> R
+
+    LS["Per-tick logistics state"]
+    LS -.-> H
+    LS -.-> B
+    LS -.-> U
+    LS -.-> T
+    LS -.-> L
+    LS -.-> R
 ```
+
+Solid arrows show execution order. Dashed arrows show explicit data dependencies or the shared per-tick logistics state passed to the relevant subsystem.
 
 Subsystems pass derived results directly when later colony work depends on earlier work. For example, harvest returns the current sustainable income estimate used by upgrading rather than publishing that value through generic shared state.
 
