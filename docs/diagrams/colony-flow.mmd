@@ -1,0 +1,20 @@
+flowchart LR
+    H["Harvest"] --> C["Construction"]
+    C --> B["Build"]
+    B --> U["Upgrade"]
+    U --> T["Towers"]
+    T --> L["Logistics"]
+    L --> R["Resolve hauling"]
+
+    H -. "active source paths" .-> C
+    H -. "income" .-> B
+    H -. "income" .-> U
+    H -. "hauling state" .-> R
+
+    LS["Per-tick logistics state"]
+    LS -.-> H
+    LS -.-> B
+    LS -.-> U
+    LS -.-> T
+    LS -.-> L
+    LS -.-> R

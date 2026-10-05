@@ -1,0 +1,12 @@
+flowchart TD
+    Tick["Game tick"] --> Segment["Segment pretick"]
+    Segment --> Context["Create TickContext"]
+    Context --> Progress["Update RCL progress"]
+    Progress --> Stores["Preload persistent stores"]
+    Stores --> Intel["Refresh visible room intel"]
+    Intel --> Scout["Run scouting"]
+    Scout --> Colonies["Run colonies"]
+    Colonies --> Spawn["Allocate global spawn requests"]
+    Spawn --> Traffic["Resolve movement / traffic"]
+    Traffic --> Cleanup["Clean runtime caches"]
+    Cleanup --> End["Segment endTick"]

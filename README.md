@@ -42,20 +42,9 @@ Still under construction are remote infrastructure deployment such as remote con
 
 At a high level, each tick runs in this order:
 
-```mermaid
-flowchart TD
-    Tick["Game tick"] --> Segment["Segment pretick"]
-    Segment --> Context["Create TickContext"]
-    Context --> Progress["Update RCL progress"]
-    Progress --> Stores["Preload persistent stores"]
-    Stores --> Intel["Refresh visible room intel"]
-    Intel --> Scout["Run scouting"]
-    Scout --> Colonies["Run colonies"]
-    Colonies --> Spawn["Allocate global spawn requests"]
-    Spawn --> Traffic["Resolve movement / traffic"]
-    Traffic --> Cleanup["Clean runtime caches"]
-    Cleanup --> End["Segment endTick"]
-```
+![Tick flow](./docs/diagrams/tick-flow.svg)
+
+[Mermaid source](./docs/diagrams/tick-flow.mmd)
 
 Persistent stores are preloaded in economy-first order: base plans, harvest room plans, then room intel. Newly observed rooms may also be considered for remote harvesting while visible-room intel is refreshed. Colony execution waits until the intel and harvest-plan stores are ready.
 
@@ -63,28 +52,9 @@ Persistent stores are preloaded in economy-first order: base plans, harvest room
 
 A colony is the operating unit centered on one owned room. Colony-local responsibilities run in explicit gameplay order rather than through a universal `plan/execute` interface.
 
-```mermaid
-flowchart LR
-    H["Harvest"] --> C["Construction"]
-    C --> B["Build"]
-    B --> U["Upgrade"]
-    U --> T["Towers"]
-    T --> L["Logistics"]
-    L --> R["Resolve hauling"]
+![Colony flow](./docs/diagrams/colony-flow.svg)
 
-    H -. "active source paths" .-> C
-    H -. "income" .-> B
-    H -. "income" .-> U
-    H -. "hauling state" .-> R
-
-    LS["Per-tick logistics state"]
-    LS -.-> H
-    LS -.-> B
-    LS -.-> U
-    LS -.-> T
-    LS -.-> L
-    LS -.-> R
-```
+[Mermaid source](./docs/diagrams/colony-flow.mmd)
 
 Solid arrows show execution order. Dashed arrows show explicit data dependencies or the shared per-tick logistics state passed to the relevant subsystem.
 
@@ -92,31 +62,9 @@ Solid arrows show execution order. Dashed arrows show explicit data dependencies
 
 Harvest is the largest colony subsystem because it combines owned and remote source orchestration, economy accounting, remote infrastructure, spawn demand, and the first half of hauling.
 
-```mermaid
-flowchart TD
-    Start["runHarvest"] --> Ready{"Plans and intel ready?"}
-    Ready -- "no" --> Empty["Return empty result"]
-    Ready -- "yes" --> Prepare["Prepare room and source state<br/>plans + intel + paths + visible resources"]
+![Harvest flow](./docs/diagrams/harvest-flow.svg)
 
-    Prepare --> Census["Index harvest creeps<br/>measure reservation, harvest and carry capacity"]
-    Census --> Infra["Reconcile maintenance<br/>inspect active remote construction"]
-    Infra --> Sources["Process owned and remote sources"]
-
-    Sources --> Capacity["Allocate shared hauler capacity<br/>compute miner and transport readiness"]
-    Capacity --> Economy["Compute sustainable income<br/>max income + spawn usage"]
-    Capacity --> Policy["Apply reservation, maintenance<br/>and remote-road policy"]
-
-    Economy --> Spawn["Emit harvest spawn demand when needed"]
-    Policy --> Spawn
-
-    Spawn --> Workers["Run reservers, miners,<br/>remote builders and repairers"]
-    Workers --> Phase1["Hauling phase 1<br/>assign, fetch, load, return<br/>register inbound logistics suppliers"]
-    Phase1 --> Result["Return HarvestResult<br/>income + active paths + hauling context"]
-
-    Result --> Colony["Construction → Build → Upgrade → Towers"]
-    Colony --> Logistics["Run colony logistics"]
-    Logistics --> Phase2["Hauling phase 2<br/>finish or fallback delivery<br/>same-tick reassignment<br/>optional relay + pull"]
-```
+[Mermaid source](./docs/diagrams/harvest-flow.mmd)
 
 Source processing shares one sustainable hauler-capacity budget across the colony and consumes it in source order. Remote-room reservation state determines whether a source can operate, when reservation upkeep begins, and when remote construction or maintenance participates.
 
