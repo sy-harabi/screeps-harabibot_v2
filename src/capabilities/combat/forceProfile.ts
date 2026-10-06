@@ -1,4 +1,4 @@
-import type { CreepBody } from "../../creeps/creepBody"
+import { BODY_PART_MAX_HITS, type CreepBody } from "../../creeps/creepBody"
 
 export interface ForceProfile {
   readonly creepCount: number
@@ -59,7 +59,7 @@ export function createForceProfile(bodies: readonly CreepBody[]): ForceProfile {
           break
       }
 
-      if (part.boost === undefined) {
+      if (part.type !== TOUGH || part.boost === undefined) {
         continue
       }
 
@@ -74,7 +74,7 @@ export function createForceProfile(bodies: readonly CreepBody[]): ForceProfile {
       additionalEffectiveHits += part.hits * amplification
 
       toughHealPotentials.push({
-        capacity: part.hits,
+        capacity: BODY_PART_MAX_HITS,
         amplification,
       })
     }
