@@ -1,6 +1,7 @@
 import { createRoomDynamicIntel, createRoomStaticIntel, mergeRoomIntel, type RoomIntel } from "./roomIntel"
 import { roomDynamicIntelMemory } from "./roomDynamicIntelMemory"
 import { roomStaticIntelStore } from "./roomStaticIntelStore"
+import { creepIntelStore } from "./creepIntelStore"
 
 export const intelStore = {
   pretick,
@@ -54,6 +55,7 @@ function observe(room: Room): boolean {
   }
 
   roomDynamicIntelMemory.set(room.name, createRoomDynamicIntel(room))
+  creepIntelStore.observe(room)
 
   prepareMergedIntelCache()
   mergedIntelByRoom.delete(room.name)
