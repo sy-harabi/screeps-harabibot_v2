@@ -5,9 +5,49 @@ const SOURCE_KEEPER_USERNAME = "Source Keeper"
 
 const CREEP_INTEL_STALE_TICKS = 300
 
+let roomIndexTick = -1
+
+const creepIdsByRoom = new Map<string, Id<Creep>[]>()
+
+function getRoomCreepIds(roomName: string): readonly Id<Creep>[] {
+  prepareRoomIndex()
+
+  return creepIdsByRoom.get(roomName) ?? []
+}
+
+function prepareRoomIndex(): void {
+  if (roomIndexTick === Game.time) {
+    return
+  }
+
+  roomIndexTick = Game.time
+  creepIdsByRoom.clear()
+
+  const creeps = getIntelMemory().creeps
+
+  for (const id in creeps) {
+    const creepId = id as Id<Creep>
+    const intel = creeps[creepId]
+
+    if (!isValidCreepIntel(intel)) {
+      continue
+    }
+
+    let ids = creepIdsByRoom.get(intel.lastSeenRoomName)
+
+    if (ids === undefined) {
+      ids = []
+      creepIdsByRoom.set(intel.lastSeenRoomName, ids)
+    }
+
+    ids.push(creepId)
+  }
+}
+
 export const creepIntelStore = {
   get,
   observe,
+  getRoomCreepIds,
 }
 
 function get(id: Id<Creep>): CreepIntel | undefined {
@@ -24,9 +64,11 @@ function observe(room: Room): void {
 
     creeps[creep.id] = createCreepIntel(creep)
   }
+
+  roomIndexTick = -1
 }
 
-function isCurrentRoomIntel(intel: CreepIntel): boolean {
+function isValidCreepIntel(intel: CreepIntel): boolean {
   if (intel.ttlExpiresAt !== undefined && Game.time > intel.ttlExpiresAt) {
     return false
   }
