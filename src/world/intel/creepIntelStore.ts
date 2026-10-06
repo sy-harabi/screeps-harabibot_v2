@@ -70,7 +70,7 @@ function observe(room: Room): void {
 }
 
 function isValidCreepIntel(intel: CreepIntel): boolean {
-  if (intel.ttlExpiresAt !== undefined && Game.time > intel.ttlExpiresAt) {
+  if (intel.ttlExpiresAt !== undefined && Game.time >= intel.ttlExpiresAt) {
     return false
   }
 

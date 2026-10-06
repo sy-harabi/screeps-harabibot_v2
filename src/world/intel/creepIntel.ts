@@ -1,10 +1,5 @@
+import { type CreepBodyPart } from "../../creeps/creepBody"
 import { toRoomIndex } from "../map/roomGrid"
-
-export interface CreepBodyPartIntel {
-  readonly type: BodyPartConstant
-  readonly hits: number
-  readonly boost?: MineralBoostConstant
-}
 
 export interface CreepIntel {
   readonly owner: string
@@ -15,7 +10,7 @@ export interface CreepIntel {
 
   readonly ttlExpiresAt?: number
 
-  readonly body: readonly CreepBodyPartIntel[]
+  readonly body: readonly CreepBodyPart[]
 }
 
 export function createCreepIntel(creep: Creep): CreepIntel {
