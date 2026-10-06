@@ -9,7 +9,7 @@ let roomIndexTick = -1
 
 const creepIdsByRoom = new Map<string, Id<Creep>[]>()
 
-function getRoomCreepIds(roomName: string): readonly Id<Creep>[] {
+function getForeignCreepIds(roomName: string): readonly Id<Creep>[] {
   prepareRoomIndex()
 
   return creepIdsByRoom.get(roomName) ?? []
@@ -30,6 +30,7 @@ function prepareRoomIndex(): void {
     const intel = creeps[creepId]
 
     if (!isValidCreepIntel(intel)) {
+      delete creeps[creepId]
       continue
     }
 
@@ -47,7 +48,7 @@ function prepareRoomIndex(): void {
 export const creepIntelStore = {
   get,
   observe,
-  getRoomCreepIds,
+  getForeignCreepIds,
 }
 
 function get(id: Id<Creep>): CreepIntel | undefined {
