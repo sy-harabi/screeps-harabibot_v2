@@ -1,6 +1,6 @@
-import { IntelMemory } from "./intelMemory"
+import { getIntelMemory } from "./intelMemory"
 import { packDynamicIntel, unpackDynamicIntel } from "./roomIntel"
-import type { PackedRoomDynamicIntel, RoomDynamicIntel } from "./roomIntel"
+import type { RoomDynamicIntel } from "./roomIntel"
 
 export const roomDynamicIntelMemory = {
   has,
@@ -12,21 +12,12 @@ function has(roomName: string): boolean {
   return Memory.intel?.dynamic[roomName] !== undefined
 }
 
-function getMemory(): IntelMemory {
-  Memory.intel ??= {
-    dynamic: {},
-    creeps: {},
-  }
-
-  return Memory.intel
-}
-
 function get(roomName: string): RoomDynamicIntel | undefined {
-  const packed = getMemory().dynamic[roomName]
+  const packed = getIntelMemory().dynamic[roomName]
 
   return packed === undefined ? undefined : unpackDynamicIntel(packed)
 }
 
 function set(roomName: string, intel: RoomDynamicIntel): void {
-  getMemory().dynamic[roomName] = packDynamicIntel(intel)
+  getIntelMemory().dynamic[roomName] = packDynamicIntel(intel)
 }

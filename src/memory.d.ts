@@ -4,7 +4,7 @@ import type { RclProgressMemory } from "./colony/rclProgress"
 import type { CreepAssignment } from "./creeps/creepAssignment"
 import type { CreepRole } from "./creeps/creepRole"
 import type { BotOptionsOverride } from "./options/botOptions"
-import { IntelMemory } from "./world/intel/intelMemory"
+import { type IntelMemory } from "./world/intel/intelMemory"
 
 declare global {
   interface Memory {
