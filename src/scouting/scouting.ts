@@ -4,7 +4,7 @@ import { intelStore } from "../world/intel/intelStore"
 import { getExploreCandidates } from "./explore"
 import { runScouter, SCOUT_ROLE } from "./scouter"
 
-const SCOUT_ROLES = [SCOUT_ROLE]
+const SCOUT_ROLES = [SCOUT_ROLE] as const
 
 export function runScouting(context: TickContext): void {
   if (!intelStore.isReady()) {

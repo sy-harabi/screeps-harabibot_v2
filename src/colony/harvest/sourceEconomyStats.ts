@@ -1,5 +1,6 @@
 import { estimatePathTravelTicks } from "../../capabilities/movement/travelTime"
-import { getRequiredCarryCapacity, type HaulerProfile } from "./hauler"
+import { getRequiredCarryCapacity } from "./hauler"
+import type { HaulerProfile } from "./harvestState"
 import { getHarvestRuntime } from "./harvestRuntime"
 import { createMinerBody } from "./miner"
 

@@ -13,16 +13,16 @@ import {
 } from "./remoteMaintenance"
 import { planHarvest } from "./harvestRoomPlanner"
 import { harvestRoomPlanStore } from "./harvestRoomPlanStore"
-import { getHarvestRuntime, type HaulerTravelRuntime, type RemoteControllerRuntime } from "./harvestRuntime"
-import {
-  createHaulerBody,
-  createHaulTickState,
-  getRequiredCarryCapacity,
-  HAULER_ROLE,
-  type HaulTickState,
-  prepareHauling,
-  type HaulerProfile,
-} from "./hauler"
+import { getHarvestRuntime, type RemoteControllerRuntime } from "./harvestRuntime"
+import { createHaulerBody, createHaulTickState, getRequiredCarryCapacity, HAULER_ROLE, prepareHauling } from "./hauler"
+import type {
+  HarvestResult,
+  HarvestRoomState,
+  HarvestSourceState,
+  HaulerProfile,
+  HaulerSpeedrunState,
+  ReservationState,
+} from "./harvestState"
 import { getMiningPositions, getSourceContainer } from "./miningSite"
 import { createMinerBody, getMinerReplacementLeadTime, MINER_ROLE, runMiners } from "./miner"
 import { createReserverBody, RESERVER_ROLE, runReserver } from "./reserver"
@@ -53,72 +53,7 @@ const RESERVATION_RESTART_MARGIN = 200
 const TARGET_RESERVE_POWER = 2
 const REMOTE_CONSTRUCTION_BATCH_SIZE = 2
 
-interface HarvestRoomState {
-  readonly roomName: string
-  readonly intel: RoomIntel
-  readonly sources: HarvestSourceState[]
-
-  readonly reservationState: ReservationState
-  readonly controllerTravelTicks?: number
-  readonly reserverLeadTime?: number
-
-  reservePower: number
-  hasReserver: boolean
-}
-
-type ReservationState = "owned" | "none" | "ours" | "foreign"
-
-export interface HarvestSourceState {
-  readonly id: Id<Source>
-  readonly roomName: string
-
-  readonly path: readonly RoomPosition[]
-  readonly haulerTravel: HaulerTravelRuntime
-  readonly useRoadPath: boolean
-  readonly haulerCycleTravelTicks: number
-  readonly miningPositions: readonly RoomPosition[]
-
-  readonly requiredHarvestPower: number
-  readonly requiredCarryCapacity: number
-  readonly sourceObject?: Source
-  readonly container?: StructureContainer
-  readonly containerEnergy: number
-  readonly droppedEnergy: number
-  readonly largestDroppedEnergy?: Resource<ResourceConstant>
-
-  sustainableHarvestPower: number
-  activeHarvestPower: number
-  numMiners: number
-
-  remoteBuilderWorkNeeded?: number
-  remoteConstructionTarget?: RoomPosition
-
-  builderCarryEquivalent?: number
-  remoteBuilderCarryCapacity?: number
-  remoteRepairerCarryCapacity?: number
-}
-
-export interface HaulerSpeedrunState {
-  readonly travelingMiners: Creep[]
-}
-
-export interface HaulingTickContext {
-  readonly haulers: readonly Creep[]
-  readonly sourceStates: readonly HarvestSourceState[]
-  readonly sourceById: ReadonlyMap<Id<Source>, HarvestSourceState>
-  readonly haulTickState: HaulTickState
-  readonly speedrun?: HaulerSpeedrunState
-}
-
-export interface HarvestResult {
-  readonly income: number
-  readonly maxIncome: number
-  readonly spawnUsage: number
-  readonly activeSourcePaths?: readonly (readonly RoomPosition[])[]
-  readonly hauling?: HaulingTickContext
-}
-
-const ROLES_BY_PRIORITY = [MINER_ROLE, REMOTE_REPAIRER_ROLE, HAULER_ROLE, RESERVER_ROLE, REMOTE_BUILDER_ROLE]
+const ROLES_BY_PRIORITY = [MINER_ROLE, REMOTE_REPAIRER_ROLE, HAULER_ROLE, RESERVER_ROLE, REMOTE_BUILDER_ROLE] as const
 const EMPTY_HARVEST_RESULT: HarvestResult = { income: 0, maxIncome: 0, spawnUsage: 0 }
 
 export function runHarvest(

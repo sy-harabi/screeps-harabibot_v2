@@ -1,4 +1,4 @@
-import type { HarvestSourceState } from "./harvest"
+import type { HarvestSourceState } from "./harvestState"
 
 const PATH_COLORS = ["#00ffff", "#ffcc00", "#ff66cc", "#66ff66", "#6699ff", "#ff9966"]
 

@@ -1,6 +1,6 @@
 import { moveCreep } from "../../capabilities/movement/movement"
 import { estimatePathTravelTicks } from "../../capabilities/movement/travelTime"
-import { type HarvestSourceState } from "./harvest"
+import { type HarvestSourceState } from "./harvestState"
 
 export const REMOTE_BUILDER_ROLE = "remoteBuilder"
 

@@ -1,4 +1,4 @@
-import type { HarvestSourceState } from "./harvest"
+import type { HarvestSourceState } from "./harvestState"
 import { getHarvestMemory, getHarvestSourceMemory } from "./harvestMemory"
 
 export const REMOTE_MAINTENANCE_INTERVAL = 100

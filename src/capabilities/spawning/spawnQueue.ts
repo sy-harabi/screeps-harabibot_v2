@@ -1,4 +1,5 @@
 import type { CreepAssignment } from "../../creeps/creepAssignment"
+import type { CreepRole } from "../../creeps/creepRole"
 import { getTickContext } from "../../kernel/tickContext"
 import type { SpawnPriorityType } from "./spawnPriority"
 import type { RenewRequest, SpawnBody, SpawnRequest } from "./spawnRequest"
@@ -9,7 +10,7 @@ export interface SpawnRequestContext {
   readonly assignment: CreepAssignment
   readonly priorityType: SpawnPriorityType
   readonly order: number
-  readonly rolesByPriority: readonly string[]
+  readonly rolesByPriority: readonly CreepRole[]
 }
 
 export interface SpawnRoomState {
@@ -30,7 +31,7 @@ export function getSpawnRoomStates(): ReadonlyMap<string, SpawnRoomState> {
 export function requestSpawn(
   context: SpawnRequestContext,
   body: SpawnBody,
-  role: string,
+  role: CreepRole,
   options: {
     memory?: Partial<Omit<CreepMemory, "assignment" | "role">>
   } = {},
@@ -60,7 +61,7 @@ export function requestSpawn(
   })
 }
 
-export function requestRenew(context: SpawnRequestContext, creepName: string, role: string): void {
+export function requestRenew(context: SpawnRequestContext, creepName: string, role: CreepRole): void {
   const roleOrder = getRoleOrder(context, role)
   const state = getSpawnRoomState(context.spawnRoomName)
 
@@ -80,7 +81,7 @@ export function requestRenew(context: SpawnRequestContext, creepName: string, ro
   })
 }
 
-function getRoleOrder(context: SpawnRequestContext, role: string): number {
+function getRoleOrder(context: SpawnRequestContext, role: CreepRole): number {
   const roleOrder = context.rolesByPriority.indexOf(role)
 
   if (roleOrder === -1) {

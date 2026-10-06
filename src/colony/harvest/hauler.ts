@@ -8,33 +8,9 @@ import { getBotOptions } from "../../options/botOptions"
 import type { LogisticsState } from "../logistics/logistics"
 import { registerEnergySupplier } from "../logistics/logistics"
 import { getLogisticsSupplierRuntime } from "../logistics/logisticsRuntime"
-import type { HarvestSourceState } from "./harvest"
+import type { HaulerProfile, HaulTask, HaulTickState, HarvestSourceState } from "./harvestState"
 import { getHaulerRoomCostMatrix } from "./haulerCostMatrix"
 export const HAULER_ROLE = "hauler"
-
-export type HaulTask =
-  | {
-      sourceId: Id<Source>
-      phase: "outbound"
-    }
-  | {
-      sourceId: Id<Source>
-      phase: "loading"
-      loadingSince: number
-    }
-  | {
-      sourceId: Id<Source>
-      phase: "inbound"
-    }
-
-export type HaulerProfile = "1:1" | "2:1"
-
-interface HaulSourceTickState {
-  pendingEnergy: number
-  haulerCount: number
-}
-
-export type HaulTickState = Map<Id<Source>, HaulSourceTickState>
 
 const SPEEDRUN_HAULER_MAX_CARRY = 3
 const LOGISTICS_ENTRY_RANGE = 6

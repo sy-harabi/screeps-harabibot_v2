@@ -1,7 +1,7 @@
 import { tryCreateConstructionSite } from "../../capabilities/construction/constructionSite"
 import { moveCreep } from "../../capabilities/movement/movement"
 import { BUILDER_ROLE } from "../build/builder"
-import type { HarvestSourceState } from "./harvest"
+import type { HarvestSourceState } from "./harvestState"
 import type { RemoteMaintenanceMemory } from "./harvestMemory"
 import { getHarvestMemory } from "./harvestMemory"
 import { createRemoteBuilderBody, REMOTE_BUILDER_TARGET_WORK } from "./remoteBuilder"

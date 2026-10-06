@@ -4,15 +4,13 @@ import { handoffKnownPathIndex, swapKnownPathIndex } from "../../capabilities/mo
 import { clearMoveRequest, getIntendedCoord, registerMove } from "../../capabilities/movement/traffic"
 import type { LogisticsState } from "../logistics/logistics"
 import { getLogisticsSupplierRuntime, swapLogisticsSupplierRuntime } from "../logistics/logisticsRuntime"
-import type { HarvestSourceState, HaulingTickContext } from "./harvest"
+import type { HaulTask, HaulTickState, HarvestSourceState, HaulingTickContext } from "./harvestState"
 import {
   finishHaulTask,
   HAULER_MOVE_OPTIONS,
   HAULER_PATH_OPTIONS,
   HAULER_REVERSE_PATH_OPTIONS,
   HAULER_ROLE,
-  type HaulTickState,
-  type HaulTask,
 } from "./hauler"
 
 interface Coordinate {

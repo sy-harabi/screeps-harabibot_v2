@@ -1,3 +1,5 @@
+import type { CreepRole } from "../creeps/creepRole"
+
 export interface ColonyEnergyState {
   readonly storage: number
   readonly terminal: number
@@ -12,16 +14,16 @@ export interface TickContext {
   readonly creepsByMission: ReadonlyMap<string, CreepsByRole>
 }
 
-type CreepsByRole = ReadonlyMap<string, readonly Creep[]>
-type MutableCreepsByRole = Map<string, Creep[]>
+type CreepsByRole = ReadonlyMap<CreepRole, readonly Creep[]>
+type MutableCreepsByRole = Map<CreepRole, Creep[]>
 
 let currentContext: TickContext | undefined
 
-export function getColonyCreeps(context: TickContext, colonyName: string, role: string): readonly Creep[] {
+export function getColonyCreeps(context: TickContext, colonyName: string, role: CreepRole): readonly Creep[] {
   return context.creepsByColony.get(colonyName)?.get(role) ?? []
 }
 
-export function getMissionCreeps(context: TickContext, missionId: string, role: string): readonly Creep[] {
+export function getMissionCreeps(context: TickContext, missionId: string, role: CreepRole): readonly Creep[] {
   return context.creepsByMission.get(missionId)?.get(role) ?? []
 }
 
@@ -94,7 +96,7 @@ function createColonyEnergyState(room: Room): ColonyEnergyState {
   }
 }
 
-function addCreep(index: Map<string, MutableCreepsByRole>, id: string, role: string, creep: Creep): void {
+function addCreep(index: Map<string, MutableCreepsByRole>, id: string, role: CreepRole, creep: Creep): void {
   let creepsByRole = index.get(id)
 
   if (creepsByRole === undefined) {
