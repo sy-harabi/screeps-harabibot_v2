@@ -1,9 +1,6 @@
+import { IntelMemory } from "./intelMemory"
 import { packDynamicIntel, unpackDynamicIntel } from "./roomIntel"
 import type { PackedRoomDynamicIntel, RoomDynamicIntel } from "./roomIntel"
-
-export interface IntelMemory {
-  dynamic: Record<string, PackedRoomDynamicIntel>
-}
 
 export const roomDynamicIntelMemory = {
   has,
@@ -18,6 +15,7 @@ function has(roomName: string): boolean {
 function getMemory(): IntelMemory {
   Memory.intel ??= {
     dynamic: {},
+    creeps: {},
   }
 
   return Memory.intel
