@@ -14,11 +14,15 @@ import { runScouting } from "./scouting/scouting"
 import { runTest } from "./test"
 import "./visuals/roomVisual"
 import { intelStore } from "./world/intel/intelStore"
+import { missionStore } from "./missions/missionStore"
+import { runMissions } from "./missions/missionManager"
 
 export function loop(): void {
   segmentManager.pretick()
 
   const context = createTickContext()
+
+  missionStore.prepare()
 
   updateRclProgress(context)
 
@@ -39,6 +43,8 @@ export function loop(): void {
   }
 
   runScouting(context)
+
+  runMissions(context)
 
   if (intelStore.isReady() && harvestRoomPlanStore.isReady()) {
     runColonies(context)
