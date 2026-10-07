@@ -4,6 +4,7 @@ import { requestSpawn } from "../../capabilities/spawning/spawnQueue"
 import { getColonyCreeps, type TickContext } from "../../kernel/tickContext"
 import { getBotOptions } from "../../options/botOptions"
 import { intelStore } from "../../world/intel/intelStore"
+import { type RoomIntel } from "../../world/intel/roomIntel"
 import type { LogisticsState } from "../logistics/logistics"
 import { getHarvestSourceMemory } from "./harvestMemory"
 import {
@@ -21,11 +22,16 @@ import type {
   HarvestSourceState,
   HaulerProfile,
   HaulerSpeedrunState,
-  ReservationState,
 } from "./harvestState"
 import { getMiningPositions, getSourceContainer } from "./miningSite"
 import { createMinerBody, getMinerReplacementLeadTime, MINER_ROLE, runMiners } from "./miner"
 import { createReserverBody, RESERVER_ROLE, runReserver } from "./reserver"
+import {
+  getReservationState,
+  getReservationUpkeep,
+  isReservationLifecycleActive,
+  needsReserver,
+} from "./reservationPolicy"
 import { getSourceEconomyStats } from "./sourceEconomyStats"
 import { visualizeHarvest, type HarvestVisualReservationRow, type HarvestVisualSourceRow } from "./harvestVisual"
 import { visualizeHarvestPaths } from "./harvestPathVisual"
@@ -45,12 +51,9 @@ import {
   type RemoteConstructionSourceState,
 } from "./remoteConstruction"
 import { createRemoteRepairerBody, REMOTE_REPAIRER_ROLE, runRemoteRepairers } from "./remoteRepairer"
-import { type RoomIntel } from "../../world/intel/roomIntel"
 
 const SOURCE_CONTAINER_REPAIR_THRESHOLD = 150_000
 const RESERVER_REPLACEMENT_BUFFER = 20
-const RESERVATION_RESTART_MARGIN = 200
-const TARGET_RESERVE_POWER = 2
 const REMOTE_CONSTRUCTION_BATCH_SIZE = 2
 
 const ROLES_BY_PRIORITY = [MINER_ROLE, REMOTE_REPAIRER_ROLE, HAULER_ROLE, RESERVER_ROLE, REMOTE_BUILDER_ROLE] as const
@@ -689,71 +692,6 @@ function getRemoteBuilderWork(builders: readonly Creep[]): number {
   }
 
   return result
-}
-
-function getReservationState(intel: RoomIntel, username: string): ReservationState {
-  if (intel.controller?.owner?.username === username) {
-    return "owned"
-  }
-
-  const reservation = intel.controller?.reservation
-
-  if (reservation === undefined || reservation.endTick <= Game.time) {
-    return "none"
-  }
-
-  return reservation.username === username ? "ours" : "foreign"
-}
-
-function getReservationTicks(roomState: HarvestRoomState): number {
-  if (roomState.reservationState !== "ours") {
-    return 0
-  }
-
-  const endTick = roomState.intel.controller?.reservation?.endTick
-
-  return endTick === undefined ? 0 : Math.max(0, endTick - Game.time)
-}
-
-function needsReserver(roomState: HarvestRoomState): boolean {
-  const leadTime = roomState.reserverLeadTime
-
-  if (leadTime === undefined || roomState.reservePower >= TARGET_RESERVE_POWER) {
-    return false
-  }
-
-  return getReservationTicks(roomState) - leadTime < RESERVATION_RESTART_MARGIN
-}
-
-function isReservationLifecycleActive(roomState: HarvestRoomState, firstSourceReady = false): boolean {
-  if (roomState.reservationState === "ours" || roomState.hasReserver) {
-    return true
-  }
-
-  if (roomState.reserverLeadTime === undefined) {
-    return false
-  }
-
-  return roomState.reservationState === "foreign" || (roomState.reservationState === "none" && firstSourceReady)
-}
-
-function getReservationUpkeep(roomState: HarvestRoomState): { energy: number; spawnUsage: number } {
-  const travelTicks = roomState.controllerTravelTicks
-
-  if (travelTicks === undefined) {
-    return { energy: 0, spawnUsage: 0 }
-  }
-
-  const productiveLifetime = CREEP_CLAIM_LIFE_TIME - travelTicks
-
-  if (productiveLifetime <= 0) {
-    return { energy: 0, spawnUsage: 0 }
-  }
-
-  return {
-    energy: 650 / productiveLifetime,
-    spawnUsage: (TARGET_RESERVE_POWER * CREEP_SPAWN_TIME) / productiveLifetime,
-  }
 }
 
 function getTargetMinerWork(room: Room, source: HarvestSourceState): number {
