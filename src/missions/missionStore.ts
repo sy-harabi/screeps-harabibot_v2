@@ -1,15 +1,12 @@
 import type { MissionId } from "./mission"
 import type { MissionMemory, MissionOfType, MissionType } from "./missionMemory"
 
-export interface MissionEntry<T extends MissionMemory = MissionMemory> {
-  readonly id: MissionId
-  readonly mission: T
-}
-
 let preparedTick = -1
 
-const missionsByType = new Map<MissionType, MissionEntry[]>()
-const childrenByParent = new Map<MissionId, MissionEntry[]>()
+const missionsByType = new Map<MissionType, Map<MissionId, MissionMemory>>()
+const childrenByParent = new Map<MissionId, Map<MissionId, MissionMemory>>()
+
+const EMPTY_MISSIONS: ReadonlyMap<MissionId, MissionMemory> = new Map()
 
 export const missionStore = {
   prepare,
@@ -34,16 +31,15 @@ function remove(id: MissionId): void {
   delete getMissionMemory()[id]
 }
 
-function getChildren(parentId: MissionId): readonly MissionEntry[] {
+function getChildren(parentId: MissionId): ReadonlyMap<MissionId, MissionMemory> {
   assertPrepared()
 
-  return childrenByParent.get(parentId) ?? []
+  return childrenByParent.get(parentId) ?? EMPTY_MISSIONS
 }
-
-function getByType<T extends MissionType>(type: T): readonly MissionEntry<MissionOfType<T>>[] {
+function getByType<T extends MissionType>(type: T): ReadonlyMap<MissionId, MissionOfType<T>> {
   assertPrepared()
 
-  return (missionsByType.get(type) ?? []) as unknown as readonly MissionEntry<MissionOfType<T>>[]
+  return (missionsByType.get(type) ?? EMPTY_MISSIONS) as ReadonlyMap<MissionId, MissionOfType<T>>
 }
 
 function get(id: MissionId): MissionMemory | undefined {
@@ -71,19 +67,14 @@ function prepare(): void {
   childrenByParent.clear()
 
   for (const [id, mission] of Object.entries(getMissionMemory())) {
-    const entry: MissionEntry = {
-      id,
-      mission,
-    }
-
     let byType = missionsByType.get(mission.type)
 
     if (byType === undefined) {
-      byType = []
+      byType = new Map()
       missionsByType.set(mission.type, byType)
     }
 
-    byType.push(entry)
+    byType.set(id, mission)
 
     if (mission.parentId === undefined) {
       continue
@@ -92,10 +83,10 @@ function prepare(): void {
     let children = childrenByParent.get(mission.parentId)
 
     if (children === undefined) {
-      children = []
+      children = new Map()
       childrenByParent.set(mission.parentId, children)
     }
 
-    children.push(entry)
+    children.set(id, mission)
   }
 }
