@@ -3,19 +3,13 @@ import { getColonyCreeps, type TickContext } from "../../kernel/tickContext"
 import { getBotOptions } from "../../options/botOptions"
 import { intelStore } from "../../world/intel/intelStore"
 import type { LogisticsState } from "../logistics/logistics"
-import { prepareHarvestRoomStates } from "./harvestPreparation"
+import { prepareHarvestState } from "./harvestPreparation"
 import { runHarvestScheduler } from "./harvestScheduler"
 import { reconcileRemoteMaintenance } from "./remoteMaintenance"
 import { planHarvest } from "./harvestRoomPlanner"
 import { harvestRoomPlanStore } from "./harvestRoomPlanStore"
 import { createHaulTickState, HAULER_ROLE, prepareHauling } from "./hauler"
-import type {
-  HarvestResult,
-  HarvestRoomState,
-  HarvestSourceState,
-  HaulerProfile,
-  HaulerSpeedrunState,
-} from "./harvestState"
+import type { HarvestResult, HaulerProfile, HaulerSpeedrunState } from "./harvestState"
 import { getMinerReplacementLeadTime, MINER_ROLE, runMiners } from "./miner"
 import { createReserverBody, RESERVER_ROLE, runReserver } from "./reserver"
 import { visualizeHarvest } from "./harvestVisual"
@@ -46,29 +40,18 @@ export function runHarvest(
   const options = getBotOptions()
   const reserverBody = createReserverBody(room)
 
-  const roomStates = prepareHarvestRoomStates(room, basePlan, reserverBody, options.speedrun)
-
-  const roomByName = new Map<string, HarvestRoomState>()
-  const sourceStates: HarvestSourceState[] = []
-  const sourceById = new Map<Id<Source>, HarvestSourceState>()
-  const sourceIndexById = new Map<Id<Source>, number>()
+  const { roomStates, roomByName, sourceStates, sourceById, sourceIndexById } = prepareHarvestState(
+    room,
+    basePlan,
+    reserverBody,
+    options.speedrun,
+  )
 
   const remoteBuildersBySource = new Map<Id<Source>, Creep[]>()
   const unassignedRemoteBuilders: Creep[] = []
   const remoteConstructionBySource = new Map<Id<Source>, RemoteConstructionSourceState>()
 
   let activeRemoteConstructionCount = 0
-
-  for (const roomState of roomStates) {
-    roomByName.set(roomState.roomName, roomState)
-
-    for (let i = 0; i < roomState.sources.length; i++) {
-      const source = roomState.sources[i]
-      sourceStates.push(source)
-      sourceById.set(source.id, source)
-      sourceIndexById.set(source.id, i)
-    }
-  }
 
   reconcileRemoteMaintenance(room, sourceStates)
 

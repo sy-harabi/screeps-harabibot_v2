@@ -13,20 +13,34 @@ import { getReservationState } from "./reservationPolicy"
 
 const RESERVER_REPLACEMENT_BUFFER = 20
 
-export function prepareHarvestRoomStates(
+export interface PreparedHarvestState {
+  readonly roomStates: HarvestRoomState[]
+  readonly roomByName: Map<string, HarvestRoomState>
+  readonly sourceStates: HarvestSourceState[]
+  readonly sourceById: Map<Id<Source>, HarvestSourceState>
+  readonly sourceIndexById: Map<Id<Source>, number>
+}
+
+export function prepareHarvestState(
   room: Room,
   basePlan: BasePlan,
   reserverBody: readonly BodyPartConstant[] | undefined,
   speedrun: boolean,
-): HarvestRoomState[] {
+): PreparedHarvestState {
   const colonyName = room.name
   const username = room.controller?.owner?.username
 
   if (username === undefined) {
-    return []
+    return {
+      roomStates: [],
+      roomByName: new Map(),
+      sourceStates: [],
+      sourceById: new Map(),
+      sourceIndexById: new Map(),
+    }
   }
 
-  const result: HarvestRoomState[] = []
+  const roomStates: HarvestRoomState[] = []
   const runtime = getHarvestRuntime(colonyName)
 
   runtime.miningPositionsBySource ??= new Map()
@@ -137,7 +151,7 @@ export function prepareHarvestRoomStates(
       }
     }
 
-    result.push({
+    roomStates.push({
       roomName,
       intel,
       sources,
@@ -149,7 +163,7 @@ export function prepareHarvestRoomStates(
     })
   }
 
-  result.sort((left, right) => {
+  roomStates.sort((left, right) => {
     const leftRemote = left.roomName !== colonyName
     const rightRemote = right.roomName !== colonyName
     const leftDistance = left.sources[0]?.path.length ?? Infinity
@@ -162,7 +176,30 @@ export function prepareHarvestRoomStates(
     )
   })
 
-  return result
+  const roomByName = new Map<string, HarvestRoomState>()
+  const sourceStates: HarvestSourceState[] = []
+  const sourceById = new Map<Id<Source>, HarvestSourceState>()
+  const sourceIndexById = new Map<Id<Source>, number>()
+
+  for (const roomState of roomStates) {
+    roomByName.set(roomState.roomName, roomState)
+
+    for (let i = 0; i < roomState.sources.length; i++) {
+      const source = roomState.sources[i]
+
+      sourceStates.push(source)
+      sourceById.set(source.id, source)
+      sourceIndexById.set(source.id, i)
+    }
+  }
+
+  return {
+    roomStates,
+    roomByName,
+    sourceStates,
+    sourceById,
+    sourceIndexById,
+  }
 }
 
 function getRemoteControllerRuntime(
