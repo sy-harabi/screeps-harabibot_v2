@@ -59,36 +59,42 @@ interface MissionBaseMemory {
 
 The initial mission core only needs small helpers for create, lookup, child lookup, finish, and deletion. Do not add a generic planner, universal plan/execute contract, or abstract mission base class until concrete missions need one.
 
-### 5. Shared Screeps combat code begins with a physical profile
+### 5. Shared Screeps combat code begins with compact creep capabilities
 
-The first reusable capability derives a physical profile from a creep body and boosts.
+A creep body is analyzed into a compact fixed tuple of physical capabilities. Persistent creep observations store that
+tuple rather than the raw body array.
 
-An initial shape may include:
+The tuple records full-potential capability, not the creep's current damaged state. Remote-defense sizing is usually
+concerned with the force after ordinary healing has restored damaged parts, so a temporarily disabled part still
+contributes its normal capability. Tactical code that needs the exact current state of a visible creep may read the live
+creep directly.
 
-```ts
-interface CombatProfile {
-  attack: number
-  rangedAttack: number
-  heal: number
-  rangedHeal: number
-  dismantle: number
-  hits: number
-  effectiveHits: number
-  effectiveSustain: number
-}
-```
+Store independent boost channels rather than every possible derived action value. ATTACK, RANGED_ATTACK, and HEAL each
+need one effective-part value. WORK keeps separate harvest, build/repair, dismantle, and upgrade-controller channels
+because those actions use different boosts. CARRY, MOVE, and CLAIM keep only the independent values needed to reconstruct
+their effects.
 
-The exact shape may evolve.
+Boosted TOUGH is the exception to aggressive aggregation. Preserve full hits separately for tier 1, tier 2, and tier 3
+damage reduction. ForceProfile aggregates those tier buckets across the force, derives additional effective hits, and
+applies available healing to the strongest remaining TOUGH tier first when estimating healing amplification.
 
-The calculation is independent of mission type and opponent history. Live-creep and prospective-body calculations should share the same rules.
+ForceProfile therefore aggregates already analyzed capabilities and converts effective-part values into Screeps action
+power. Body parsing, force aggregation, and engagement estimation remain separate responsibilities.
 
-Boosted TOUGH should affect both burst durability and the value of healing while TOUGH is taking incoming pressure. The initial implementation may use a cheap heuristic rather than an exact multi-tick simulation, but burst durability and sustain must remain separate enough to avoid double counting.
+Body order is intentionally not preserved in this compact representation. If a future exact multi-tick damage simulator
+needs to model which body part is destroyed next, add a dedicated compact body representation for that concrete use case
+rather than keeping raw bodies in all persistent creep intel.
 
-### 6. Live perception stays outside persistent RoomIntel
+### 6. Persistent RoomIntel stays separate from creep observations
 
-Shared helpers should identify combat-capable creeps, group visible opponents, and aggregate profiles from live room state.
+Persistent RoomIntel remains observed room state and does not absorb transient creep lists or combat judgments.
 
-Transient creep bodies and positions should not be added to persistent RoomIntel merely for combat. A mission may persist the last-known threat information that its own lifecycle actually needs.
+Foreign creep observations are stored separately by creep ID. They contain owner, observation time, last observed
+position, expected lifetime, and the compact full-potential capability tuple. Raw body arrays are not persisted for this
+purpose.
+
+Opponent behavior, historical combat results, and other strategic judgments remain outside both RoomIntel and creep
+physics.
 
 ### 7. Engagement estimation returns measurements, not commands
 

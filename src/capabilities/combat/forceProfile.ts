@@ -1,4 +1,9 @@
-import { BODY_PART_MAX_HITS, type CreepBody } from "../../creeps/creepBody"
+import {
+  BODY_PART_HITS,
+  CREEP_CAPABILITY,
+  TOUGH_TIER_DAMAGE_MULTIPLIERS,
+  type CreepCapabilities,
+} from "../../creeps/creepCapabilities"
 
 export interface ForceProfile {
   readonly creepCount: number
@@ -14,94 +19,54 @@ export interface ForceProfile {
   readonly healAmplification: number
 }
 
-interface ToughHealPotential {
-  readonly capacity: number
-  readonly amplification: number
-}
-
-const boostTable: Record<string, Record<string, Record<string, number>>> = BOOSTS
-
-export function createForceProfile(bodies: readonly CreepBody[]): ForceProfile {
+export function createForceProfile(capabilities: readonly CreepCapabilities[]): ForceProfile {
   let hits = 0,
-    additionalEffectiveHits = 0,
     heal = 0,
-    rangedHeal = 0,
     attack = 0,
     rangedAttack = 0,
-    dismantle = 0
+    dismantle = 0,
+    toughTier1Hits = 0,
+    toughTier2Hits = 0,
+    toughTier3Hits = 0
 
-  const toughHealPotentials: ToughHealPotential[] = []
+  for (const creep of capabilities) {
+    hits += creep[CREEP_CAPABILITY.bodySize] * BODY_PART_HITS
 
-  for (const body of bodies) {
-    for (const part of body) {
-      hits += part.hits
+    attack += creep[CREEP_CAPABILITY.attack] * ATTACK_POWER
+    rangedAttack += creep[CREEP_CAPABILITY.rangedAttack] * RANGED_ATTACK_POWER
+    heal += creep[CREEP_CAPABILITY.heal] * HEAL_POWER
+    dismantle += creep[CREEP_CAPABILITY.dismantle] * DISMANTLE_POWER
 
-      if (part.hits <= 0) {
-        continue
-      }
-
-      switch (part.type) {
-        case ATTACK:
-          attack += ATTACK_POWER * getBoostMultiplier(part, "attack")
-          break
-
-        case RANGED_ATTACK:
-          rangedAttack += RANGED_ATTACK_POWER * getBoostMultiplier(part, "rangedAttack")
-          break
-
-        case HEAL:
-          heal += HEAL_POWER * getBoostMultiplier(part, "heal")
-          rangedHeal += RANGED_HEAL_POWER * getBoostMultiplier(part, "rangedHeal")
-          break
-
-        case WORK:
-          dismantle += DISMANTLE_POWER * getBoostMultiplier(part, "dismantle")
-          break
-      }
-
-      if (part.type !== TOUGH || part.boost === undefined) {
-        continue
-      }
-
-      const damageMultiplier = boostTable[TOUGH]?.[part.boost]?.damage ?? 1
-
-      if (damageMultiplier === 1) {
-        continue
-      }
-
-      const amplification = 1 / damageMultiplier - 1
-
-      additionalEffectiveHits += part.hits * amplification
-
-      toughHealPotentials.push({
-        capacity: BODY_PART_MAX_HITS,
-        amplification,
-      })
-    }
+    toughTier1Hits += creep[CREEP_CAPABILITY.toughTier1Hits]
+    toughTier2Hits += creep[CREEP_CAPABILITY.toughTier2Hits]
+    toughTier3Hits += creep[CREEP_CAPABILITY.toughTier3Hits]
   }
 
-  toughHealPotentials.sort((left, right) => right.amplification - left.amplification)
+  const additionalEffectiveHits =
+    getAdditionalEffectiveHits(toughTier1Hits, TOUGH_TIER_DAMAGE_MULTIPLIERS[0]) +
+    getAdditionalEffectiveHits(toughTier2Hits, TOUGH_TIER_DAMAGE_MULTIPLIERS[1]) +
+    getAdditionalEffectiveHits(toughTier3Hits, TOUGH_TIER_DAMAGE_MULTIPLIERS[2])
 
   let remainingHeal = heal
   let healAmplification = 0
 
-  for (const potential of toughHealPotentials) {
-    if (remainingHeal <= 0) {
-      break
-    }
+  const tier3Heal = Math.min(remainingHeal, toughTier3Hits)
+  healAmplification += getAdditionalEffectiveHits(tier3Heal, TOUGH_TIER_DAMAGE_MULTIPLIERS[2])
+  remainingHeal -= tier3Heal
 
-    const appliedHeal = Math.min(remainingHeal, potential.capacity)
+  const tier2Heal = Math.min(remainingHeal, toughTier2Hits)
+  healAmplification += getAdditionalEffectiveHits(tier2Heal, TOUGH_TIER_DAMAGE_MULTIPLIERS[1])
+  remainingHeal -= tier2Heal
 
-    healAmplification += appliedHeal * potential.amplification
-    remainingHeal -= appliedHeal
-  }
+  const tier1Heal = Math.min(remainingHeal, toughTier1Hits)
+  healAmplification += getAdditionalEffectiveHits(tier1Heal, TOUGH_TIER_DAMAGE_MULTIPLIERS[0])
 
   return {
-    creepCount: bodies.length,
+    creepCount: capabilities.length,
     attack,
     rangedAttack,
     heal,
-    rangedHeal,
+    rangedHeal: (heal / HEAL_POWER) * RANGED_HEAL_POWER,
     dismantle,
     hits,
     additionalEffectiveHits,
@@ -109,10 +74,6 @@ export function createForceProfile(bodies: readonly CreepBody[]): ForceProfile {
   }
 }
 
-function getBoostMultiplier(part: CreepBody[number], action: string): number {
-  if (part.boost === undefined) {
-    return 1
-  }
-
-  return boostTable[part.type]?.[part.boost]?.[action] ?? 1
+function getAdditionalEffectiveHits(hits: number, damageMultiplier: number): number {
+  return hits * (1 / damageMultiplier - 1)
 }

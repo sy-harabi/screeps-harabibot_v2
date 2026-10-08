@@ -1,4 +1,4 @@
-import { type CreepBodyPart } from "../../creeps/creepBody"
+import { getCreepCapabilities, type CreepCapabilities } from "../../creeps/creepCapabilities"
 import { toRoomIndex } from "../map/roomGrid"
 
 export interface CreepIntel {
@@ -10,7 +10,7 @@ export interface CreepIntel {
 
   readonly ttlExpiresAt?: number
 
-  readonly body: readonly CreepBodyPart[]
+  readonly capabilities: CreepCapabilities
 }
 
 export function createCreepIntel(creep: Creep): CreepIntel {
@@ -23,10 +23,6 @@ export function createCreepIntel(creep: Creep): CreepIntel {
 
     ttlExpiresAt: creep.ticksToLive === undefined ? undefined : Game.time + creep.ticksToLive,
 
-    body: creep.body.map((part) => ({
-      type: part.type,
-      hits: part.hits,
-      boost: part.boost as MineralBoostConstant | undefined,
-    })),
+    capabilities: getCreepCapabilities(creep),
   }
 }
