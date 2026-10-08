@@ -3,6 +3,8 @@ import { basePlanStore } from "../capabilities/basePlanning/basePlanStore"
 import { visualizeBasePlanStructures } from "../capabilities/basePlanning/basePlanVisual"
 import { planBase } from "../capabilities/basePlanning/planBase"
 import type { TickContext } from "../kernel/tickContext"
+import { ensureRemoteDefenseMission } from "../missions/remoteDefense/remoteDefense"
+import { getRemoteDefenseState } from "../missions/remoteDefense/remoteDefenseState"
 import { runBuild } from "./build/build"
 import { runConstruction } from "./build/construction"
 import { runHarvest } from "./harvest/harvest"
@@ -33,6 +35,12 @@ function runColony(room: Room, context: TickContext): void {
   const logistics = createLogisticsState()
 
   const harvest = runHarvest(room, basePlan, context, logistics)
+
+  const remoteDefense = getRemoteDefenseState(room.name)
+
+  if (remoteDefense !== undefined && remoteDefense.hostileCreepIds.size > 0) {
+    ensureRemoteDefenseMission(room.name)
+  }
 
   const construction = runConstruction(room, basePlan, harvest.activeSourcePaths)
 

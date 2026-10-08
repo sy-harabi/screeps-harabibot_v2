@@ -1,10 +1,9 @@
 import { isRemoteThreat } from "../../capabilities/combat/combatPerception"
 import { createForceProfile, type ForceProfile } from "../../capabilities/combat/forceProfile"
 import { harvestRoomPlanStore } from "../../colony/harvest/harvestRoomPlanStore"
-import { type CreepCapabilities } from "../../creeps/creepCapabilities"
+import { getRemoteRoomsByPathRoom } from "../../colony/harvest/remoteTopology"
+import type { CreepCapabilities } from "../../creeps/creepCapabilities"
 import { creepIntelStore } from "../../world/intel/creepIntelStore"
-
-type RemotesByProtectedRoom = Map<string, Set<string>>
 
 export interface RemoteThreat {
   readonly roomName: string
@@ -20,9 +19,14 @@ export interface RemoteDefenseTickState {
   readonly hostileProfile: ForceProfile
 }
 
+interface CachedRemoteDefenseState {
+  readonly remoteRoomsByPathRoom: ReadonlyMap<string, ReadonlySet<string>>
+  readonly state: RemoteDefenseTickState
+}
+
 let stateTick = -1
 
-const stateByColony = new Map<string, RemoteDefenseTickState>()
+const stateByColony = new Map<string, CachedRemoteDefenseState>()
 
 export function getRemoteDefenseState(colonyName: string): RemoteDefenseTickState | undefined {
   if (!harvestRoomPlanStore.isReady()) {
@@ -34,29 +38,33 @@ export function getRemoteDefenseState(colonyName: string): RemoteDefenseTickStat
     stateByColony.clear()
   }
 
+  const remoteRoomsByPathRoom = getRemoteRoomsByPathRoom(colonyName)
   const cached = stateByColony.get(colonyName)
 
-  if (cached !== undefined) {
-    return cached
+  if (cached?.remoteRoomsByPathRoom === remoteRoomsByPathRoom) {
+    return cached.state
   }
 
-  const state = createRemoteDefenseState(colonyName)
+  const state = createRemoteDefenseState(remoteRoomsByPathRoom)
 
-  stateByColony.set(colonyName, state)
+  stateByColony.set(colonyName, {
+    remoteRoomsByPathRoom,
+    state,
+  })
 
   return state
 }
 
-function createRemoteDefenseState(colonyName: string): RemoteDefenseTickState {
-  const remotesByProtectedRoom = createRemotesByProtectedRoom(colonyName)
-
+function createRemoteDefenseState(
+  remoteRoomsByPathRoom: ReadonlyMap<string, ReadonlySet<string>>,
+): RemoteDefenseTickState {
   const threatsByRoom = new Map<string, RemoteThreat>()
   const unsafeRemoteRooms = new Set<string>()
 
   const hostileCreepIds = new Set<Id<Creep>>()
   const hostileCapabilities: CreepCapabilities[] = []
 
-  for (const [roomName, affectedRemoteRooms] of remotesByProtectedRoom) {
+  for (const [roomName, affectedRemoteRooms] of remoteRoomsByPathRoom) {
     const creepIds: Id<Creep>[] = []
 
     for (const id of creepIntelStore.getForeignCreepIds(roomName)) {
@@ -95,45 +103,4 @@ function createRemoteDefenseState(colonyName: string): RemoteDefenseTickState {
     hostileCreepIds,
     hostileProfile: createForceProfile(hostileCapabilities),
   }
-}
-
-function createRemotesByProtectedRoom(colonyName: string): RemotesByProtectedRoom {
-  const result = new Map<string, Set<string>>()
-
-  for (const remoteRoomName of harvestRoomPlanStore.getByColony(colonyName)) {
-    if (remoteRoomName === colonyName) {
-      continue
-    }
-
-    const plan = harvestRoomPlanStore.get(remoteRoomName)
-
-    if (plan === undefined) {
-      continue
-    }
-
-    const protectedRooms = new Set<string>([remoteRoomName])
-
-    for (const source of plan.sources.values()) {
-      for (const pos of source.path) {
-        if (pos.roomName === colonyName) {
-          continue
-        }
-
-        protectedRooms.add(pos.roomName)
-      }
-    }
-
-    for (const protectedRoomName of protectedRooms) {
-      let remoteRooms = result.get(protectedRoomName)
-
-      if (remoteRooms === undefined) {
-        remoteRooms = new Set()
-        result.set(protectedRoomName, remoteRooms)
-      }
-
-      remoteRooms.add(remoteRoomName)
-    }
-  }
-
-  return result
 }

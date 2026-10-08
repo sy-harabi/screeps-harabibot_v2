@@ -6,6 +6,7 @@ export interface HarvestRuntime {
   remoteControllersByRoom?: Map<string, RemoteControllerRuntime>
   haulerTravelBySource?: Map<Id<Source>, HaulerTravelRuntime>
   miningPositionsBySource?: Map<Id<Source>, MiningPositionsRuntime>
+  remoteRoomsByPathRoom?: ReadonlyMap<string, ReadonlySet<string>>
 }
 
 export interface MiningPositionsRuntime {
